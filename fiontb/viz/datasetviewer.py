@@ -11,7 +11,7 @@ class DatasetViewer:
         for idx in [0, 1]:
             snap = self.dataset[idx]
             if True:
-                for point, color in zip(snap.world_points, snap.colors):
+                for point, color in zip(snap.cam_points, snap.colors):
                     pcl.points.append(point.squeeze())
                     pcl.colors.append(color)
             print(idx)

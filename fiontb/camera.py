@@ -70,7 +70,9 @@ class KCamera:
         return cls(np.matmul(k_trans, k_scale), undist_coeff,
                    depth_radial_distortion, image_size)
 
-    def unproject_image_to_cam(self, points):
+    def backproject(self, points):
+        """Project image to camera space.
+        """
         xyz_coords = points[:, 0:2]
         xyz_coords = np.insert(xyz_coords, 2, 1.0, axis=1)
         xyz_coords = np.matmul(np.linalg.inv(
@@ -87,7 +89,9 @@ class KCamera:
 
         return xyz_coords
 
-    def project_cam_to_image(self, points):
+    def project(self, points):
+        """Project camera to image space.
+        """
         points = np.matmul(self.matrix, points)
 
         z = points[:, 2, 0]
