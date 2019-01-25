@@ -43,7 +43,7 @@ setup(
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 2.7'
+        'Programming Language :: Python :: 3.6'
     ],
     keywords='fusion 3d reconstruction',
     packages=find_packages(),

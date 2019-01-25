@@ -4,7 +4,7 @@
 import numpy as np
 import onireader
 
-from fusionkit.camera import KCamera, RTCamera
+from fiontb.camera import KCamera, RTCamera
 from .datatype import Snapshot
 
 
@@ -26,11 +26,12 @@ class SceneNN:
 
     def __getitem__(self, idx):
         depth_img = self.ni_dev.readDepth()
-        rgb_img = self.ni_dev.readColor() / 255.0
+        rgb_img = self.ni_dev.readColor()
 
         rt_mtx = self.trajectory[idx]
-        return Snapshot(depth_img, rgb_img, self.k_cam,
-                        RTCamera(rt_mtx))
+
+        return Snapshot(depth_img, kcam=self.k_cam, rgb_image=rgb_img,
+                        rt_cam=RTCamera(rt_mtx))
 
     def __len__(self):
         return len(self.ni_dev)

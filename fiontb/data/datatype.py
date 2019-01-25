@@ -5,9 +5,9 @@ import numpy as np
 
 class Snapshot:
     def __init__(self, depth_image, kcam=None, depth_scale=1.0, depth_bias=0.0,
-                 rgb_image=None, rt_cam=None, rgb_kcam=None, fg_mask=None):
+                 rgb_image=None, rt_cam=None, rgb_kcam=None, fg_mask=None, timestamp=None):
         self.depth_image = depth_image
-        
+
         self.depth_scale = depth_scale
         self.depth_bias = 0.0
 
@@ -46,3 +46,5 @@ class Snapshot:
         self.rt_cam = rt_cam
 
         self.rgb_kcam = rgb_kcam
+
+        self.timestamp = timestamp
