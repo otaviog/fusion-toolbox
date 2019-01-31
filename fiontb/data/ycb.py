@@ -199,27 +199,28 @@ class YCB:
 
         print(depth_img.max())
 
-        depth_img = depth_img*self.depth_scales[viewport]
+        # depth_img = depth_img*self.depth_scales[viewport]
 
         rgb_img = cv2.imread(rgb_file)
         rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
 
-        # depth_img = _register_depth_authors(depth_img, rgb_img, depth_k_cam, rgb_k_cam, h_rgb_from_depth)
-        depth_img = _register_depth_map(depth_img, rgb_img, KCamera(
-            depth_k_cam), KCamera(rgb_k_cam), h_rgb_from_depth)
-
         if self.filter_depth:
             depth_img = _filter_discontinuities(depth_img)
 
+        # depth_img = _register_depth_authors(depth_img, rgb_img, depth_k_cam, rgb_k_cam, h_rgb_from_depth)
+        depth_img = _register_depth_map(depth_img, rgb_img, KCamera(
+            depth_k_cam), KCamera(rgb_k_cam), h_rgb_from_depth)
+        
+
         mask_img = cv2.imread(mask_file)
-        mask_img = mask_img[:, :, 0] == 0
+        if mask_img is not None:
+            mask_img = mask_img[:, :, 0] == 0
 
         snap = Snapshot(
             depth_img, KCamera(depth_k_cam),
             depth_scale=self.depth_scales[viewport],
             depth_bias=self.depth_bias[viewport],
-            # depth_max=14000*0.0001,
-            depth_max=depth_img.max(),
+            depth_max=np.iinfo(np.uint16).max,
             rgb_image=rgb_img,
             rgb_kcam=KCamera(rgb_k_cam),
             fg_mask=mask_img
@@ -241,22 +242,16 @@ def _get_rgb_from_depth(calibration, camera, reference_camera):
     return np.matmul(rgb_from_ref, np.linalg.inv(ir_from_ref))
 
 
-def _get_pose(hfile, camera, reference_camera):
-    return None
-    import ipdb
-    ipdb.set_trace()
+def _get_pose(hfile, rgb_from_ref):
     ref_table_pose = hfile['H_table_from_reference_camera']
-
-    rgb_from_ref = calibration[rgb_key][:]
-
     return np.matmul(rgb_from_ref, np.linalg.inv(ref_table_pose))
 
 
 def load_ycb_object(base_path):
     base_path = Path(base_path)
 
-    # viewports = ["NP1", "NP2", "NP3", "NP4", "NP5"]
-    viewports = ["NP3"]
+    viewports = ["NP1", "NP2", "NP3", "NP4", "NP5"]
+    # viewports = ["NP3"]
 
     depth_k_cams = defaultdict(list)
     rgb_k_cams = defaultdict(list)
@@ -282,6 +277,9 @@ def load_ycb_object(base_path):
 
         for rgb_filepath in view_images:
             depth_filepath = rgb_filepath.with_suffix(".h5")
+
+            if not depth_filepath.exists():
+                raise RuntimeError("Missing '{}' file".format(depth_filepath))
             mask_filepath = base_path / "masks" / \
                 (rgb_filepath.stem + '_mask.pbm')
             entries.append((viewport, str(depth_filepath), str(rgb_filepath),
@@ -291,7 +289,39 @@ def load_ycb_object(base_path):
 
             img_id = int(rgb_filepath.stem.split('_')[1])
             with h5py.File(base_path / 'poses' / 'NP5_{}_pose.h5'.format(img_id)) as hfile:
-                _get_pose(hfile, viewport, 'NP5')
+                _get_pose(hfile, h_rgb_from_depth[viewport])
 
     return YCB(entries, depth_k_cams, rgb_k_cams, depth_scales,
                depth_bias, filter_depth=True)
+
+
+def _main():
+    import argparse
+    from tqdm import tqdm
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('ycb_base_dir')
+
+    args = parser.parse_args()
+
+    ycb_base_dir = Path(args.ycb_base_dir)
+    objects = ycb_base_dir.glob("*")
+    objects = [obj for obj in objects
+               if obj.is_dir()]
+
+    max_depth = 0
+
+    for obj in tqdm(objects):
+        ycb_ds = load_ycb_object(obj)
+        for entry in ycb_ds.entries:
+            depth_file = entry[1]
+
+            with h5py.File(depth_file) as hfile:
+                depth_img = hfile['depth'][:]
+                max_depth = max(max_depth, depth_img.max())
+
+    print("Maximum YCB depth value: {}".format(max_depth))
+
+
+if __name__ == '__main__':
+    _main()

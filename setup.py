@@ -28,7 +28,9 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 REQUIREMENTS = [
-    'numpy', 'torch', 'numpy-quaternion', 'opencv-python', 'open3d-python'
+    'numpy', 'torch', 'numpy-quaternion', 'opencv-python',
+    'open3d-python', 'natsort', 'matplotlib', 'h5py',
+    'tqdm'
 ]
 
 
