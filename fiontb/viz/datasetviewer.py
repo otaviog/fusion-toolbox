@@ -1,76 +1,78 @@
-from open3d import PointCloud, draw_geometries
+"""Dataset viewer
+"""
+
+import cv2
+import numpy as np
+from matplotlib.pyplot import get_cmap
+
+import shapelab
 
 
-class DatasetViewer:
-    def __init__(self, dataset):
+class DatasetViewer:    
+    def __init__(self, dataset, title="Dataset"):
         self.dataset = dataset
+        self.title = title
+        self.show_mask = False
+        self.last_proc_data = {'idx': -1}
+        
+        self.viewer3d = shapelab.AsyncViewer.create_default(
+            shapelab.RenderConfig(640, 480))
+
+    def _update_canvas(self, _):
+        idx = cv2.getTrackbarPos("pos", self.title)
+
+        if self.last_proc_data['idx'] != idx:
+            snap = self.dataset[idx]
+            cmap = get_cmap('viridis', snap.depth_max)
+
+            depth_img = (snap.depth_image / snap.depth_max)
+            depth_img = cmap(depth_img)
+            depth_img = depth_img[:, :, 0:3]
+            depth_img = (depth_img*255).astype(np.uint8)
+
+            rgb_img = cv2.cvtColor(
+                snap.rgb_image, cv2.COLOR_RGB2BGR)
+
+            self.last_proc_data = {
+                'idx': idx,
+                'depth_img': depth_img,
+                'rgb_img': rgb_img,
+                'fg_mask': snap.fg_mask
+            }
+
+            self.viewer3d.clear_scene()
+            self.viewer3d.add_point_cloud(snap.cam_points, snap.colors/255)
+            self.viewer3d.reset_view()
+
+        proc_data = self.last_proc_data
+        alpha = cv2.getTrackbarPos("oppacity", self.title) / 100.0
+        canvas = cv2.addWeighted(proc_data['depth_img'], alpha,
+                                 proc_data['rgb_img'], (1.0 - alpha), 0.0)
+
+        fg_mask = proc_data['fg_mask']
+        if self.show_mask and fg_mask is not None:
+            canvas[~fg_mask] = (0, 0, 0)
+
+        cv2.imshow(self.title, canvas)
+
 
     def run(self):
-        pcl = PointCloud()
-        #for idx in range(0, 900, 25):  # len(self.dataset)):
-        for idx in [0, 1]:
-            snap = self.dataset[idx]
-            if True:
-                for point, color in zip(snap.cam_points, snap.colors):
-                    pcl.points.append(point.squeeze())
-                    pcl.colors.append(color)
-            print(idx)
-        draw_geometries([pcl])
+        cv2.namedWindow(self.title, cv2.WINDOW_NORMAL)
+        cv2.createTrackbar("pos", self.title, 0, len(
+            self.dataset), self._update_canvas)
+        cv2.createTrackbar("oppacity", self.title, 50, 100,
+                           self._update_canvas)
 
-import vtk
+        while True:
+            self._update_canvas(None)
+            key = cv2.waitKey(-1)
+            if key == 27:
+                break
 
-class DatasetViewer2:
-    def __init__(self, dataset):
-        self.dataset = dataset        
-        self.vtkPolyData = vtk.vtkPolyData()
-        self.vtkPoints = vtk.vtkPoints()
-        self.vtkCells = vtk.vtkCellArray()
-        self.vtkDepth = vtk.vtkDoubleArray()
-        self.vtkDepth.SetName("DepthArray")
-        self.vtkPolyData.SetPoints(self.vtkPoints)
-        self.vtkPolyData.SetVerts(self.vtkCells)
-        self.vtkPolyData.GetPointData().SetScalars(self.vtkDepth)
-        self.vtkPolyData.GetPointData().SetActiveScalars('DepthArray')
-        
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputData(self.vtkPolyData)
-        mapper.SetColorModeToDefault()
-        # mapper.SetScalarRange(zMin, zMax)
-        mapper.SetScalarVisibility(1)
-        self.vtkActor = vtk.vtkActor()
-        self.vtkActor.SetMapper(mapper)
+            key = chr(key & 0xff).lower()
 
-    def run(self):
-        for idx in range(0, 900, 25):  # len(self.dataset)):
-            snap = self.dataset[idx]
-            print(idx)
-            if True:
-                for k, (point, color) in enumerate(zip(snap.world_points, snap.colors)):
-                    pointId = self.vtkPoints.InsertNextPoint(point[:])
-                    self.vtkDepth.InsertNextValue(point[2])
-                    self.vtkCells.InsertNextCell(1)
-                    self.vtkCells.InsertCellPoint(pointId)
-                    self.vtkPoints.SetPoint(k, point)
-                    #pcl.points.append(point.squeeze())
-                    #pcl.colors.append(color)
-                self.vtkCells.Modified()
-                self.vtkPoints.Modified()
-                self.vtkDepth.Modified()
-
-        renderer = vtk.vtkRenderer()
-        renderer.AddActor(self.vtkActor)
-        renderer.SetBackground(.2, .3, .4)
-        renderer.ResetCamera()
-
-        # Render Window
-        renderWindow = vtk.vtkRenderWindow()
-        renderWindow.AddRenderer(renderer)
-
-        # Interactor
-        renderWindowInteractor = vtk.vtkRenderWindowInteractor()
-        renderWindowInteractor.SetRenderWindow(renderWindow)
-
-        # Begin Interaction
-        renderWindow.Render()
-        renderWindowInteractor.Start()
-        
+            if key == 'q':
+                break
+            elif key == 'm':
+                self.show_mask = not self.show_mask
+        self.viewer3d.stop()

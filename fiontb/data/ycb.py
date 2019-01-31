@@ -7,6 +7,7 @@ import math
 import numpy as np
 import h5py
 import cv2
+from natsort import natsorted
 
 from .datatype import Snapshot
 from fiontb.camera import KCamera
@@ -63,62 +64,121 @@ def _filter_discontinuities(depth_img):
     return depth_img * (1 - final_mark)
 
 
-def _register_depth_map(depth_img, rgb_img, depth_kcam,
-                        rgb_kcam, hom_rgb_from_depth):
+def _register_depth_map_authors(unregisteredDepthMap,
+                                rgbImage,
+                                depthK,
+                                rgbK,
+                                H_RGBFromDepth):
+    # pylint: disable=invalid-name
 
-    depth_height, depth_width = depth_img.shape
-    rgb_height, rgb_width = rgb_img.shape[0:2]
+    unregisteredHeight = unregisteredDepthMap.shape[0]
+    unregisteredWidth = unregisteredDepthMap.shape[1]
 
-    reg_depth = np.zeros((rgb_height, rgb_width))
+    registeredHeight = rgbImage.shape[0]
+    registeredWidth = rgbImage.shape[1]
 
-    inv_depth_fx = 1.0 / depth_kcam[0, 0]
-    inv_depth_fy = 1.0 / depth_kcam[1, 1]
-    depth_cx = depth_kcam[0, 2]
-    depth_cy = depth_kcam[1, 2]
+    registeredDepthMap = np.zeros((registeredHeight, registeredWidth))
 
-    rgb_fx, rgb_fy = rgb_kcam[0, 0], rgb_kcam[1, 1]
-    rgb_cx, rgb_cy = rgb_kcam[0, 2], rgb_kcam[1, 2]
+    xyzDepth = np.empty((4, 1))
+    xyzRGB = np.empty((4, 1))
 
-    for v_depth in range(depth_height):
-        for u_depth in range(depth_width):
+    # Ensure that the last value is 1 (homogeneous coordinates)
+    xyzDepth[3] = 1
 
-            depth = depth_img[v_depth, u_depth]
+    invDepthFx = 1.0 / depthK[0, 0]
+    invDepthFy = 1.0 / depthK[1, 1]
+    depthCx = depthK[0, 2]
+    depthCy = depthK[1, 2]
+
+    rgbFx = rgbK[0, 0]
+    rgbFy = rgbK[1, 1]
+    rgbCx = rgbK[0, 2]
+    rgbCy = rgbK[1, 2]
+
+    undistorted = np.empty(2)
+    for v in range(unregisteredHeight):
+        for u in range(unregisteredWidth):
+
+            depth = unregisteredDepthMap[v, u]
             if depth == 0:
                 continue
 
-            xyz_depth = np.array([((u_depth - depth_cx) * depth) * inv_depth_fx,
-                                  ((v_depth - depth_cy) * depth) * inv_depth_fy,
-                                  depth, 1.0])
-            xyz_rgb = np.matmul(hom_rgb_from_depth, xyz_depth)
-            xyz_rgb[0] = (hom_rgb_from_depth[0, 0] * xyz_depth[0] +
-                          hom_rgb_from_depth[0, 1] * xyz_depth[1] +
-                          hom_rgb_from_depth[0, 2] * xyz_depth[2] +
-                          hom_rgb_from_depth[0, 3])
-            xyz_rgb[1] = (hom_rgb_from_depth[1, 0] * xyz_depth[0] +
-                          hom_rgb_from_depth[1, 1] * xyz_depth[1] +
-                          hom_rgb_from_depth[1, 2] * xyz_depth[2] +
-                          hom_rgb_from_depth[1, 3])
-            xyz_rgb[2] = (hom_rgb_from_depth[2, 0] * xyz_depth[0] +
-                          hom_rgb_from_depth[2, 1] * xyz_depth[1] +
-                          hom_rgb_from_depth[2, 2] * xyz_depth[2] +
-                          hom_rgb_from_depth[2, 3])
+            xyzDepth[0] = ((u - depthCx) * depth) * invDepthFx
+            xyzDepth[1] = ((v - depthCy) * depth) * invDepthFy
+            xyzDepth[2] = depth
 
-            inv_rgb_z = 1.0 / xyz_rgb[2]
+            xyzRGB[0] = (H_RGBFromDepth[0, 0] * xyzDepth[0] +
+                         H_RGBFromDepth[0, 1] * xyzDepth[1] +
+                         H_RGBFromDepth[0, 2] * xyzDepth[2] +
+                         H_RGBFromDepth[0, 3])
+            xyzRGB[1] = (H_RGBFromDepth[1, 0] * xyzDepth[0] +
+                         H_RGBFromDepth[1, 1] * xyzDepth[1] +
+                         H_RGBFromDepth[1, 2] * xyzDepth[2] +
+                         H_RGBFromDepth[1, 3])
+            xyzRGB[2] = (H_RGBFromDepth[2, 0] * xyzDepth[0] +
+                         H_RGBFromDepth[2, 1] * xyzDepth[1] +
+                         H_RGBFromDepth[2, 2] * xyzDepth[2] +
+                         H_RGBFromDepth[2, 3])
 
-            u_rgb = (rgb_fx * xyz_rgb[0]) * inv_rgb_z + rgb_cx
-            u_rgb = int(u_rgb + 0.5)
+            invRGB_Z = 1.0 / xyzRGB[2]
+            undistorted[0] = (rgbFx * xyzRGB[0]) * invRGB_Z + rgbCx
+            undistorted[1] = (rgbFy * xyzRGB[1]) * invRGB_Z + rgbCy
 
-            v_rgb = (rgb_fy * xyz_rgb[1]) * inv_rgb_z + rgb_cy
-            v_rgb = int(v_rgb + 0.5)
+            uRGB = int(undistorted[0] + 0.5)
+            vRGB = int(undistorted[1] + 0.5)
 
-            if (0 <= u_rgb < rgb_width) and (0 <= v_rgb < rgb_height):
-                reg_depth[v_rgb, u_rgb] = max(
-                    xyz_rgb[2], reg_depth[v_rgb, u_rgb])
+            if (uRGB < 0 or uRGB >= registeredWidth) or (vRGB < 0 or vRGB >= registeredHeight):
+                continue
 
-    return reg_depth
+            registeredDepth = xyzRGB[2]
+            if registeredDepth > registeredDepthMap[vRGB, uRGB]:
+                registeredDepthMap[vRGB, uRGB] = registeredDepth
+
+    return registeredDepthMap
+
+
+def _register_depth_map(depth_img, rgb_img, depth_kcam,
+                        rgb_kcam, depth_to_rgb):
+    xs, ys = np.meshgrid(np.arange(depth_img.shape[1]),
+                         np.arange(depth_img.shape[0]))
+    dcam_points = np.dstack([xs, ys, depth_img]).astype(np.float32)
+    dcam_points = dcam_points.reshape(
+        (dcam_points.shape[0]*dcam_points.shape[1], 3, 1))
+    dcam_points = depth_kcam.backproject(dcam_points)
+
+    dcam_points = np.insert(dcam_points, 3, 1.0, axis=1)
+    dcam_points = np.matmul(depth_to_rgb, dcam_points)
+    dcam_points = np.delete(dcam_points, 3, 1)
+
+    depths = dcam_points[:, 2, 0]
+    rgb_points = rgb_kcam.project(dcam_points)
+
+    reg_height, reg_width = rgb_img.shape[0:2]
+    rgb_points = np.round(rgb_points).astype(np.int16)
+    rdepth = np.zeros((reg_height, reg_width), dtype=depth_img.dtype)
+
+    for (u, v, _), depth in zip(rgb_points, depths):
+        if v < 0 or v >= reg_height:
+            continue
+        if u < 0 or u >= reg_width:
+            continue
+
+        rdepth[v, u] = max(rdepth[v, u], depth)
+    return rdepth
+
+    # map_x = rgb_points[:, 0, 0].reshape(depth_img.shape).astype(np.float32)
+    # map_y = rgb_points[:, 1, 0].reshape(depth_img.shape).astype(np.float32)
+
+    # rmap = cv2.remap(depth_img, map_x, map_y, cv2.INTER_LINEAR)
+    # return rmap
 
 
 class YCB:
+    """YCB indexed snapshots dataset.
+
+    Use `__getitem__` to return a :obj:`fiontb.data.Snapshot`.
+    """
+
     def __init__(self, entries, depth_k_cams, rgb_k_cams, depth_scales, depth_bias,
                  filter_depth=False):
         self.entries = entries
@@ -137,31 +197,35 @@ class YCB:
         with h5py.File(depth_file) as hfile:
             depth_img = np.array(hfile["depth"])
 
-        depth_img = depth_img
+        print(depth_img.max())
 
-        depth_size = (depth_img.shape[1], depth_img.shape[0])
+        depth_img = depth_img*self.depth_scales[viewport]
 
         rgb_img = cv2.imread(rgb_file)
-        rgb_img = cv2.resize(rgb_img, depth_size)
         rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
 
-        mask_img = cv2.imread(mask_file)
-        mask_img = cv2.resize(mask_img, depth_size,
-                              interpolation=cv2.INTER_NEAREST)
-        mask_img = mask_img[:, :, 0] == 0
+        # depth_img = _register_depth_authors(depth_img, rgb_img, depth_k_cam, rgb_k_cam, h_rgb_from_depth)
+        depth_img = _register_depth_map(depth_img, rgb_img, KCamera(
+            depth_k_cam), KCamera(rgb_k_cam), h_rgb_from_depth)
 
         if self.filter_depth:
             depth_img = _filter_discontinuities(depth_img)
 
-        # depth_img = _register_depth_map(depth_img, rgb_img, depth_k_cam, rgb_k_cam,
-        # h_rgb_from_depth)
+        mask_img = cv2.imread(mask_file)
+        mask_img = mask_img[:, :, 0] == 0
 
-        return Snapshot(depth_img, KCamera(depth_k_cam),
-                        depth_scale=self.depth_scales[viewport],
-                        depth_bias=self.depth_bias[viewport],
-                        rgb_image=rgb_img,
-                        rgb_kcam=KCamera(rgb_k_cam),
-                        fg_mask=mask_img)
+        snap = Snapshot(
+            depth_img, KCamera(depth_k_cam),
+            depth_scale=self.depth_scales[viewport],
+            depth_bias=self.depth_bias[viewport],
+            # depth_max=14000*0.0001,
+            depth_max=depth_img.max(),
+            rgb_image=rgb_img,
+            rgb_kcam=KCamera(rgb_k_cam),
+            fg_mask=mask_img
+        )
+
+        return snap
 
     def __len__(self):
         return len(self.entries)
@@ -170,17 +234,29 @@ class YCB:
 def _get_rgb_from_depth(calibration, camera, reference_camera):
     ir_key = "H_{0}_ir_from_{1}".format(camera, reference_camera)
     rgb_key = "H_{0}_from_{1}".format(camera, reference_camera)
-    # import ipdb; ipdb.set_trace()
+
     rgb_from_ref = calibration[rgb_key][:]
     ir_from_ref = calibration[ir_key][:]
 
-    return np.dot(rgb_from_ref, np.linalg.inv(ir_from_ref))
+    return np.matmul(rgb_from_ref, np.linalg.inv(ir_from_ref))
+
+
+def _get_pose(hfile, camera, reference_camera):
+    return None
+    import ipdb
+    ipdb.set_trace()
+    ref_table_pose = hfile['H_table_from_reference_camera']
+
+    rgb_from_ref = calibration[rgb_key][:]
+
+    return np.matmul(rgb_from_ref, np.linalg.inv(ref_table_pose))
 
 
 def load_ycb_object(base_path):
     base_path = Path(base_path)
 
-    viewports = ["NP1", "NP2", "NP3", "NP4", "NP5"]
+    # viewports = ["NP1", "NP2", "NP3", "NP4", "NP5"]
+    viewports = ["NP3"]
 
     depth_k_cams = defaultdict(list)
     rgb_k_cams = defaultdict(list)
@@ -190,15 +266,19 @@ def load_ycb_object(base_path):
 
     with h5py.File(base_path / "calibration.h5") as hfile:
         for vp in viewports:
-            depth_k_cams[vp] = np.array(hfile["{}_ir_K".format(vp)])
+            depth_k_cams[vp] = np.array(
+                hfile["{}_depth_K".format(vp)])  # was ir_K
             rgb_k_cams[vp] = np.array(hfile["{}_rgb_K".format(vp)])
             h_rgb_from_depth[vp] = _get_rgb_from_depth(hfile, vp, 'NP5')
-            depth_scales[vp] = float(hfile['{}_depth_scale'.format(vp)][:])
+            depth_scales[vp] = float(
+                hfile['{}_ir_depth_scale'.format(vp)][:])
             depth_bias[vp] = float(hfile['{}_depth_bias'.format(vp)][:])
 
     entries = []
     for viewport in viewports:
-        view_images = sorted(base_path.glob("{}_*.jpg".format(viewport)))
+        view_images = base_path.glob("{}_*.jpg".format(viewport))
+        view_images = natsorted(view_images,
+                                key=lambda key: str(key))
 
         for rgb_filepath in view_images:
             depth_filepath = rgb_filepath.with_suffix(".h5")
@@ -209,5 +289,9 @@ def load_ycb_object(base_path):
                             h_rgb_from_depth[viewport]
                             ))
 
+            img_id = int(rgb_filepath.stem.split('_')[1])
+            with h5py.File(base_path / 'poses' / 'NP5_{}_pose.h5'.format(img_id)) as hfile:
+                _get_pose(hfile, viewport, 'NP5')
+
     return YCB(entries, depth_k_cams, rgb_k_cams, depth_scales,
-               depth_bias)
+               depth_bias, filter_depth=True)

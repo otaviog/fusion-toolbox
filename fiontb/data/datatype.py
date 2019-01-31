@@ -4,16 +4,28 @@ import numpy as np
 
 
 class Snapshot:
-    def __init__(self, depth_image, kcam=None, depth_scale=1.0, depth_bias=0.0,
+    """RGB-D view snapshot.
+
+    Attributes:
+
+        depth_image (:obj:`numpy.ndarray`): Original dataset depth image.
+
+        kcam (:obj:`fiontb.Camera`): Camera intrisic 
+    """
+
+    def __init__(self, depth_image, kcam=None,
+                 depth_scale=1.0, depth_bias=0.0, depth_max=4500,  # From Kinect
                  rgb_image=None, rt_cam=None, rgb_kcam=None, fg_mask=None, timestamp=None):
         self.depth_image = depth_image
 
         self.depth_scale = depth_scale
-        self.depth_bias = 0.0
+        self.depth_bias = depth_bias
+        self.depth_max = depth_max
 
         xs, ys = np.meshgrid(np.arange(depth_image.shape[1]),
                              np.arange(depth_image.shape[0]))
-        points = np.dstack([xs, ys, depth_image])
+        points = np.dstack(
+            [xs, ys, self.depth_scale*depth_image + self.depth_bias])
 
         self.img_points = points.reshape(
             (points.shape[0]*points.shape[1], 3, 1))

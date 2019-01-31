@@ -24,9 +24,26 @@ class SceneNN:
         self.trajectory = trajectory
         self.k_cam = k_cam
 
+        self.first_frame_id = None
+        self.last_idx = None
+        self.cache = None
+
+    def rewind(self):
+        if self.first_frame_id is not None:
+            self.ni_dev.seek(self.first_frame_id)
+
     def __getitem__(self, idx):
-        depth_img = self.ni_dev.readDepth()
-        rgb_img = self.ni_dev.readColor()
+        # pylint: disable=unused-variable
+        if self.last_idx != idx:
+            depth_img, depth_ts, depth_idx = self.ni_dev.readDepth()
+            rgb_img, rgb_ts, rgb_idx = self.ni_dev.readColor()
+            self.last_idx = idx
+            self.cache = (depth_img, rgb_img)
+        else:
+            depth_img, rgb_img = self.cache
+
+        if self.first_frame_id is None:
+            self.first_frame_id = depth_idx
 
         rt_mtx = self.trajectory[idx]
 
@@ -34,7 +51,7 @@ class SceneNN:
                         rt_cam=RTCamera(rt_mtx))
 
     def __len__(self):
-        return len(self.ni_dev)
+        return len(self.trajectory)
 
 
 def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus'):
