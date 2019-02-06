@@ -9,8 +9,9 @@ from collections import namedtuple
 
 import numpy as np
 import cv2
+from natsort import natsorted
 
-from fusionkit.camera import KCamera, RTCamera
+from fiontb.camera import KCamera, RTCamera
 from .datatype import Snapshot
 
 Entry = namedtuple("ICLNuimEntry", ["extr_cam", "depth_path", "rgb_path"])
@@ -30,14 +31,15 @@ class ICLNuim:
         color_img = cv2.imread(str(entry.rgb_path))
         color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
-        color_img = color_img/255
-
-        with open(entry.depth_path) as file:
+        with open(str(entry.depth_path)) as file:
             for line in file:
                 depths = [float(elem) for elem in line.split()]
 
-        depths = np.array(depths).reshape(color_img.shape[0:2])
-        return Snapshot(depths, color_img, intr_cam=CAM_INTRINSIC, extr_cam=entry.extr_cam)
+        depths = np.array(depths).reshape(color_img.shape[0:2]).astype(np.float32)
+        return Snapshot(depths, kcam=CAM_INTRINSIC,
+                        rgb_image=color_img,
+                        rt_cam=entry.extr_cam,
+                        timestamp=idx)
 
     def __len__(self):
         return len(self.trajectory)
@@ -45,7 +47,7 @@ class ICLNuim:
 
 def _load_camera(cam_path):
     val_dict = {}
-    with open(cam_path) as cam_file:
+    with open(str(cam_path)) as cam_file:
         for line in cam_file.readlines():
             key, value = line.split('=')
 
@@ -74,9 +76,24 @@ def _load_camera(cam_path):
 
 
 def load_icl_nuim(base_path):
+    """Loads a ICL-NUIM scene as an indexed Snapshot dataset.
+
+    Args:
+
+        base_path (str): Base scene path, i.e.,
+         "ICL-NUIM/living_room_traj0_loop"
+
+    Returns: (:obj:ICLNuim):
+
+        Snapshot indexed dataset.
+
+    """
+
     base_path = Path(base_path)
 
     img_glob = base_path.glob("scene_*.png")
+    img_glob = natsorted(img_glob,
+                         key=lambda key: str(key))
 
     trajectory = []
     for img_path in img_glob:
