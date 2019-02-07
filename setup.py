@@ -30,7 +30,7 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 REQUIREMENTS = [
     'numpy', 'torch', 'numpy-quaternion', 'opencv-python',
     'open3d-python', 'natsort', 'matplotlib', 'h5py',
-    'tqdm'
+    'tqdm', 'pyquaternion'
 ]
 
 

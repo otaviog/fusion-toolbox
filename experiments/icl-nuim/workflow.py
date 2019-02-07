@@ -29,7 +29,7 @@ class TSDF(rflow.Interface):
         snap = traj[0]
         mtx = np.eye(4)
         tsdf.update(snap.depth_image, snap.kcam, RTCamera(mtx))
-        import ipdb; ipdb.set_trace()
+
         mlab.pipeline.volume(mlab.pipeline.scalar_field(tsdf.volume))
         mlab.show()
 

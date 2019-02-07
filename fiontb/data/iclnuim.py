@@ -35,7 +35,8 @@ class ICLNuim:
             for line in file:
                 depths = [float(elem) for elem in line.split()]
 
-        depths = np.array(depths).reshape(color_img.shape[0:2]).astype(np.float32)
+        depths = np.array(depths).reshape(
+            color_img.shape[0:2]).astype(np.float32)
         return Snapshot(depths, kcam=CAM_INTRINSIC,
                         rgb_image=color_img,
                         rt_cam=entry.extr_cam,
@@ -75,7 +76,25 @@ def _load_camera(cam_path):
     return RTCamera.create_from_params(pos, rot_mtx)
 
 
-def load_icl_nuim(base_path):
+def _load_sim_camera(filepath):
+    with open(str(filepath), 'r') as stream:
+        lines = stream.readlines()
+
+    sim_traj = []
+    for i in range(0, len(lines), 4):
+        row0 = [float(elem) for elem in lines[i].split()]
+        row1 = [float(elem) for elem in lines[i + 1].split()]
+        row2 = [float(elem) for elem in lines[i + 2].split()]
+
+        cam_matrix = np.vstack([row0, row1, row2, np.array([0, 0, 0, 1])])
+
+        sim_traj.append(RTCamera(cam_matrix))
+
+
+    return sim_traj
+
+
+def load_icl_nuim(base_path, sim_traj_filepath=None):
     """Loads a ICL-NUIM scene as an indexed Snapshot dataset.
 
     Args:
@@ -92,14 +111,22 @@ def load_icl_nuim(base_path):
     base_path = Path(base_path)
 
     img_glob = base_path.glob("scene_*.png")
-    img_glob = natsorted(img_glob,
-                         key=lambda key: str(key))
+    img_glob = natsorted(img_glob, key=lambda key: str(key))
 
     trajectory = []
-    for img_path in img_glob:
+    gt_traj = None
+    if sim_traj_filepath is not None:
+        gt_traj = _load_sim_camera(sim_traj_filepath)
+        img_glob = img_glob[2:]
+
+    for i, img_path in enumerate(img_glob):
         depth_path = img_path.with_suffix('.depth')
         cam_info_path = img_path.with_suffix('.txt')
-        cam_ext = _load_camera(cam_info_path)
+
+        if gt_traj is None:
+            cam_ext = _load_camera(cam_info_path)
+        else:
+            cam_ext = gt_traj[i]
 
         entry = Entry(cam_ext, depth_path, img_path)
         trajectory.append(entry)

@@ -95,6 +95,7 @@ class KCamera:
         points = np.matmul(self.matrix, points)
 
         z = points[:, 2, 0]
+
         z = np.vstack([z, z]).T
         points[:, 0:2, 0] /= z
         return points

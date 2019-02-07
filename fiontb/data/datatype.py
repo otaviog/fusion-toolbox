@@ -22,6 +22,11 @@ class Snapshot:
         self.depth_bias = depth_bias
         self.depth_max = depth_max
 
+        self.kcam = kcam
+        self.rgb_kcam = rgb_kcam
+        self.rt_cam = rt_cam
+        self.timestamp = timestamp
+
         xs, ys = np.meshgrid(np.arange(depth_image.shape[1]),
                              np.arange(depth_image.shape[0]))
         points = np.dstack(
@@ -30,33 +35,25 @@ class Snapshot:
         self.img_points = points.reshape(
             (points.shape[0]*points.shape[1], 3, 1))
 
-        self.fg_mask = fg_mask
+        depth_mask = self.depth_image > 0
         if fg_mask is not None:
-            fg_mask = fg_mask.flatten()
-            self.img_points = self.img_points[fg_mask]
-
-        if kcam is not None:
-            self.cam_points = kcam.backproject(self.img_points)
+            self.fg_mask = np.logical_and(fg_mask, depth_mask)
         else:
-            self.cam_points = None
+            self.fg_mask = depth_mask
 
-        if rt_cam is not None:
-            self.world_points = rt_cam.transform_cam_to_world(
-                self.cam_points)
-        else:
-            self.world_points = None
+        self.img_points = self.img_points[self.fg_mask.flatten()]
 
         self.rgb_image = rgb_image
         if rgb_image is not None:
             self.colors = rgb_image.reshape(
                 (rgb_image.shape[0]*rgb_image.shape[1], 3))
 
-            if fg_mask is not None:
-                self.colors = self.colors[fg_mask]
+            self.colors = self.colors[self.fg_mask.flatten()]
 
-        self.kcam = kcam
-        self.rt_cam = rt_cam
+    def get_cam_points(self):
+        if self.kcam is not None:
+            return self.kcam.backproject(self.img_points)
 
-        self.rgb_kcam = rgb_kcam
-
-        self.timestamp = timestamp
+    def get_world_points(self):
+        if self.rt_cam is not None:
+            return self.rt_cam.transform_cam_to_world(self.get_cam_points())
