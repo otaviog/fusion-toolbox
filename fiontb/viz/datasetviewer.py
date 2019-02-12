@@ -11,20 +11,6 @@ import shapelab
 import shapelab.io
 
 
-def _transform(mtx, points):
-    points = np.insert(points, 3, 1, axis=1)
-    points = np.matmul(mtx, points)
-    points = np.delete(points, 3, 1)
-    return points
-
-
-def _gram_schmidt_columns(X):
-    # pylint: disable=invalid-name
-
-    Q, _ = np.linalg.qr(X)
-    return Q
-
-
 class DatasetViewer:
     def __init__(self, dataset, title="Dataset"):
         self.dataset = dataset
@@ -40,7 +26,6 @@ class DatasetViewer:
             shapelab.RenderConfig(640, 480))
         self.viewer_world.set_title("{}: world space".format(title))
         self.visited_idxs = set()
-        self.all_points = []
 
     def _update_canvas(self, _):
         idx = cv2.getTrackbarPos("pos", self.title)
@@ -66,35 +51,35 @@ class DatasetViewer:
 
             self.viewer_cam.clear_scene()
 
-            cam_space = snap.get_cam_points()
-            self.viewer_cam.add_point_cloud(cam_space, snap.colors/255)
-            self.viewer_cam.reset_view()
+            cam_matrix = np.eye(4)
+            cam_matrix[2, 2] = -1
 
-            cam_proj = shapelab.projection_from_kcam(snap.kcam.matrix, 0.5, 25)
+            cam_space = snap.get_cam_points()
+            cam_space = np.insert(cam_space, 3, 1.0, axis=1)
+
+            self.viewer_cam.add_point_cloud(
+                np.matmul(cam_matrix, cam_space)[:, 0:3], snap.colors/255)
+
+            cam_proj = shapelab.projection_from_kcam(
+                snap.kcam.matrix, 0.5, cam_space[:, 2].max())
             self.viewer_cam.set_projection(cam_proj)
 
-            self.viewer_cam.set_view(0.0, 0.0)
-            self.viewer_cam.set_camera_matrix(np.eye(4))
+            # self.viewer_cam.set_camera_matrix(cam_matrix)
+
+            self.viewer_cam.reset_view()
+            self.viewer_cam.set_view(0, 0)
+
             if snap.rt_cam is not None and idx not in self.visited_idxs:
                 self.visited_idxs.add(idx)
+
                 rt_cam = snap.rt_cam.matrix
+                world_space = np.matmul(
+                    np.matmul(cam_matrix, rt_cam), cam_space)
+                self.viewer_world.add_point_cloud(
+                    world_space[:, 0:3], snap.colors/255)
 
-                # rt_cam[0:2, 0:2] = _gram_schmidt_columns(rt_cam[0:2, 0:2])
-                conv_handness = np.eye(4)
-                # conv_handness[0, 0] *= -1
-                conv_handness[2, 2] *= -1
-
-                # world_space = _transform(rt_cam, cam_space)
-                # world_space = _transform(conv_handness, cam_space)
-                # cam_rt_cam = np.eye(4)
-
-                # cam_rt_cam = np.matmul(rt_cam*conv_handness, cam_rt_cam)
-                # rt_cam = rt_cam*conv_handness
-                # self.viewer_world.add_camera(
-                # cam_proj, rt_cam*conv_handness)
-                world_space = snap.get_world_points()
-                self.all_points.append(world_space)
-                self.viewer_world.add_point_cloud(world_space, snap.colors/255)
+                self.viewer_world.add_camera(
+                    cam_proj, np.matmul(cam_matrix, rt_cam))
 
                 if self.last_proc_data is None:  # First view
                     self.viewer_world.reset_view()
@@ -131,8 +116,6 @@ class DatasetViewer:
                 self.show_mask = not self.show_mask
         self.viewer_cam.stop()
         self.viewer_world.stop()
-        all_points = np.vstack(self.all_points)
-        shapelab.io.write_3dobject("points.off", all_points)
 
 
 class WorldPointsViewer:
@@ -148,10 +131,14 @@ class WorldPointsViewer:
         context = shapelab.RenderContext.create_default(
             shapelab.RenderConfig(640, 480))
 
-        for idx in tqdm(range(0, self._max_frames, self.idx_skip), desc="Loading point-clouds"):
-
+        point_list = []
+        color_list = []
+        nodes = []
+        for idx in tqdm(range(0, self._max_frames, self.idx_skip),
+                        desc="Loading point-clouds"):
             snap = self.dataset[idx]
-            points = snap.get_world_points()
+            points = snap.get_world_points().astype(np.float32)
+
             context.add_point_cloud(points, snap.colors/255)
 
         viewer = context.viewer()
