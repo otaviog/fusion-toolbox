@@ -14,6 +14,7 @@ from fiontb.camera import KCamera, RTCamera
 
 
 def _im2col(im, psize):
+    # pylint: disable=invalid-name
     n_channels = 1 if len(im.shape) == 2 else im.shape[0]
     (n_channels, rows, cols) = (1,) * (3 - len(im.shape)) + im.shape
 
@@ -222,7 +223,8 @@ class YCB:
 
         snap = Snapshot(
             depth_img, depth_k_cam,
-            depth_scale=self.depth_scales[viewport],
+            # depth_scale=self.depth_scales[viewport],
+            depth_scale=0.001,
             depth_bias=self.depth_bias[viewport],
             depth_max=np.iinfo(np.uint16).max,
             rgb_image=rgb_img,
@@ -249,8 +251,11 @@ def _get_rgb_from_depth(calibration, camera, reference_camera):
 
 def _get_pose(hfile, rgb_from_ref):
     ref_table_pose = hfile['H_table_from_reference_camera']
-    return np.matmul(rgb_from_ref, np.linalg.inv(ref_table_pose))
+    cam = np.matmul(rgb_from_ref, np.linalg.inv(ref_table_pose))
+    # cam = np.matmul(rgb_from_ref, ref_table_pose)
 
+    # cam = np.linalg.inv(cam) 
+    return cam
 
 def load_ycb_object(base_path):
     base_path = Path(base_path)

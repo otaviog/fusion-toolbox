@@ -15,7 +15,8 @@ class Snapshot:
 
     def __init__(self, depth_image, kcam=None,
                  depth_scale=1.0, depth_bias=0.0, depth_max=4500,  # From Kinect
-                 rgb_image=None, rt_cam=None, rgb_kcam=None, fg_mask=None, timestamp=None):
+                 rgb_image=None, rt_cam=None, rgb_kcam=None, fg_mask=None,
+                 timestamp=None):
         self.depth_image = depth_image
 
         self.depth_scale = depth_scale
@@ -38,7 +39,7 @@ class Snapshot:
         depth_mask = self.depth_image > 0
         if fg_mask is not None:
             self.fg_mask = np.logical_and(fg_mask, depth_mask)
-        else:
+        else: 
             self.fg_mask = depth_mask
 
         self.img_points = self.img_points[self.fg_mask.flatten()]

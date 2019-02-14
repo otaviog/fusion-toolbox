@@ -32,23 +32,36 @@ class SceneNN:
         if self.first_frame_id is not None:
             self.ni_dev.seek(self.first_frame_id)
 
+    def _getnext_pair(self):
+        depth_img, depth_ts, depth_idx = self.ni_dev.readDepth()
+        rgb_img, rgb_ts, rgb_idx = self.ni_dev.readColor()
+
+        k_time_diff = 33000
+        diff = abs(rgb_ts - depth_ts)
+
+        while diff > k_time_diff:
+            if rgb_ts > depth_ts:
+                depth_img, depth_ts, depth_idx = self.ni_dev.readDepth()
+            else:
+                rgb_img, rgb_ts, rgb_idx = self.ni_dev.readColor()
+
+            diff = abs(rgb_ts - depth_ts)
+            print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
+        return depth_img, rgb_img
+
     def __getitem__(self, idx):
         # pylint: disable=unused-variable
         if self.last_idx != idx:
-            depth_img, depth_ts, depth_idx = self.ni_dev.readDepth()
-            rgb_img, rgb_ts, rgb_idx = self.ni_dev.readColor()
+            depth_img, rgb_img = self._getnext_pair()
             self.last_idx = idx
             self.cache = (depth_img, rgb_img)
         else:
             depth_img, rgb_img = self.cache
 
-        if self.first_frame_id is None:
-            self.first_frame_id = depth_idx
-
         rt_mtx = self.trajectory[idx]
 
         return Snapshot(depth_img, kcam=self.k_cam, rgb_image=rgb_img,
-                        rt_cam=RTCamera(rt_mtx))
+                        rt_cam=RTCamera(rt_mtx), depth_scale=0.001)
 
     def __len__(self):
         return len(self.trajectory)
@@ -57,7 +70,6 @@ class SceneNN:
 def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus'):
     trajectory = []
     with open(traj_filepath, 'r') as file:
-
         while True:
             line = file.readline()
             if line == "":
@@ -68,6 +80,7 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus'):
                 curr_entry.append([float(elem) for elem in line.split()])
             rt_mtx = np.array(curr_entry)  # cam space to world space
 
+            assert rt_mtx.shape == (4, 4)
             trajectory.append(rt_mtx)
 
     k_cams = {'asus': ASUS_KCAM, 'kinect2': KINECT2_KCAM}

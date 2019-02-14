@@ -90,7 +90,6 @@ def _load_sim_camera(filepath):
 
         sim_traj.append(RTCamera(cam_matrix))
 
-
     return sim_traj
 
 

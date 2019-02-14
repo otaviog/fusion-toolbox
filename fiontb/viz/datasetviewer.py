@@ -7,9 +7,19 @@ from matplotlib.pyplot import get_cmap
 from pyquaternion import Quaternion
 from tqdm import tqdm
 
+from collections import deque
+
 import shapelab
 import shapelab.io
 
+
+class _Viewer:
+    def __init__(self, width, height):
+        self.ctx = shapelab.RenderContext(width, height)
+        self.view = self.ctx.viewer()
+
+_CAM_MATRIX = np.eye(4)
+_CAM_MATRIX[2, 2] = -1
 
 class DatasetViewer:
     def __init__(self, dataset, title="Dataset"):
@@ -18,14 +28,39 @@ class DatasetViewer:
         self.show_mask = False
         self.last_proc_data = {'idx': -1}
 
-        self.viewer_cam = shapelab.AsyncViewer.create_default(
-            shapelab.RenderConfig(640, 480))
-        self.viewer_cam.set_title("{}: camera space".format(title))
+        self.viewer_cam = _Viewer(640, 480)
+        self.viewer_cam.view.set_title("{}: camera space".format(title))
 
-        self.viewer_world = shapelab.AsyncViewer.create_default(
-            shapelab.RenderConfig(640, 480))
-        self.viewer_world.set_title("{}: world space".format(title))
+        self.viewer_world = _Viewer(640, 480)
+        self.viewer_world.view.set_title("{}: world space".format(title))
         self.visited_idxs = set()
+
+        self.pcl_deque = deque()
+        self.visited_idxs = set()
+
+    def _update_world(self, idx, snap, cam_space, cam_proj):
+        if idx in self.visited_idxs:
+            return None
+
+        rt_cam = snap.rt_cam.matrix
+
+        world_space = np.matmul(
+            np.matmul(_CAM_MATRIX, rt_cam), cam_space)
+        pcl = self.viewer_world.ctx.add_point_cloud(
+            world_space[:, 0:3], snap.colors)
+        
+        cam = self.viewer_world.ctx.add_camera(
+            cam_proj, np.matmul(_CAM_MATRIX, rt_cam))
+
+        self.pcl_deque.append((pcl, cam))
+        self.visited_idxs.add(idx)
+
+        self.viewer_world.view.reset_view()
+        if len(self.pcl_deque) > 50:
+            oldest_pcl, oldest_cam = self.pcl_deque.popleft()
+            self.viewer_world.ctx.erase(oldest_pcl)
+            self.viewer_world.ctx.erase(oldest_cam)
+            oldest_pcl = oldest_cam = None
 
     def _update_canvas(self, _):
         idx = cv2.getTrackbarPos("pos", self.title)
@@ -49,40 +84,24 @@ class DatasetViewer:
                 'fg_mask': snap.fg_mask
             }
 
-            self.viewer_cam.clear_scene()
-
-            cam_matrix = np.eye(4)
-            cam_matrix[2, 2] = -1
+            self.viewer_cam.ctx.clear_scene()
 
             cam_space = snap.get_cam_points()
             cam_space = np.insert(cam_space, 3, 1.0, axis=1)
 
-            self.viewer_cam.add_point_cloud(
-                np.matmul(cam_matrix, cam_space)[:, 0:3], snap.colors/255)
+            colors = np.minimum(snap.colors, 255)
+            colors = np.maximum(colors, 0)
+            self.viewer_cam.ctx.add_point_cloud(
+                np.matmul(_CAM_MATRIX, cam_space)[:, 0:3], colors)
 
             cam_proj = shapelab.projection_from_kcam(
                 snap.kcam.matrix, 0.5, cam_space[:, 2].max())
-            self.viewer_cam.set_projection(cam_proj)
 
-            # self.viewer_cam.set_camera_matrix(cam_matrix)
+            self.viewer_cam.view.reset_view()
+            self.viewer_cam.view.set_view(0, 0)
 
-            self.viewer_cam.reset_view()
-            self.viewer_cam.set_view(0, 0)
-
-            if snap.rt_cam is not None and idx not in self.visited_idxs:
-                self.visited_idxs.add(idx)
-
-                rt_cam = snap.rt_cam.matrix
-                world_space = np.matmul(
-                    np.matmul(cam_matrix, rt_cam), cam_space)
-                self.viewer_world.add_point_cloud(
-                    world_space[:, 0:3], snap.colors/255)
-
-                self.viewer_world.add_camera(
-                    cam_proj, np.matmul(cam_matrix, rt_cam))
-
-                if self.last_proc_data is None:  # First view
-                    self.viewer_world.reset_view()
+            if snap.rt_cam is not None:
+                self._update_world(idx, snap, cam_space, cam_proj)
 
         proc_data = self.last_proc_data
         alpha = cv2.getTrackbarPos("oppacity", self.title) / 100.0
@@ -104,7 +123,10 @@ class DatasetViewer:
 
         while True:
             self._update_canvas(None)
-            key = cv2.waitKey(-1)
+            key = cv2.waitKey(1)
+            self.viewer_cam.view.draw(0)
+            self.viewer_world.view.draw(0)
+
             if key == 27:
                 break
 
@@ -114,8 +136,6 @@ class DatasetViewer:
                 break
             elif key == 'm':
                 self.show_mask = not self.show_mask
-        self.viewer_cam.stop()
-        self.viewer_world.stop()
 
 
 class WorldPointsViewer:
