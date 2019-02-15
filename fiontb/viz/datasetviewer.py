@@ -1,13 +1,12 @@
 """Dataset viewer
 """
+import argparse
+from collections import deque
 
 import cv2
 import numpy as np
 from matplotlib.pyplot import get_cmap
-from pyquaternion import Quaternion
 from tqdm import tqdm
-
-from collections import deque
 
 import shapelab
 import shapelab.io
@@ -18,8 +17,19 @@ class _Viewer:
         self.ctx = shapelab.RenderContext(width, height)
         self.view = self.ctx.viewer()
 
+
 _CAM_MATRIX = np.eye(4)
 _CAM_MATRIX[2, 2] = -1
+
+
+def _gram_schmidt_columns(X):
+    # pylint: disable=invalid-name
+    import ipdb
+    ipdb.set_trace()
+
+    Q, _ = np.linalg.qr(X)
+    return Q
+
 
 class DatasetViewer:
     def __init__(self, dataset, title="Dataset"):
@@ -43,12 +53,11 @@ class DatasetViewer:
             return None
 
         rt_cam = snap.rt_cam.matrix
-
         world_space = np.matmul(
             np.matmul(_CAM_MATRIX, rt_cam), cam_space)
         pcl = self.viewer_world.ctx.add_point_cloud(
             world_space[:, 0:3], snap.colors)
-        
+
         cam = self.viewer_world.ctx.add_camera(
             cam_proj, np.matmul(_CAM_MATRIX, rt_cam))
 
@@ -89,10 +98,8 @@ class DatasetViewer:
             cam_space = snap.get_cam_points()
             cam_space = np.insert(cam_space, 3, 1.0, axis=1)
 
-            colors = np.minimum(snap.colors, 255)
-            colors = np.maximum(colors, 0)
             self.viewer_cam.ctx.add_point_cloud(
-                np.matmul(_CAM_MATRIX, cam_space)[:, 0:3], colors)
+                np.matmul(_CAM_MATRIX, cam_space)[:, 0:3], snap.colors)
 
             cam_proj = shapelab.projection_from_kcam(
                 snap.kcam.matrix, 0.5, cam_space[:, 2].max())
@@ -164,3 +171,26 @@ class WorldPointsViewer:
         viewer = context.viewer()
         viewer.reset_view()
         viewer.wait_key()
+
+
+def _main():
+    from fiontb.data.klg import KLG
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("dataset_type", metavar='dataset-type',
+                        choices=['klg'], help="Input klg file")
+    parser.add_argument(
+        "inputs", nargs='+',
+        help="Input list, like base path and trajectory files, dependes on the dataset type.")
+
+    args = parser.parse_args()
+
+    if args.dataset_type == "klg":
+        dataset = KLG(args.inputs[0])
+
+    viewer = DatasetViewer(dataset)
+    viewer.run()
+
+
+if __name__ == '__main__':
+    _main()

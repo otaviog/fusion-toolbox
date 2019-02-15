@@ -58,5 +58,9 @@ setup(
                 'pylint',
                 'autopep8'],
         'test': ['coverage'],
-    }
+        },
+    entry_points={
+        'console_scripts': [
+            'ftb-view-dataset=fiontb.viz.datasetviewer:_main']
+        }   
 )

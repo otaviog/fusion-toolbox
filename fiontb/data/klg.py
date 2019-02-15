@@ -1,8 +1,10 @@
+"""KLG reader as an indexed snapshot dataset
+"""
 import struct
+import zlib
 
 import numpy as np
 import cv2
-import zlib
 
 from .datatype import Snapshot
 
@@ -32,6 +34,7 @@ class KLG:
             self.frame_ptrs = _read_frame_pointers(stream, num_frames)
 
         self.stream = open(filepath, 'rb')
+        self.kcam = np.eye(3)
 
     def __getitem__(self, idx):
         seek = self.frame_ptrs[idx]
@@ -44,9 +47,9 @@ class KLG:
         rgb_img = cv2.imdecode(np.fromstring(jpg_rgb, dtype=np.uint8), 1)
 
         depth_img = np.fromstring(zlib.decompress(raw_depth), dtype=np.uint16)
-        depth_img = depth_img.reshape(rgb_img.shape[0:2])
-
         import ipdb; ipdb.set_trace()
+
+        depth_img = depth_img.reshape(rgb_img.shape[0:2])
 
         snap = Snapshot(depth_image=depth_img, rgb_image=rgb_img)
 
