@@ -47,21 +47,21 @@ class SceneNN:
 
             diff = abs(rgb_ts - depth_ts)
             print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
-        return depth_img, rgb_img
+        return depth_img, rgb_img, depth_ts
 
     def __getitem__(self, idx):
         # pylint: disable=unused-variable
         if self.last_idx != idx:
-            depth_img, rgb_img = self._getnext_pair()
+            self.cache = self._getnext_pair()
             self.last_idx = idx
-            self.cache = (depth_img, rgb_img)
-        else:
-            depth_img, rgb_img = self.cache
+
+        depth_img, rgb_img, depth_ts = self.cache
 
         rt_mtx = self.trajectory[idx]
 
         return Snapshot(depth_img, kcam=self.k_cam, rgb_image=rgb_img,
-                        rt_cam=RTCamera(rt_mtx), depth_scale=0.001)
+                        rt_cam=RTCamera(rt_mtx), depth_scale=0.001,
+                        timestamp=depth_ts)
 
     def __len__(self):
         return len(self.trajectory)
