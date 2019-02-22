@@ -22,15 +22,6 @@ _CAM_MATRIX = np.eye(4)
 _CAM_MATRIX[2, 2] = -1
 
 
-def _gram_schmidt_columns(X):
-    # pylint: disable=invalid-name
-    import ipdb
-    ipdb.set_trace()
-
-    Q, _ = np.linalg.qr(X)
-    return Q
-
-
 class DatasetViewer:
     def __init__(self, dataset, title="Dataset"):
         self.dataset = dataset

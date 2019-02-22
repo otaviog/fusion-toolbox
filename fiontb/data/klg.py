@@ -27,6 +27,8 @@ def _read_frame_pointers(stream, num_frames):
 
 
 class KLG:
+    """
+    """
 
     def __init__(self, filepath):
         with open(filepath, 'rb') as stream:
@@ -35,6 +37,7 @@ class KLG:
 
         self.stream = open(filepath, 'rb')
         self.kcam = np.eye(3)
+        self.trajectory = None
 
     def __getitem__(self, idx):
         seek = self.frame_ptrs[idx]
@@ -47,11 +50,16 @@ class KLG:
         rgb_img = cv2.imdecode(np.fromstring(jpg_rgb, dtype=np.uint8), 1)
 
         depth_img = np.fromstring(zlib.decompress(raw_depth), dtype=np.uint16)
-        import ipdb; ipdb.set_trace()
 
         depth_img = depth_img.reshape(rgb_img.shape[0:2])
 
-        snap = Snapshot(depth_image=depth_img, rgb_image=rgb_img)
+        rt_cam = None
+        if self.trajectory is not None:
+            rt_cam = self.trajectory[idx]
+
+        snap = Snapshot(depth_image=depth_img, rgb_image=rgb_img,
+                        kcam=self.kcam,
+                        rt_cam=rt_cam)
 
         return snap
 

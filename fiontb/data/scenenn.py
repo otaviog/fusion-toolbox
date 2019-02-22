@@ -18,9 +18,16 @@ ASUS_KCAM = KCamera(np.array([[544.47329, 0.0, 320],
 
 
 class SceneNN:
+    """(Almost)-Indexed snapshot dataset for SceneNN. Note due to oni
+    playback, this class always advanced one frame no matter which
+    indexed is passed. Use :func:`rewind` to go to the begining.
+
+    """
+
     def __init__(self, oni_filepath, trajectory, k_cam):
-        self.ni_dev = onireader.Device()
-        self.ni_dev.open(str(oni_filepath))
+        self._oni_filepath = oni_filepath
+        self.rewind()
+
         self.trajectory = trajectory
         self.k_cam = k_cam
 
@@ -29,12 +36,16 @@ class SceneNN:
         self.cache = None
 
     def rewind(self):
-        if self.first_frame_id is not None:
-            self.ni_dev.seek(self.first_frame_id)
+        """Rewinds the data to the begining frames.
+        """
+        # self.ni_dev.seek doesn't work
+        self.ni_dev = None
+        self.ni_dev = onireader.Device()
+        self.ni_dev.open(str(self._oni_filepath))
 
     def _getnext_pair(self):
-        depth_img, depth_ts, depth_idx = self.ni_dev.readDepth()
-        rgb_img, rgb_ts, rgb_idx = self.ni_dev.readColor()
+        depth_img, depth_ts, _ = self.ni_dev.readDepth()
+        rgb_img, rgb_ts, _ = self.ni_dev.readColor()
 
         k_time_diff = 33000
         diff = abs(rgb_ts - depth_ts)

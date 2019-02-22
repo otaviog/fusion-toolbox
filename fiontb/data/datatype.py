@@ -10,7 +10,7 @@ class Snapshot:
 
         depth_image (:obj:`numpy.ndarray`): Original dataset depth image.
 
-        kcam (:obj:`fiontb.Camera`): Camera intrisic 
+        kcam (:obj:`fiontb.Camera`): Camera intrinsic.
     """
 
     def __init__(self, depth_image, kcam=None,
@@ -39,7 +39,7 @@ class Snapshot:
         depth_mask = self.depth_image > 0
         if fg_mask is not None:
             self.fg_mask = np.logical_and(fg_mask, depth_mask)
-        else: 
+        else:
             self.fg_mask = depth_mask
 
         self.img_points = self.img_points[self.fg_mask.flatten()]
@@ -54,7 +54,7 @@ class Snapshot:
     def get_cam_points(self):
         if self.kcam is not None:
             return self.kcam.backproject(self.img_points)
-
+    
     def get_world_points(self):
         if self.rt_cam is not None:
             return self.rt_cam.transform_cam_to_world(self.get_cam_points())
