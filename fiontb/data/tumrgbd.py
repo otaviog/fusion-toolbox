@@ -48,6 +48,7 @@ class TUMRGBDDataset:
 
 def read_trajectory(gt_filepath):
     gt_traj = {}
+
     with open(gt_filepath, 'r') as stream:
         while True:
             line = stream.readline()
@@ -60,12 +61,10 @@ def read_trajectory(gt_filepath):
             entry = map(float, line.split())
             timestamp, tx, ty, tz, qx, qy, qz, qw = entry
 
-            rot_mtx = Quaternion(qw, qx, qy, qz).transformation_matrix
-            trans_mtx = np.eye(4)
-            trans_mtx[0:3, 3] = [tx, ty, tz]
-
-            cam_mtx = np.matmul(trans_mtx, rot_mtx)
+            cam_mtx = Quaternion(qw, qx, qy, qz).transformation_matrix            
+            cam_mtx[0:3, 3] = [tx, ty, tz]
             gt_traj[timestamp] = RTCamera(cam_mtx)
+
 
     return gt_traj
 
@@ -96,7 +95,7 @@ def load_tumrgbd(base_path, assoc_offset=0.0, assoc_max_diff=0.2, depth_scale=No
 
     rgbs = read_file_list(str(base_path / "rgb.txt"))
     depths = read_file_list(str(base_path / "depth.txt"))
-    gt_traj = _read_trajectory(str(base_path / "groundtruth.txt"))
+    gt_traj = read_trajectory(str(base_path / "groundtruth.txt"))
 
     depth_rgb = associate(depths, rgbs, assoc_offset, assoc_max_diff)
     depth_gt = associate(depths, gt_traj, assoc_offset, assoc_max_diff)

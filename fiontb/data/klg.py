@@ -38,6 +38,7 @@ class KLG:
         self.stream = open(filepath, 'rb')
         self.kcam = np.eye(3)
         self.trajectory = None
+        self.depth_scale = 1.0
 
     def __getitem__(self, idx):
         seek = self.frame_ptrs[idx]
@@ -59,7 +60,8 @@ class KLG:
 
         snap = Snapshot(depth_image=depth_img, rgb_image=rgb_img,
                         kcam=self.kcam,
-                        rt_cam=rt_cam)
+                        rt_cam=rt_cam,
+                        depth_scale=self.depth_scale)
 
         return snap
 
