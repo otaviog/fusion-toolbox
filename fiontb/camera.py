@@ -73,19 +73,18 @@ class KCamera:
     def backproject(self, points):
         """Project image to camera space.
         """
-        xyz_coords = points[:, 0:2]
-        xyz_coords = np.insert(xyz_coords, 2, 1.0, axis=1)
-        xyz_coords = np.matmul(np.linalg.inv(
-            self.matrix), xyz_coords)
 
-        depths = points[:, 2, 0]
+        xyz_coords = points
+        fx = self.matrix[0, 0]
+        fy = self.matrix[1, 1]
+        cx = self.matrix[0, 2]
+        cy = self.matrix[1, 2]
 
-        if self.depth_radial_distortion:
-            depths = (depths /
-                      np.sqrt(np.power(xyz_coords[:, 0:2, 0], 2).sum(1) + 1))
+        #import ipdb; ipdb.set_trace()
 
-        xyz_coords[:, 0:2, 0] *= np.vstack([depths, depths]).T
-        xyz_coords[:, 2, 0] = depths
+        z = xyz_coords[:, 2, 0]
+        xyz_coords[:, 0, 0] = (xyz_coords[:, 0, 0] - cx) * z / fx
+        xyz_coords[:, 1, 0] = (xyz_coords[:, 1, 0] - cy) * z / fy
 
         return xyz_coords
 

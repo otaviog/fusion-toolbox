@@ -89,8 +89,12 @@ class DatasetViewer:
             cam_space = snap.get_cam_points()
             cam_space = np.insert(cam_space, 3, 1.0, axis=1)
 
+            _cam_matrix_inv_y = _CAM_MATRIX.copy()
+            _cam_matrix_inv_y[1, 1] *= -1
+
             self.viewer_cam.ctx.add_point_cloud(
-                np.matmul(_CAM_MATRIX, cam_space)[:, 0:3], snap.colors)
+                np.matmul(_cam_matrix_inv_y, cam_space)[:, 0:3],
+                snap.colors)
 
             cam_proj = shapelab.projection_from_kcam(
                 snap.kcam.matrix, 0.5, cam_space[:, 2].max())

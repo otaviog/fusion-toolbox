@@ -54,7 +54,7 @@ class Snapshot:
     def get_cam_points(self):
         if self.kcam is not None:
             return self.kcam.backproject(self.img_points)
-    
+
     def get_world_points(self):
         if self.rt_cam is not None:
             return self.rt_cam.transform_cam_to_world(self.get_cam_points())

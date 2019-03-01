@@ -18,8 +18,28 @@ Entry = namedtuple("ICLNuimEntry", ["extr_cam", "depth_path", "rgb_path"])
 
 CAM_INTRINSIC = KCamera(np.array(
     [[481.20,	0,	319.50],
-     [0,	-480.00,	239.50],
-     [0,	0,	1]]), depth_radial_distortion=True)
+     [0,	480.00,	239.50],
+     [0,	0,	1]]), depth_radial_distortion=False)
+
+
+def undistort_depth(depth_image, kcam_matrix):
+    xs, ys = np.meshgrid(np.arange(depth_image.shape[1]),
+                         np.arange(depth_image.shape[0]))
+
+    points = np.dstack(
+        [xs, ys, depth_image])
+    points = points.reshape((-1, 3, 1))
+
+    xyz_coords = points[:, 0:2]
+    xyz_coords = np.insert(xyz_coords, 2, 1.0, axis=1)
+    xyz_coords = np.matmul(np.linalg.inv(
+        kcam_matrix), xyz_coords)
+
+    depths = points[:, 2, 0]
+    depths = (depths /
+              np.sqrt(np.power(xyz_coords[:, 0:2, 0], 2).sum(1) + 1))
+
+    return depths.reshape(depth_image.shape)
 
 
 class ICLNuim:
@@ -32,12 +52,14 @@ class ICLNuim:
         color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
         with open(str(entry.depth_path)) as file:
-            for line in file:
-                depths = [float(elem) for elem in line.split()]
+            depth_image = [float(elem) for elem in file.read().split()]
 
-        depths = np.array(depths).reshape(
-            color_img.shape[0:2]).astype(np.float32)
-        return Snapshot(depths, kcam=CAM_INTRINSIC,
+        depth_image = np.array(depth_image)
+        depth_image = depth_image.reshape(color_img.shape[0:2])
+        depth_image = undistort_depth(depth_image,
+                                      CAM_INTRINSIC.matrix)
+
+        return Snapshot(depth_image, kcam=CAM_INTRINSIC,
                         rgb_image=color_img,
                         rt_cam=entry.extr_cam,
                         timestamp=idx)
@@ -63,12 +85,12 @@ def _load_camera(cam_path):
     zcol = np.array(val_dict["cam_dir"])
     zcol /= np.linalg.norm(zcol, 2)
 
-    ycol = np.array(val_dict["cam_up"])
+    # We inverted ycol of ICL-Nuim to match other datasets
+    ycol = -np.array(val_dict["cam_up"])
     ycol /= np.linalg.norm(ycol, 2)
 
-    xcol = np.cross(ycol, zcol)
-
-    ycol = np.cross(zcol, xcol)
+    xcol = np.array(val_dict["cam_right"])
+    xcol /= np.linalg.norm(xcol)
 
     rot_mtx = np.array([xcol, ycol, zcol]).T
 

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import numpy as np
-from pyquaternion import Quaternion
+import quaternion
 import cv2
 
 from fiontb.camera import RTCamera, KCamera
@@ -61,10 +61,14 @@ def read_trajectory(gt_filepath):
             entry = map(float, line.split())
             timestamp, tx, ty, tz, qx, qy, qz, qw = entry
 
-            cam_mtx = Quaternion(qw, qx, qy, qz).transformation_matrix            
+            rot_mtx = quaternion.as_rotation_matrix(
+                np.quaternion(qw, qx, qy, qz))
+            
+            cam_mtx = np.eye(4)
+            cam_mtx[0:3, 0:3] = rot_mtx
             cam_mtx[0:3, 3] = [tx, ty, tz]
-            gt_traj[timestamp] = RTCamera(cam_mtx)
 
+            gt_traj[timestamp] = RTCamera(cam_mtx)
 
     return gt_traj
 
