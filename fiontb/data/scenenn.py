@@ -24,7 +24,7 @@ class SceneNN:
 
     """
 
-    def __init__(self, oni_filepath, trajectory, k_cam):
+    def __init__(self, oni_filepath, trajectory, k_cam, ground_truth_model_path):
         self._oni_filepath = oni_filepath
         self.rewind()
 
@@ -34,6 +34,8 @@ class SceneNN:
         self.first_frame_id = None
         self.last_idx = None
         self.cache = None
+
+        self.ground_truth_model_path = ground_truth_model_path
 
     def rewind(self):
         """Rewinds the data to the begining frames.
@@ -52,9 +54,9 @@ class SceneNN:
 
         while diff > k_time_diff:
             if rgb_ts > depth_ts:
-                depth_img, depth_ts, depth_idx = self.ni_dev.readDepth()
+                depth_img, depth_ts, _ = self.ni_dev.readDepth()
             else:
-                rgb_img, rgb_ts, rgb_idx = self.ni_dev.readColor()
+                rgb_img, rgb_ts, _ = self.ni_dev.readColor()
 
             diff = abs(rgb_ts - depth_ts)
             print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
@@ -78,7 +80,7 @@ class SceneNN:
         return len(self.trajectory)
 
 
-def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus'):
+def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_model_path=None):
     trajectory = []
     with open(traj_filepath, 'r') as file:
         while True:
@@ -86,7 +88,7 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus'):
             if line == "":
                 break
             curr_entry = []
-            for i in range(4):
+            for _ in range(4):
                 line = file.readline()
                 curr_entry.append([float(elem) for elem in line.split()])
             rt_mtx = np.array(curr_entry)  # cam space to world space
@@ -100,4 +102,4 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus'):
         raise RuntimeError("Undefined {} camera intrinsics. Use: {}".format(
             k_cam_dev, k_cam_dev.keys()))
 
-    return SceneNN(oni_filepath, trajectory, k_cams[k_cam_dev])
+    return SceneNN(oni_filepath, trajectory, k_cams[k_cam_dev], ground_truth_model_path)
