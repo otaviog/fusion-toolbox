@@ -63,7 +63,7 @@ def read_trajectory(gt_filepath):
 
             rot_mtx = quaternion.as_rotation_matrix(
                 np.quaternion(qw, qx, qy, qz))
-            
+
             cam_mtx = np.eye(4)
             cam_mtx[0:3, 0:3] = rot_mtx
             cam_mtx[0:3, 3] = [tx, ty, tz]
@@ -112,3 +112,28 @@ def load_tumrgbd(base_path, assoc_offset=0.0, assoc_max_diff=0.2, depth_scale=No
         depth_scale = DEFAULT_DEPTH_SCALE
     return TUMRGBDDataset(base_path, depths, rgbs, depth_rgb, depth_traj,
                           depth_scale)
+
+
+def write_trajectory(filepath, rt_cams):
+    """Write trajectory in the TUM-RGBD Format: timestamp pos and
+    quaternion.
+
+    Args:
+
+        filepath (str): Output file
+
+        rt_cams (List[(float, RTCamera)]): List of timestamps and RTCameras.
+
+    """
+
+    with open(filepath, 'w') as gt_txt:
+        for timestamp, rt_cam in rt_cams:
+            pos = rt_cam.matrix[0:3, 3]
+            rot = rt_cam.matrix[0:3, 0:3]
+
+            rot = quaternion.from_rotation_matrix(rot)
+
+            gt_txt.write('{} {} {} {} {} {} {} {}\n'.format(
+                timestamp,
+                pos[0], pos[1], pos[2],
+                rot.x, rot.y, rot.z, rot.w))

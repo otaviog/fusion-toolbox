@@ -148,6 +148,8 @@ class DatasetViewer:
             elif key == 'm':
                 self.show_mask = not self.show_mask
 
+        cv2.destroyWindow(self.title)
+
 
 def _main():
     from fiontb.data.klg import KLG

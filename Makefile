@@ -10,10 +10,10 @@ doc-open:
 	sensible-browser doc/build/html/index.html
 
 pylint:
-	python -m pylint rflow
+	python3 -m pylint rflow
 
 pep8:
-	python -m autopep8 --recursive --in-place rflow
+	python3 -m autopep8 --recursive --in-place rflow
 
 local-ci.pages:
 	gitlab-ci-multi-runner exec docker pages\
@@ -22,3 +22,6 @@ local-ci.pages:
 local-ci:
 	gitlab-ci-multi-runner exec docker test\
 		--docker-pull-policy=never
+
+ut-metrics:
+	python3 -m unittest fiontb.metrics._test_metrics

@@ -17,7 +17,7 @@ def _array_to_json(array):
     return array.tolist()
 
 
-def _kcam_to_json(kcam):
+def kcam_to_json(kcam):
     return {'matrix': _array_to_json(kcam.matrix),
             'undist_coeff': _array_to_json(kcam.undist_coeff),
             'image_size': kcam.image_size,
@@ -40,7 +40,7 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
         snap = dataset[i]
 
         frame_dict = {
-            'kcam': _kcam_to_json(snap.kcam),
+            'kcam': kcam_to_json(snap.kcam),
             'depth_scale': snap.depth_scale,
             'depth_bias': snap.depth_bias,
             'depth_max': snap.depth_max}
@@ -65,7 +65,7 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
             frame_dict['rt_cam'] = _array_to_json(snap.rt_cam.matrix)
 
         if snap.rgb_kcam:
-            frame_dict['rgb_kcam'] = _kcam_to_json(snap.rgb_kcam)
+            frame_dict['rgb_kcam'] = kcam_to_json(snap.rgb_kcam)
 
         if snap.timestamp is not None:
             frame_dict['timestamp'] = snap.timestamp
@@ -76,7 +76,7 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
         json.dump({'root': frame_infos}, stream, indent=1)
 
 
-def _kcam_from_json(js):
+def kcam_from_json(js):
     return KCamera(np.array(js['matrix']),
                    js['undist_coeff'],
                    js['depth_radial_distortion'],
@@ -106,12 +106,12 @@ class FTBDataset:
 
         rgb_kcam = None
         if 'rgb_kcam' in frame_info:
-            rgb_kcam = _kcam_from_json(frame_info['rgb_kcam'])
+            rgb_kcam = kcam_from_json(frame_info['rgb_kcam'])
 
         timestamp = frame_info.get('timestamp', None)
 
         snap = Snapshot(
-            depth_image, kcam=_kcam_from_json(frame_info['kcam']),
+            depth_image, kcam=kcam_from_json(frame_info['kcam']),
             depth_scale=frame_info['depth_scale'], depth_bias=frame_info['depth_bias'],
             depth_max=frame_info['depth_max'], rgb_image=rgb_image,
             rt_cam=rt_cam, rgb_kcam=rgb_kcam, fg_mask=fg_mask, timestamp=timestamp)

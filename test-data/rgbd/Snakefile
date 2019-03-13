@@ -1,0 +1,85 @@
+rule crop_dyson:
+    input:
+        "dyson_lab.klg"
+    output:
+        "scene2.klg"
+    run:
+        from fiontb.data.klg import KLG, write_klg
+
+        ds = KLG(input[0])
+
+        with open(output[0], 'wb') as file:
+            write_klg(ds, file, 1.0, 200)
+
+rule scene2_intrinsics:
+    output:
+        "scene2-kcam.json"
+    run:
+        import json
+
+        from fiontb.data.ftb import kcam_to_json
+        from fiontb.camera import KCamera
+
+        json_dict = kcam_to_json(
+            KCamera.create_from_params(528, 528, (320, 240)))
+        with open(output[0], 'w') as file:
+            json.dump(json_dict, file, indent=1)
+
+rule scene2_ef:
+    input:
+        "scene2.klg"
+    output:
+        "scene2.klg.freiburg"
+    run:
+        import os
+        from pathlib import Path
+
+        cmd = ['nvidia-docker run',
+               "--volume={}:/input".format(os.getcwd()),
+               '--user={}'.format(os.getuid()),
+               '--env=DISPLAY',
+               '--volume="/etc/group:/etc/group:ro"',
+               '--volume="/etc/passwd:/etc/passwd:ro"',
+               '--volume="/etc/shadow:/etc/shadow:ro"',
+               '--volume="/etc/sudoers.d:/etc/sudoers.d:ro"',
+               '--volume="/tmp/.X11-unix:/tmp/.X11-unix:rw"',
+               '-it mipl/3d-reconstruction:elastic-fusion',
+               './ElasticFusion', '-ftf',
+               '-l ', '/input/{}'.format(input[0])
+               ]
+
+        cmd = ' '.join(cmd)
+        print(cmd)
+        os.system(cmd)
+
+rule scene2_extrinsics:
+    input:
+        "scene2.klg.freiburg"
+    output:
+        "scene2-rtcam.json"
+    shell:
+        "cp {input} {output}"
+
+rule klg_view:
+    input:
+        "{scene}.klg",
+        "{scene}-kcam.json",
+        "{scene}-rtcam.freiburg"
+    output:
+        "{scene}.view"
+    run:
+        import json
+
+        from fiontb.viz.datasetviewer import DatasetViewer
+        from fiontb.data.klg import KLG
+        from fiontb.data.ftb import kcam_from_json
+        from fiontb.data.tumrgbd import read_trajectory
+
+        ds = KLG(input[0])
+
+        with open(input[1], 'r') as file:
+            ds.kcam = kcam_from_json(json.load(file))
+
+        ds.trajectory = list(read_trajectory(input[2]).values())
+        ds_viewer = DatasetViewer(ds, input[0])
+        ds_viewer.run()
