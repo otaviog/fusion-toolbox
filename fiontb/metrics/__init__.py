@@ -4,7 +4,7 @@
 import numpy as np
 import sklearn.neighbors
 
-from .mesh import closest_points, mesh_accuracy
+from .mesh import closest_points, mesh_accuracy, sample_points
 
 def chamfer_score(source_points, gt_points):
     src_kdtree = sklearn.neighbors.KDTree(source_points)

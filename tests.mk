@@ -4,6 +4,12 @@ doctest:
 fiontb.metrics:
 	python3 -m unittest fiontb.metrics._test_metrics
 
+fiontb.metrics.mesh:
+	python3 -m unittest fiontb.metrics._test_metrics.TestMeshFunctions
+
+view.fiontb.metrics.sample_points:
+	python3 -m fiontb.metrics._test_metrics sample_points
+
 fiontb.data.sens:
 	python3 -m unittest fiontb.data._tests.test_sens
 
@@ -13,5 +19,5 @@ fiontb.data.sens.read:
 fiontb.data.sens.write:
 	python3 -m unittest fiontb.data._tests.test_sens.TestSens.test_1_write
 
-fiontb.data.sens.view:
+view.fiontb.data.sens:
 	python3 -m fiontb.data._tests.test_sens

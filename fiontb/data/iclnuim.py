@@ -43,8 +43,9 @@ def undistort_depth(depth_image, kcam_matrix):
 
 
 class ICLNuim:
-    def __init__(self, trajectory):
+    def __init__(self, trajectory, ground_truth_model_path=None):
         self.trajectory = trajectory
+        self.ground_truth_model_path = ground_truth_model_path
 
     def __getitem__(self, idx):
         entry = self.trajectory[idx]
@@ -94,7 +95,14 @@ def _load_camera(cam_path):
 
     rot_mtx = np.array([xcol, ycol, zcol]).T
 
+    invx = np.eye(3)
+    invx[0, 0] = -1.0
+
+    rot_mtx = np.matmul(invx, rot_mtx)
+
     pos = np.array(val_dict["cam_pos"])
+    pos[0] *= -1
+
     return RTCamera.create_from_params(pos, rot_mtx)
 
 
@@ -115,7 +123,7 @@ def _load_sim_camera(filepath):
     return sim_traj
 
 
-def load_icl_nuim(base_path, sim_traj_filepath=None):
+def load_icl_nuim(base_path, sim_traj_filepath=None, ground_truth_model_path=None):
     """Loads a ICL-NUIM scene as an indexed Snapshot dataset.
 
     Args:
@@ -152,4 +160,4 @@ def load_icl_nuim(base_path, sim_traj_filepath=None):
         entry = Entry(cam_ext, depth_path, img_path)
         trajectory.append(entry)
 
-    return ICLNuim(trajectory)
+    return ICLNuim(trajectory, ground_truth_model_path)
