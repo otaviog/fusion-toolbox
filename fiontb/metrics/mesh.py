@@ -19,7 +19,7 @@ def _process(point):
     return closest.x(), closest.y(), closest.z()
 
 
-def closest_points(source_points, verts, trigs, processes=1):
+def closest_points(source_points, verts, trigs, processes=2):
     """Returns the closest points on a mesh's surface from a given set of
     points.
 
@@ -37,7 +37,7 @@ def closest_points(source_points, verts, trigs, processes=1):
 
     cgal_trigs = []
 
-    for i0, i1, i2 in trigs:
+    for i0, i1, i2 in tqdm(trigs, total=trigs.shape[0], desc="Loading CGAL trigs"):
         v0 = Point_3(*verts[i0].tolist())
         v1 = Point_3(*verts[i1].tolist())
         v2 = Point_3(*verts[i2].tolist())

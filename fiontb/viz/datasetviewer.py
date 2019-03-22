@@ -112,7 +112,7 @@ class DatasetViewer:
         proc_data = self.last_proc_data
         alpha = cv2.getTrackbarPos("oppacity", self.title) / 100.0
         canvas = cv2.addWeighted(proc_data['depth_img'], alpha,
-                                 proc_data['rgb_img'], (1.0 - alpha), 0.0)
+                                 proc_data['rgb_img'], 1.0 - alpha, 0.0)
 
         fg_mask = proc_data['fg_mask']
         if self.show_mask and fg_mask is not None:

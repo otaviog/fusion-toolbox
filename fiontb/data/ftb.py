@@ -47,7 +47,8 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
 
         depth_file = "{}{:05d}_depth.png".format(prefix, i)
 
-        cv2.imwrite(str(base_path / depth_file), snap.depth_image.astype(np.uint16))
+        cv2.imwrite(str(base_path / depth_file),
+                    snap.depth_image.astype(np.uint16))
         frame_dict['depth_image'] = depth_file
 
         if snap.rgb_image is not None:
@@ -84,17 +85,20 @@ def kcam_from_json(js):
 
 
 class FTBDataset:
-    def __init__(self, frame_infos, base_path):
+    def __init__(self, frame_infos, base_path, ground_truth_model_path=None):
         self.frame_infos = frame_infos
         self.base_path = base_path
+        self.ground_truth_model_path = ground_truth_model_path
 
     def __getitem__(self, idx):
         frame_info = self.frame_infos[idx]
-        depth_image = cv2.imread(str(self.base_path / frame_info['depth_image']), cv2.IMREAD_ANYDEPTH)
+        depth_image = cv2.imread(
+            str(self.base_path / frame_info['depth_image']), cv2.IMREAD_ANYDEPTH)
 
         rgb_image = None
         if 'rgb_image' in frame_info:
-            rgb_image = cv2.imread(str(self.base_path / frame_info['rgb_image']))
+            rgb_image = cv2.imread(
+                str(self.base_path / frame_info['rgb_image']))
 
         fg_mask = None
         if 'fg_mask' in frame_info:
@@ -122,9 +126,9 @@ class FTBDataset:
         return len(self.frame_infos)
 
 
-def load_ftb(base_path):
+def load_ftb(base_path, ground_truth_model_path=None):
     base_path = Path(base_path)
     with open(str(base_path / "frame-info.json"), 'r') as stream:
         frame_infos = json.load(stream)['root']
 
-    return FTBDataset(frame_infos, base_path)
+    return FTBDataset(frame_infos, base_path, ground_truth_model_path)

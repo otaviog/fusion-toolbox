@@ -51,10 +51,23 @@ class Snapshot:
 
             self.colors = self.colors[self.fg_mask.flatten()]
 
+        self._cam_points = None
+        self._world_points = None
+
     def get_cam_points(self):
-        if self.kcam is not None:
-            return self.kcam.backproject(self.img_points)
+        if self.kcam is None:
+            raise RuntimeError("Snapshot doesn't have the K camera")
+
+        if self._cam_points is None:
+            self._cam_points = self.kcam.backproject(self.img_points)
+
+        return self._cam_points
 
     def get_world_points(self):
-        if self.rt_cam is not None:
-            return self.rt_cam.transform_cam_to_world(self.get_cam_points())
+        if self.rt_cam is None:
+            raise RuntimeError("Snapshot doesn't have the RT camera")
+
+        if self._world_points is None:
+            self._world_points = self.rt_cam.transform_cam_to_world(
+                self.get_cam_points())
+        return self._world_points
