@@ -49,6 +49,7 @@ class ICLNuim:
 
     def __getitem__(self, idx):
         entry = self.trajectory[idx]
+
         color_img = cv2.imread(str(entry.rgb_path))
         color_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 
@@ -56,6 +57,7 @@ class ICLNuim:
             depth_image = [float(elem) for elem in file.read().split()]
 
         depth_image = np.array(depth_image)
+        depth_image[depth_image > 1e3] = -1
         depth_image = depth_image.reshape(color_img.shape[0:2])
         depth_image = undistort_depth(depth_image,
                                       CAM_INTRINSIC.matrix)
