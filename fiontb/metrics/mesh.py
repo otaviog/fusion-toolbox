@@ -50,12 +50,12 @@ def closest_points(source_points, verts, trigs, processes=2):
 
     result = np.empty_like(source_points)
 
-    with Pool(processes=processes) as pool:
-        for i, (x, y, z) in tqdm(enumerate(pool.map(_process, source_points)),
-                                 total=len(source_points)):
-            result[i, 0] = x
-            result[i, 1] = y
-            result[i, 2] = z
+    for i, point in tqdm(enumerate(source_points),
+                         total=len(source_points)):
+        x, y, z = _process(point)
+        result[i, 0] = x
+        result[i, 1] = y
+        result[i, 2] = z
 
     return result
 
