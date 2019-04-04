@@ -30,7 +30,7 @@ class SurfelFusion:
             live_norm = live_pcl.normals[live_idx]
             live_color = live_pcl.colors[live_idx]
 
-            if dist > 0.1:
+            if dist > 0.01:
                 points.append(live_pos)
                 colors.append(live_color)
                 normals.append(live_norm)
