@@ -4,7 +4,6 @@
 from open3d import PointCloud
 import numpy as np
 
-
 def from_open3d(pcl: PointCloud):
     """Converts from :class:`open3d.PointCloud` to a
     :class:`numpy.ndarray` used by fusionkit.
@@ -22,7 +21,7 @@ def from_open3d(pcl: PointCloud):
     return np.asarray(pcl.points)
 
 
-def to_open3d(points, colors=None):
+def to_open3d(points, colors=None, normals=None):
     """Converts fusionkit :class:`numpy.ndarray` of points to
     :class:`open3d.PointCloud`. Example:
 

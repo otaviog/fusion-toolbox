@@ -50,6 +50,7 @@ class DatasetViewer:
 
         rt_cam = snap.rt_cam.matrix
         world_space = np.matmul(rt_cam, cam_space)
+
         pcl = self.viewer_world.ctx.add_point_cloud(
             world_space[:, 0:3], snap.colors)
 

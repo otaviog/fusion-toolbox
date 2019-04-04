@@ -106,6 +106,21 @@ class KCamera:
         return str(self.__dict__)
 
 
+class Homogeneous:
+    """Helper class to multiply [4x4] matrix by [Nx3x1] points.
+    """
+
+    def __init__(self, matrix):
+        self.matrix = matrix
+
+    def __matmul__(self, points):
+        points = np.insert(points, 3, 1, axis=1)
+        points = self.matrix @ points.reshape(-1, 4, 1)
+        points = np.delete(points, 3, 1)
+        points = points.squeeze()
+        return points
+
+
 class RTCamera:
     """Extrinsic camera transformation.
 
@@ -138,6 +153,18 @@ class RTCamera:
         g_rot[0:3, 0:3] = rotation_matrix
         return cls(np.matmul(g_trans, g_rot))
 
+    @property
+    def cam_to_world(self):
+        """Matrix with camera to world transformation
+        """
+        return self.matrix
+
+    @property
+    def world_to_cam(self):
+        """Matrix with world to camera transformation
+        """
+        return np.linalg.inv(self.matrix)
+
     def transform_cam_to_world(self, points):
         """Transform points from camera to world space.
 
@@ -153,9 +180,7 @@ class RTCamera:
 
         """
 
-        points = np.insert(points, 3, 1, axis=1)
-        points = np.matmul(self.matrix, points)
-        points = np.delete(points, 3, 1)
+        points = Homogeneous(self.cam_to_world) @ points
         return points
 
     def transform_world_to_cam(self, points):
@@ -179,7 +204,7 @@ class RTCamera:
             points = points[..., np.newaxis]
 
         points = np.insert(points, 3, 1, axis=waxis)
-        points = np.matmul(np.linalg.inv(self.matrix), points)
+        points = np.matmul(self.world_to_cam, points)
         points = np.delete(points, 3, waxis)
         return points
 

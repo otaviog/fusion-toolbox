@@ -25,3 +25,6 @@ local-ci:
 
 ut-metrics:
 	python3 -m unittest fiontb.metrics._test_metrics
+
+ut-datatypes:
+	python3 -m unittest fiontb._tests.test_datatypes

@@ -170,6 +170,9 @@ class SensDataset:
                 _FrameInfo(RTCamera(camera_to_world), color_ts, depth_ts,
                            color_offset, color_size,
                            depth_offset, depth_size))
+        import ipdb
+        ipdb.set_trace()
+        pass
 
     def __del__(self):
         self.file.close()
@@ -198,7 +201,7 @@ class SensDataset:
 
         snap = Snapshot(depth_image=depth_img, rgb_image=color_img,
                         kcam=self.kcam, rt_cam=frame_info.rt_cam,
-                        depth_scale=1.0)
+                        depth_scale=1.0/self.depth_shift)
 
         return snap
 
