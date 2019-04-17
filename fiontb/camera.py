@@ -36,6 +36,34 @@ class KCamera:
         self.image_size = image_size
 
     @classmethod
+    def from_json(cls, json):
+        """Loads from json representaion.
+        """
+        return cls(np.array(json['matrix']),
+                   undist_coeff=json.get('undist_coeff', None),
+                   depth_radial_distortion=json['is_radial_depth'],
+                   image_size=json.get('image_size', None))
+
+    def to_json(self):
+        """Converts the camera intrinsics to its json dict representation.
+
+        Returns: (dict): Dict ready for json dump.
+
+        """
+        json = {
+            'matrix': self.matrix.tolist(),
+            'is_radial_depth': self.depth_radial_distortion
+        }
+
+        if self.undist_coeff is not None:
+            json['undist_coeff'] = self.undist_coeff
+
+        if self.image_size is not None:
+            json['image_size'] = self.image_size
+
+        return json
+
+    @classmethod
     def create_from_params(cls, flen_x, flen_y, center_point,
                            undist_coeff=None, depth_radial_distortion=False, image_size=False):
         """Computes the intrinsic matrix from given focal lengths and center point information.
@@ -113,12 +141,18 @@ class Homogeneous:
     def __init__(self, matrix):
         self.matrix = matrix
 
-    def __matmul__(self, points):
+    def __matmul0__(self, points):
         points = np.insert(points, 3, 1, axis=1)
         points = self.matrix @ points.reshape(-1, 4, 1)
         points = np.delete(points, 3, 1)
         points = points.squeeze()
         return points
+
+    def __matmul__(self, points):
+        points = self.matrix[:3, :3] @ points.reshape(-1, 3, 1)
+        points += self.matrix[:3, 3].reshape(3, 1)
+
+        return points.squeeze()
 
 
 class RTCamera:
@@ -153,6 +187,13 @@ class RTCamera:
         g_rot[0:3, 0:3] = rotation_matrix
         return cls(np.matmul(g_trans, g_rot))
 
+    @classmethod
+    def from_json(cls, json):
+        return cls(np.array(json['matrix']))
+
+    def to_json(self):
+        return {'matrix': self.matrix.tolist()}
+
     @property
     def cam_to_world(self):
         """Matrix with camera to world transformation
@@ -165,25 +206,10 @@ class RTCamera:
         """
         return np.linalg.inv(self.matrix)
 
-    def transform_cam_to_world(self, points):
-        """Transform points from camera to world space.
+    def integrate(self, rt_cam):
+        self.matrix = rt_cam.matrix @ self.matrix
 
-        Args:
-
-            points (:obj:`numpy.ndarray`): Array of shape [N, 3], [N,
-             3, 1] or [3] with 1 or more points in world space.
-
-        Returns:
-
-            (:obj:`numpy.ndarray`): Transformed points into world
-             space. Shape is the same as input.
-
-        """
-
-        points = Homogeneous(self.cam_to_world) @ points
-        return points
-
-    def transform_world_to_cam(self, points):
+    def transform_world_to_cam_dep(self, points):
         """Transform points from world to camera space.
 
         Args:

@@ -1,6 +1,6 @@
 """Dataset viewer
 """
-import argparse
+
 from collections import deque
 
 import cv2
@@ -8,8 +8,9 @@ import numpy as np
 from matplotlib.pyplot import get_cmap
 
 import shapelab
-import shapelab.io
 
+from fiontb.frame import FramePoints
+from fiontb.camera import Homogeneous
 
 class _Viewer:
     def __init__(self, width, height):
@@ -44,18 +45,17 @@ class DatasetViewer:
         self.pcl_deque = deque()
         self.visited_idxs = set()
 
-    def _update_world(self, idx, snap, cam_space, cam_proj):
+    def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
         if idx in self.visited_idxs:
             return
 
-        rt_cam = snap.rt_cam.matrix
-        world_space = np.matmul(rt_cam, cam_space)
+        world_space = Homogeneous(rt_cam.cam_to_world) @ cam_space
 
         pcl = self.viewer_world.ctx.add_point_cloud(
-            world_space[:, 0:3], snap.colors)
+            world_space, colors)
 
         cam = self.viewer_world.ctx.add_camera(
-            cam_proj, np.matmul(rt_cam, _CAM_HAND_MATRIX))
+            cam_proj, np.matmul(rt_cam.cam_to_world, _CAM_HAND_MATRIX))
 
         self.pcl_deque.append((pcl, cam))
         self.visited_idxs.add(idx)
@@ -71,44 +71,47 @@ class DatasetViewer:
         idx = cv2.getTrackbarPos("pos", self.title)
 
         if self.last_proc_data['idx'] != idx:
-            snap = self.dataset[idx]
-            cmap = get_cmap('viridis', snap.depth_max)
+            frame = self.dataset[idx]
+            finfo = frame.info
+            cmap = get_cmap('viridis', finfo.depth_max)
 
-            depth_img = (snap.depth_image / snap.depth_max)
+            depth_img = (frame.depth_image / finfo.depth_max)
             depth_img = cmap(depth_img)
             depth_img = depth_img[:, :, 0:3]
             depth_img = (depth_img*255).astype(np.uint8)
 
             rgb_img = cv2.cvtColor(
-                snap.rgb_image, cv2.COLOR_RGB2BGR)
+                frame.rgb_image, cv2.COLOR_RGB2BGR)
 
             self.last_proc_data = {
                 'idx': idx,
                 'depth_img': depth_img,
                 'rgb_img': rgb_img,
-                'fg_mask': snap.fg_mask
+                'fg_mask': frame.fg_mask
             }
 
             self.viewer_cam.ctx.clear_scene()
 
-            cam_space = snap.get_cam_points()
-            cam_space = np.insert(cam_space, 3, 1.0, axis=1)
+            pcl = FramePoints(frame)
+
+            cam_space = pcl.camera_points
 
             _cam_matrix_inv_y = _CAM_HAND_MATRIX.copy()
             _cam_matrix_inv_y[1, 1] *= -1
 
             self.viewer_cam.ctx.add_point_cloud(
-                np.matmul(_cam_matrix_inv_y, cam_space)[:, 0:3],
-                snap.colors)
+                Homogeneous(_cam_matrix_inv_y) @ cam_space,
+                pcl.colors)
 
             cam_proj = shapelab.projection_from_kcam(
-                snap.kcam.matrix, 0.5, cam_space[:, 2].max())
+                finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
 
             self.viewer_cam.view.reset_view()
             self.viewer_cam.view.set_view(0, 0)
 
-            if snap.rt_cam is not None:
-                self._update_world(idx, snap, cam_space, cam_proj)
+            if finfo.rt_cam is not None:
+                self._update_world(idx, finfo.rt_cam,
+                                   cam_space, pcl.colors, cam_proj)
 
         proc_data = self.last_proc_data
         alpha = cv2.getTrackbarPos("oppacity", self.title) / 100.0
@@ -150,26 +153,3 @@ class DatasetViewer:
                 self.show_mask = not self.show_mask
 
         cv2.destroyWindow(self.title)
-
-
-def _main():
-    from fiontb.data.klg import KLG
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("dataset_type", metavar='dataset-type',
-                        choices=['klg'], help="Input klg file")
-    parser.add_argument(
-        "inputs", nargs='+',
-        help="Input list, like base path and trajectory files, dependes on the dataset type.")
-
-    args = parser.parse_args()
-
-    if args.dataset_type == "klg":
-        dataset = KLG(args.inputs[0])
-
-    viewer = DatasetViewer(dataset)
-    viewer.run()
-
-
-if __name__ == '__main__':
-    _main()

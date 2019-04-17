@@ -23,11 +23,12 @@ class PointCloud:
         """Converts a :obj:`open3d.PointCloud` object to this project's Point
         Cloud.
         """
-        return cls(np.array(pcl.points), np.array(pcl.colors),
-                   np.array(pcl.normals))
+        return cls(np.array(pcl.points, dtype=np.float32), np.array(pcl.colors, dtype=np.uint8),
+                   np.array(pcl.normals, dtype=np.float32))
 
-    def __init__(self, points=np.array([]),
-                 colors=np.array([]), normals=np.array([])):
+    def __init__(self, points=np.array([], np.float32),
+                 colors=np.array([], np.uint8),
+                 normals=np.array([], np.float32)):
         self.points = points
         self.colors = colors
         self.normals = normals
@@ -67,7 +68,7 @@ class PointCloud:
         elif compute_normals:
             estimate_normals(pcl, search_param=KDTreeSearchParamHybrid(
                 radius=0.1, max_nn=30))
-            self.normals = np.array(pcl.normals)
+            self.normals = np.array(pcl.normals, dtype=np.float32)
 
         return pcl
 
@@ -75,6 +76,10 @@ class PointCloud:
         """Returns whatever the point cloud is empty.
         """
         return self.points.size == 0
+
+    @property
+    def size(self):
+        return self.points.shape[0]
 
 
 def pcl_stack(pcl_list):

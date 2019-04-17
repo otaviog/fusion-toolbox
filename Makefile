@@ -28,3 +28,9 @@ ut-metrics:
 
 ut-datatypes:
 	python3 -m unittest fiontb._tests.test_datatypes
+
+ut-camera:
+	python3 -m unittest fiontb._tests.test_camera
+
+ut-frame:
+	python3 -m unittest fiontb._tests.test_frame

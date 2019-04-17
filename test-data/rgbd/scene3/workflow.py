@@ -1,4 +1,9 @@
+"""Workflow for generate a FTB version of a SceneNN scene.
+"""
+
 import rflow
+
+# pylint: disable=missing-docstring,no-self-use
 
 
 class ToFTB(rflow.Interface):
@@ -16,6 +21,14 @@ class ToFTB(rflow.Interface):
         return load_ftb(resource.filepath)
 
 
+class View(rflow.Interface):
+    def evaluate(self, dataset):
+        from fiontb.viz.datasetviewer import DatasetViewer
+
+        viewer = DatasetViewer(dataset)
+        viewer.run()
+
+
 @rflow.graph()
 def sample(g):
     g.oni = rflow.shell.ShowMessageIfNotExists(
@@ -23,11 +36,14 @@ def sample(g):
     g.traj = rflow.shell.ShowMessageIfNotExists(
         rflow.FSResource("trajectory.log"))
 
-    g.dataset = ToFTB(rflow.FSResource("ftb"))
-    with g.dataset as args:
+    g.to_ftb = ToFTB(rflow.FSResource("ftb"))
+    with g.to_ftb as args:
         args.oni_fsres = g.oni.resource
         args.cam_traj = g.traj.resource
         args.max_frames = 100
+
+    g.view_ftb = View()
+    g.view_ftb.args.dataset = g.to_ftb
 
 
 if __name__ == '__main__':
