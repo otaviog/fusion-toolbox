@@ -59,13 +59,13 @@ def _main_loop0(sensor, output_file, show, odometry=None, max_frames=None):
 
         live_pcl.transform(curr_rt_cam.cam_to_world)
 
-        surfel_update = fusion_ctx.fuse(live_pcl)
+        surfel_update, surfel_removal = fusion_ctx.fuse(live_pcl, curr_rt_cam)
         count += 1
         if max_frames is not None and count >= max_frames:
             break
 
         if show:
-            surfel_cloud.update(surfel_update)
+            surfel_cloud.update(surfel_update, surfel_removal)
 
         while show:
             viewer.draw(0)
@@ -149,7 +149,7 @@ class ViewOdometry(rflow.Interface):
 class SurfelFusion(rflow.Interface):
     def evaluate(self, resource, dataset, odometry):
         sensor = fiontb.sensor.DatasetSensor(dataset)
-        _main_loop0(sensor, resource.filepath, False, odometry, max_frames=5)
+        _main_loop0(sensor, resource.filepath, True, odometry, max_frames=None)
 
 
 class SuperDenseFusion(rflow.Interface):
