@@ -1,6 +1,4 @@
 import numpy as np
-from open3d import estimate_normals, KDTreeSearchParamHybrid, Vector3dVector
-from open3d import PointCloud as o3dPointCloud
 import numpy as np
 
 from .camera import Homogeneous
@@ -55,6 +53,9 @@ class PointCloud:
         Returns:
             (:obj:`open3d.PointCloud`): Open3D point cloud.
         """
+        from open3d import estimate_normals, KDTreeSearchParamHybrid, Vector3dVector
+        from open3d import PointCloud as o3dPointCloud
+
         pcl = o3dPointCloud()
 
         if self.is_empty():
@@ -111,7 +112,7 @@ def pcl_stack(pcl_list):
     return PointCloud(points, colors, normals)
 
 
-def from_open3d(pcl: o3dPointCloud):
+def from_open3d(pcl):
     """Converts from :class:`open3d.PointCloud` to a
     :class:`numpy.ndarray` used by fusionkit.
 
@@ -141,6 +142,9 @@ def to_open3d(points, colors=None, normals=None):
            [4., 5., 6.],
            [7., 8., 9.]])
     """
+
+    from open3d import estimate_normals, KDTreeSearchParamHybrid, Vector3dVector
+    from open3d import PointCloud as o3dPointCloud
 
     pcl = o3dPointCloud()
 

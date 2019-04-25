@@ -6,8 +6,6 @@ import numpy as np
 from sklearn.neighbors import KDTree
 from scipy.spatial import cKDTree
 
-import shapelab
-
 from fiontb.datatypes import PointCloud, pcl_stack
 from ._brutesearch import BruteNNSearch
 
@@ -53,6 +51,14 @@ class SceneSurfelData:
             colors=self.colors[active_mask].cpu().numpy().astype(np.uint8),
             normals=self.normals[active_mask].cpu().numpy())
 
+    def share_memory(self):
+        self.points = self.points.share_memory_()
+        self.colors = self.colors.share_memory_()
+        self.normals = self.normals.share_memory_()
+        self.radius = self.radius.share_memory_()
+        self.counts = self.counts.share_memory_()
+        self.timestamps = self.timestamps.share_memory_()
+        self.surfel_mask = self.surfel_mask.share_memory_()
 
 class SurfelFusion:
     def __init__(self, surfels, max_distance=0.05, normal_max_angle=20.0,

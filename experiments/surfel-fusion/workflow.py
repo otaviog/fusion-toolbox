@@ -1,10 +1,17 @@
 """Workflow for testing fusion using surfels.
 """
+
 import cProfile
+from queue import Empty
+from multiprocessing import Lock
 
 import rflow
 import numpy as np
-import cv2
+# import cv2
+
+#import open3d
+import torch
+import torch.multiprocessing as mp
 
 from fiontb import PointCloud
 from fiontb.camera import RTCamera
@@ -13,25 +20,19 @@ from fiontb.frame import FramePoints, compute_normals
 import fiontb.sensor
 import fiontb.fusion
 import fiontb.fusion.surfel
-import fiontb.pose
-import fiontb.pose.icp
-import shapelab.io
+# import fiontb.pose
+# import fiontb.pose.icp
+
+import tenviz
 
 
-def _main_loop0(sensor, output_file, show, odometry=None, max_frames=None):
-    prof = cProfile.Profile()
-    prof.enable()
-    render_ctx = shapelab.RenderContext(640, 640)
-
-    surfels = fiontb.fusion.surfel.SceneSurfelData(1024*1024*10, "cuda:0")
-
-    surfel_cloud = render_ctx.add_surfel_cloud(surfels.points, surfels.colors)
+def fusion_loop(queue, lock, sensor, surfels, odometry=None, output_file=None, max_frames=None):
     fusion_ctx = fiontb.fusion.SurfelFusion(surfels)
-
-    viewer = render_ctx.viewer()
-
     curr_rt_cam = RTCamera(np.eye(4))
     count = 0
+    print("Has cuda on subprocess:", torch.cuda.is_available())
+    # torch.from_numpy(points.camera_points).to("cuda:0")
+
     while True:
         frame, ret = sensor.next_frame()
         # frame.depth_image = cv2.blur(frame.depth_image, (5, 5))
@@ -59,16 +60,73 @@ def _main_loop0(sensor, output_file, show, odometry=None, max_frames=None):
 
         live_pcl.transform(curr_rt_cam.cam_to_world)
 
+        lock.acquire()
         surfel_update, surfel_removal = fusion_ctx.fuse(live_pcl, curr_rt_cam)
+        lock.release()
+        queue.put((surfel_update, surfel_removal))
         count += 1
         if max_frames is not None and count >= max_frames:
             break
+    dense_pcl = surfels.to_point_cloud()
+    tenviz.io.write_3dobject(output_file, dense_pcl.points,
+                               normals=dense_pcl.normals, colors=dense_pcl.colors)
 
-        if show:
-            surfel_cloud.update(surfel_update, surfel_removal)
 
-        while show:
-            viewer.draw(0)
+def _main_loop0(sensor, output_file, show, odometry=None, max_frames=None):
+    torch.multiprocessing.set_start_method('spawn')
+    surfels = fiontb.fusion.surfel.SceneSurfelData(1024*1024*3, "cuda:0")
+
+    queue = mp.Queue()
+    lock = Lock()
+    
+    surfels.share_memory()
+
+    proc = mp.Process(target=fusion_loop, args=(
+        queue, lock, sensor, surfels, odometry, output_file, max_frames))
+
+    #fusion_loop(queue, sensor, surfels, odometry, output_file, max_frames)
+
+    #queue.put((torch.arange(0, 124, dtype=torch.int64),
+    #torch.tensor([], dtype=torch.int64)))
+
+    context = tenviz.Context(640, 640)
+    render_surfels = context.add_surfel_cloud()
+    viewer = context.viewer()
+
+    with context.current():
+        render_surfels.points.from_tensor(surfels.points)
+        render_surfels.normals.from_tensor(surfels.normals)
+        render_surfels.colors.from_tensor(surfels.colors.byte())
+
+    import ipdb; ipdb.set_trace()
+    proc.start()
+    import time
+    while True:
+        # continue
+        # frame, ret = sensor.next_frame()
+        # frame.depth_image = cv2.blur(frame.depth_image, (5, 5))
+
+        try:
+            surfel_update, surfel_removal = queue.get_nowait()
+            with context.current():
+                
+                lock.acquire()
+                t0 = time.time()
+                render_surfels.points[surfel_update] = surfels.points[surfel_update]
+                render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
+                render_surfels.colors[surfel_update] = surfels.colors[surfel_update].byte()
+                print(time.time() - t0)
+                lock.release()
+
+                render_surfels.mark_visible(surfel_update)
+
+            # render_surfels.unmarkvisibl
+        except Empty:
+            pass
+
+        viewer.draw(0)
+
+        if False:
             cv2.imshow("RGB Stream", cv2.cvtColor(
                 frame.rgb_image, cv2.COLOR_RGB2BGR))
             cv2.imshow("Depth Stream", frame.depth_image)
@@ -77,13 +135,6 @@ def _main_loop0(sensor, output_file, show, odometry=None, max_frames=None):
             key = chr(key & 0xff)
             if key == 'n':
                 break
-
-    prof.disable()
-    prof.dump_stats("fuse.prof")
-
-    dense_pcl = surfels.to_point_cloud()
-    shapelab.io.write_3dobject(output_file, dense_pcl.points,
-                               normals=dense_pcl.normals, colors=dense_pcl.colors)
 
 
 class FrameToFrameOdometry(rflow.Interface):
@@ -185,4 +236,6 @@ def test(g):
 
 
 if __name__ == '__main__':
+    import ipdb; ipdb.set_trace()
+
     rflow.command.main()
