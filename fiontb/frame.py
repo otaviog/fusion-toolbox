@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 
 from .camera import KCamera, RTCamera
+from .datatypes import PointCloud
 
 
 class FrameInfo:
@@ -109,7 +110,7 @@ class FramePoints:
         xs, ys = np.meshgrid(np.arange(frame.depth_image.shape[1]),
                              np.arange(frame.depth_image.shape[0]))
         info = frame.info
-        self.depth_image = frame.depth_image*info.depth_scale + info.depth_bias
+        self.depth_image = (frame.depth_image*info.depth_scale + info.depth_bias).astype(np.float32)
         points = np.dstack(
             [xs, ys, self.depth_image]).astype(np.float32)
 
@@ -144,6 +145,7 @@ class FramePoints:
             self._camera_points = self.kcam.backproject(self.uv_points)
 
         return self._camera_points
+
 
 def _compute_normals0(depth_img):
     zdy, zdx = np.gradient(depth_img)
@@ -190,3 +192,16 @@ def compute_normals(depth_img):
 
     normals = np.dstack([img_x, img_y, img_z])
     return normals
+
+
+def frame_to_pointcloud(frame):
+    points = FramePoints(frame)
+
+    normals = compute_normals(points.depth_image)
+    normals = normals.reshape(-1, 3)
+    normals = normals[points.fg_mask.flatten()]
+
+    live_pcl = PointCloud(points.camera_points,
+                          points.colors, normals)
+
+    return live_pcl

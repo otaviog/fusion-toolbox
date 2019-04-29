@@ -33,9 +33,12 @@ class View(rflow.Interface):
 def sample(g):
     g.oni = rflow.shell.ShowMessageIfNotExists(
         rflow.FSResource("045.oni"))
+    g.oni.args.message = "Please, download the 045.oni scene from SceneNN"
+    
     g.traj = rflow.shell.ShowMessageIfNotExists(
         rflow.FSResource("trajectory.log"))
-
+    g.traj.args.message = "Please, also find the 045.oni trajectory from SceneNN"
+    
     g.to_ftb = ToFTB(rflow.FSResource("ftb"))
     with g.to_ftb as args:
         args.oni_fsres = g.oni.resource

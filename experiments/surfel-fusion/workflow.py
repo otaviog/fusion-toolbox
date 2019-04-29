@@ -1,140 +1,216 @@
 """Workflow for testing fusion using surfels.
 """
 
-import cProfile
 from queue import Empty
 from multiprocessing import Lock
+from enum import Enum
 
-import rflow
 import numpy as np
-# import cv2
-
-#import open3d
+import cv2
+import open3d
 import torch
 import torch.multiprocessing as mp
 
-from fiontb import PointCloud
+import rflow
+import tenviz
+
 from fiontb.camera import RTCamera
-from fiontb.frame import FramePoints, compute_normals
+from fiontb.frame import frame_to_pointcloud
 
 import fiontb.sensor
 import fiontb.fusion
 import fiontb.fusion.surfel
-# import fiontb.pose
-# import fiontb.pose.icp
-
-import tenviz
+import fiontb.pose
+import fiontb.pose.icp
 
 
-def fusion_loop(queue, lock, sensor, surfels, odometry=None, output_file=None, max_frames=None):
-    fusion_ctx = fiontb.fusion.SurfelFusion(surfels)
-    curr_rt_cam = RTCamera(np.eye(4))
-    count = 0
-    print("Has cuda on subprocess:", torch.cuda.is_available())
-    # torch.from_numpy(points.camera_points).to("cuda:0")
+class DummyQueue:
+    def __init__(self):
+        self.queue = []
 
-    while True:
-        frame, ret = sensor.next_frame()
-        # frame.depth_image = cv2.blur(frame.depth_image, (5, 5))
+    def put(self, value):
+        self.queue.append(value)
 
-        if not ret:
-            break
+    def get_nowait(self):
+        if not self.queue:
+            raise Empty()
 
-        points = FramePoints(frame)
-        normals = compute_normals(points.depth_image)
-        normals = normals.reshape(-1, 3)
-        normals = normals[points.fg_mask.flatten()]
+        value = self.queue[0]
+        self.queue = self.queue[1:]
 
-        live_pcl = PointCloud(points.camera_points,
-                              points.colors, normals)
+        return value
 
-        if odometry is not None:
-            curr_rt_cam = RTCamera(
-                np.array(odometry[count]['rt_cam'], dtype=np.float32))
+    def get(self):
+        return self.get_nowait()
+
+    def full(self):
+        return False
+
+class ReconstructionLoop:
+    def __init__(self, frame_queue, step_class, init_args=()):
+        self.step_class = step_class
+        self.step_class_args = init_args
+        self.frame_queue = frame_queue
+        self.step_inst = None
+
+    def init(self):
+        self.step_inst = self.step_class(*self.step_class_args)
+
+    def run(self):
+        self.init()
+        while True:
+            frame = self.frame_queue.get()
+            if frame is None:
+                break
+            self.step_inst.step(frame)
+
+    def step(self, frame):
+        self.step_inst.step(frame)
+
+
+class SurfelReconstructionStep(ReconstructionLoop):
+    def __init__(self, surfels, surfels_lock, surfel_update_queue, odometry):
+        self.surfels = surfels
+        self.surfels_lock = surfels_lock
+        self.surfel_update_queue = surfel_update_queue
+        self.odometry = odometry
+        self.count = 0
+
+        self.fusion_ctx = fiontb.fusion.SurfelFusion(surfels)
+        self.curr_rt_cam = RTCamera(np.eye(4, dtype=np.float32))
+
+    def step(self, frame):
+        live_pcl = frame_to_pointcloud(frame)
+
+        if self.odometry is not None:
+            self.curr_rt_cam = RTCamera(
+                np.array(self.odometry[self.count]['rt_cam'], dtype=np.float32))
         else:
-            fusion_pcl = fusion_ctx.get_odometry_model()
+            fusion_pcl = self.fusion_ctx.get_odometry_model()
             if not fusion_pcl.is_empty():
                 relative_rt_cam = fiontb.pose.icp.estimate_icp_geo(
                     live_pcl, fusion_pcl)
-                curr_rt_cam.integrate(relative_rt_cam)
+                self.curr_rt_cam.integrate(relative_rt_cam)
 
-        live_pcl.transform(curr_rt_cam.cam_to_world)
+        live_pcl.transform(self.curr_rt_cam.cam_to_world)
 
-        lock.acquire()
-        surfel_update, surfel_removal = fusion_ctx.fuse(live_pcl, curr_rt_cam)
-        lock.release()
-        queue.put((surfel_update, surfel_removal))
-        count += 1
-        if max_frames is not None and count >= max_frames:
-            break
-    dense_pcl = surfels.to_point_cloud()
-    tenviz.io.write_3dobject(output_file, dense_pcl.points,
-                               normals=dense_pcl.normals, colors=dense_pcl.colors)
+        self.surfels_lock.acquire()
+        surfel_update, surfel_removal = self.fusion_ctx.fuse(
+            live_pcl, self.curr_rt_cam)
+        self.surfels_lock.release()
+        self.surfel_update_queue.put(
+            (surfel_update.cpu(), surfel_removal.cpu()))
+
+        self.count += 1
 
 
-def _main_loop0(sensor, output_file, show, odometry=None, max_frames=None):
+class RunMode(Enum):
+    PLAY = 0
+    STEP = 1
+
+
+def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_process=False):
     torch.multiprocessing.set_start_method('spawn')
+
     surfels = fiontb.fusion.surfel.SceneSurfelData(1024*1024*3, "cuda:0")
-
-    queue = mp.Queue()
-    lock = Lock()
-    
     surfels.share_memory()
+    surfels_lock = Lock()
 
-    proc = mp.Process(target=fusion_loop, args=(
-        queue, lock, sensor, surfels, odometry, output_file, max_frames))
+    if not single_process:
+        surfel_update_queue = mp.Queue(5)
+    else:
+        surfel_update_queue = DummyQueue()
 
-    #fusion_loop(queue, sensor, surfels, odometry, output_file, max_frames)
+    frame_queue = mp.Queue()
+    rec_loop = ReconstructionLoop(
+        frame_queue,
+        SurfelReconstructionStep,
+        init_args=(surfels, surfels_lock, surfel_update_queue, odometry))
 
-    #queue.put((torch.arange(0, 124, dtype=torch.int64),
-    #torch.tensor([], dtype=torch.int64)))
+    if not single_process:
+        proc = mp.Process(target=rec_loop.run)
+        import ipdb
+        ipdb.set_trace()
+        proc.start()
+    else:
+        rec_loop.init()
 
     context = tenviz.Context(640, 640)
     render_surfels = context.add_surfel_cloud()
-    viewer = context.viewer()
+    viewer = context.viewer(cam_manip=tenviz.CameraManipulator.WASD)
 
     with context.current():
         render_surfels.points.from_tensor(surfels.points)
         render_surfels.normals.from_tensor(surfels.normals)
         render_surfels.colors.from_tensor(surfels.colors.byte())
 
-    import ipdb; ipdb.set_trace()
-    proc.start()
-    import time
-    while True:
-        # continue
-        # frame, ret = sensor.next_frame()
-        # frame.depth_image = cv2.blur(frame.depth_image, (5, 5))
+    run_mode = RunMode.PLAY
+    read_next_frame = True
 
-        try:
-            surfel_update, surfel_removal = queue.get_nowait()
-            with context.current():
-                
-                lock.acquire()
-                t0 = time.time()
-                render_surfels.points[surfel_update] = surfels.points[surfel_update]
-                render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
-                render_surfels.colors[surfel_update] = surfels.colors[surfel_update].byte()
-                print(time.time() - t0)
-                lock.release()
+    frame_count = 0
+    try:
+        while True:
+            if frame_count == max_frames:
+                break
 
-                render_surfels.mark_visible(surfel_update)
+            if read_next_frame:
+                if frame_queue.empty():
+                    frame, ret = sensor.next_frame()
+                    # frame.depth_image = cv2.blur(frame.depth_image, (5, 5))
+                    frame_queue.put(frame if ret else None)
 
-            # render_surfels.unmarkvisibl
-        except Empty:
-            pass
+                if single_process:
+                    rec_loop.step(frame)
 
-        viewer.draw(0)
+                read_next_frame = run_mode != RunMode.STEP
+            try:
+                surfel_update, surfel_removal = surfel_update_queue.get_nowait()
+                surfel_update_cpu = surfel_update
+                surfel_update = surfel_update.to(surfels.device)
+                with context.current():
+                    surfels_lock.acquire()
+                    points = surfels.points[surfel_update]
+                    render_surfels.update_bounds(points)
+                    render_surfels.points[surfel_update] = points
+                    render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
+                    colors = surfels.colors[surfel_update].byte()
+                    render_surfels.colors[surfel_update] = colors
+                    render_surfels.mark_visible(surfel_update_cpu)
+                    # TODO: umark visible
+                    surfels_lock.release()
+            except Empty:
+                pass
 
-        if False:
+            viewer.draw(0)
+
             cv2.imshow("RGB Stream", cv2.cvtColor(
                 frame.rgb_image, cv2.COLOR_RGB2BGR))
             cv2.imshow("Depth Stream", frame.depth_image)
 
             key = cv2.waitKey(1)
-            key = chr(key & 0xff)
-            if key == 'n':
+            if key == 27:
                 break
+            key = chr(key & 0xff)
+
+            if key == 'm':
+                if run_mode == RunMode.PLAY:
+                    run_mode = RunMode.STEP
+                else:
+                    run_mode = RunMode.PLAY
+            elif key == 'n':
+                read_next_frame = True
+            frame_count += 1
+    except KeyboardInterrupt:
+        pass
+
+    frame_queue.put(None)
+    if not single_process:
+        proc.join()
+
+    cv2.destroyAllWindows()
+    #dense_pcl = surfels.to_point_cloud()
+    #tenviz.io.write_3dobject(output_file, dense_pcl.points,
+    #normals=dense_pcl.normals, colors=dense_pcl.colors)
 
 
 class FrameToFrameOdometry(rflow.Interface):
@@ -155,9 +231,7 @@ class FrameToFrameOdometry(rflow.Interface):
             if not ret:
                 break
 
-            points = FramePoints(frame)
-
-            live_pcl = PointCloud(points.camera_points, points.colors)
+            live_pcl = frame_to_pointcloud(frame)
             # live_pcl.transform(accum_rt_cam.cam_to_world)
 
             if last_pcl is not None:
@@ -200,7 +274,8 @@ class ViewOdometry(rflow.Interface):
 class SurfelFusion(rflow.Interface):
     def evaluate(self, resource, dataset, odometry):
         sensor = fiontb.sensor.DatasetSensor(dataset)
-        _main_loop0(sensor, resource.filepath, True, odometry, max_frames=None)
+        _main_loop(sensor, resource.filepath, odometry,
+                   max_frames=None, single_process=False)
 
 
 class SuperDenseFusion(rflow.Interface):
@@ -208,7 +283,7 @@ class SuperDenseFusion(rflow.Interface):
         sensor = fiontb.data.sensor.DatasetSensor(dataset)
         fusion = fiontb.fusion.surfel.DensePCLFusion(3, 0.2)
 
-        _main_loop(sensor, fusion, resource.filepath, True)
+        _main_loop(sensor, fusion, resource.filepath, False)
 
 
 @rflow.graph()
@@ -236,6 +311,7 @@ def test(g):
 
 
 if __name__ == '__main__':
-    import ipdb; ipdb.set_trace()
+    import ipdb
+    ipdb.set_trace()
 
     rflow.command.main()
