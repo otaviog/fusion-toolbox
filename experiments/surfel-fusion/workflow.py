@@ -10,12 +10,14 @@ import cv2
 import open3d
 import torch
 import torch.multiprocessing as mp
+from matplotlib.pyplot import get_cmap
 
 import rflow
 import tenviz
 
+from fiontb.datatypes import PointCloud
 from fiontb.camera import RTCamera
-from fiontb.frame import frame_to_pointcloud
+from fiontb.frame import frame_to_pointcloud, compute_normals, FramePoints
 
 import fiontb.sensor
 import fiontb.fusion
@@ -46,6 +48,7 @@ class DummyQueue:
     def full(self):
         return False
 
+
 class ReconstructionLoop:
     def __init__(self, frame_queue, step_class, init_args=()):
         self.step_class = step_class
@@ -59,13 +62,13 @@ class ReconstructionLoop:
     def run(self):
         self.init()
         while True:
-            frame = self.frame_queue.get()
-            if frame is None:
+            frame_data = self.frame_queue.get()
+            if frame_data is None:
                 break
-            self.step_inst.step(frame)
+            self.step_inst.step(*frame_data)
 
-    def step(self, frame):
-        self.step_inst.step(frame)
+    def step(self, frame_data):
+        self.step_inst.step(*frame_data)
 
 
 class SurfelReconstructionStep(ReconstructionLoop):
@@ -79,9 +82,7 @@ class SurfelReconstructionStep(ReconstructionLoop):
         self.fusion_ctx = fiontb.fusion.SurfelFusion(surfels)
         self.curr_rt_cam = RTCamera(np.eye(4, dtype=np.float32))
 
-    def step(self, frame):
-        live_pcl = frame_to_pointcloud(frame)
-
+    def step(self, kcam, frame_points, live_pcl):
         if self.odometry is not None:
             self.curr_rt_cam = RTCamera(
                 np.array(self.odometry[self.count]['rt_cam'], dtype=np.float32))
@@ -96,7 +97,7 @@ class SurfelReconstructionStep(ReconstructionLoop):
 
         self.surfels_lock.acquire()
         surfel_update, surfel_removal = self.fusion_ctx.fuse(
-            live_pcl, self.curr_rt_cam)
+            frame_points, live_pcl, kcam, self.curr_rt_cam)
         self.surfels_lock.release()
         self.surfel_update_queue.put(
             (surfel_update.cpu(), surfel_removal.cpu()))
@@ -109,7 +110,55 @@ class RunMode(Enum):
     STEP = 1
 
 
-def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_process=False):
+class SensorFrameUI:
+    _DEPTH_OPPACITY_LABEL = "depth oppacity"
+    _NORMAL_OPPACITY_LABEL = "normal oppacity"
+
+    def __init__(self, title):
+        self.title = title
+        cv2.namedWindow(self.title, cv2.WINDOW_NORMAL)
+        cv2.createTrackbar(SensorFrameUI._DEPTH_OPPACITY_LABEL,
+                           self.title, 50, 100,
+                           self._update)
+        cv2.createTrackbar(SensorFrameUI._NORMAL_OPPACITY_LABEL,
+                           self.title, 50, 100,
+                           self._update)
+
+        self.frame = None
+        self.normal_image = None
+
+    def _update(self, _):
+        if self.frame is None:
+            return
+
+        cmap = get_cmap('viridis', self.frame.info.depth_max)
+        depth_img = (self.frame.depth_image / self.frame.info.depth_max)
+        depth_img = cmap(depth_img)
+        depth_img = depth_img[:, :, 0:3]
+        depth_img = (depth_img*255).astype(np.uint8)
+
+        depth_alpha = cv2.getTrackbarPos(
+            SensorFrameUI._DEPTH_OPPACITY_LABEL, self.title) / 100.0
+
+        canvas = cv2.addWeighted(depth_img, depth_alpha,
+                                 self.frame.rgb_image, 1.0 - depth_alpha, 0.0)
+
+        normal_alpha = cv2.getTrackbarPos(
+            SensorFrameUI._NORMAL_OPPACITY_LABEL, self.title) / 100.0
+
+        canvas = cv2.addWeighted(self.normal_image, normal_alpha,
+                                 canvas, 1.0 - normal_alpha, 0.0)
+        cv2.imshow(self.title, cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR))
+
+    def update(self, frame, normals):
+        self.frame = frame
+        self.normal_image = (normals + 1)*0.5*255
+        self.normal_image = self.normal_image.astype(np.uint8)
+        self._update(0)
+
+
+def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_process=False,
+               run_mode=RunMode.PLAY):
     torch.multiprocessing.set_start_method('spawn')
 
     surfels = fiontb.fusion.surfel.SceneSurfelData(1024*1024*3, "cuda:0")
@@ -143,24 +192,42 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
         render_surfels.points.from_tensor(surfels.points)
         render_surfels.normals.from_tensor(surfels.normals)
         render_surfels.colors.from_tensor(surfels.colors.byte())
+        render_surfels.radii.from_tensor(surfels.radii.view(-1, 1))
 
-    run_mode = RunMode.PLAY
+    inv_y = np.eye(4)
+    inv_y[1, 1] *= -1
+    render_surfels.transform = inv_y
+
     read_next_frame = True
 
+    sensor_ui = SensorFrameUI("Sensor View")
+    print("M - toggle play/step modes")
+    print("N - steps one frame")
     frame_count = 0
     try:
         while True:
             if frame_count == max_frames:
                 break
 
-            if read_next_frame:
-                if frame_queue.empty():
-                    frame, ret = sensor.next_frame()
-                    # frame.depth_image = cv2.blur(frame.depth_image, (5, 5))
-                    frame_queue.put(frame if ret else None)
+            if read_next_frame and frame_queue.empty():
+                print("Next frame")
+                frame, ret = sensor.next_frame()
+                # frame.depth_image = cv2.blur(frame.depth_image, (3, 3))
 
-                if single_process:
-                    rec_loop.step(frame)
+                points = FramePoints(frame)
+                normals = tenviz.calculate_depth_normals2(
+                    torch.from_numpy(points.camera_xyz_image),
+                    torch.from_numpy(points.fg_mask.astype(np.uint8))).numpy()
+
+                sensor_ui.update(frame, normals)
+                live_pcl = PointCloud(points.camera_points, points.colors,
+                                      normals.reshape(-1, 3)[points.fg_mask.flatten()])
+
+                if not single_process:
+                    frame_queue.put(
+                        (frame.info.kcam, points, live_pcl) if ret else None)
+                else:
+                    rec_loop.step((frame.info.kcam, points, live_pcl))
 
                 read_next_frame = run_mode != RunMode.STEP
             try:
@@ -170,35 +237,46 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                 with context.current():
                     surfels_lock.acquire()
                     points = surfels.points[surfel_update]
+
                     render_surfels.update_bounds(points)
                     render_surfels.points[surfel_update] = points
                     render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
                     colors = surfels.colors[surfel_update].byte()
                     render_surfels.colors[surfel_update] = colors
+                    render_surfels.radii[surfel_update] = surfels.radii[surfel_update].view(
+                        -1, 1)
                     render_surfels.mark_visible(surfel_update_cpu)
                     # TODO: umark visible
                     surfels_lock.release()
             except Empty:
                 pass
 
-            viewer.draw(0)
+            def _handle_key(key):
+                nonlocal run_mode
+                nonlocal read_next_frame
 
-            cv2.imshow("RGB Stream", cv2.cvtColor(
-                frame.rgb_image, cv2.COLOR_RGB2BGR))
-            cv2.imshow("Depth Stream", frame.depth_image)
+                if key == 27:
+                    return False
+                key = chr(key & 0xff).lower()
+
+                if key == 'm':
+                    if run_mode == RunMode.PLAY:
+                        run_mode = RunMode.STEP
+                    else:
+                        run_mode = RunMode.PLAY
+                elif key == 'n':
+                    read_next_frame = True
+
+                return True
+
+            key = viewer.draw(0)
+            if not _handle_key(key):
+                break
 
             key = cv2.waitKey(1)
-            if key == 27:
+            if not _handle_key(key):
                 break
-            key = chr(key & 0xff)
 
-            if key == 'm':
-                if run_mode == RunMode.PLAY:
-                    run_mode = RunMode.STEP
-                else:
-                    run_mode = RunMode.PLAY
-            elif key == 'n':
-                read_next_frame = True
             frame_count += 1
     except KeyboardInterrupt:
         pass
@@ -208,9 +286,9 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
         proc.join()
 
     cv2.destroyAllWindows()
-    #dense_pcl = surfels.to_point_cloud()
-    #tenviz.io.write_3dobject(output_file, dense_pcl.points,
-    #normals=dense_pcl.normals, colors=dense_pcl.colors)
+    # dense_pcl = surfels.to_point_cloud()
+    # tenviz.io.write_3dobject(output_file, dense_pcl.points,
+    # normals=dense_pcl.normals, colors=dense_pcl.colors)
 
 
 class FrameToFrameOdometry(rflow.Interface):
@@ -275,7 +353,7 @@ class SurfelFusion(rflow.Interface):
     def evaluate(self, resource, dataset, odometry):
         sensor = fiontb.sensor.DatasetSensor(dataset)
         _main_loop(sensor, resource.filepath, odometry,
-                   max_frames=None, single_process=False)
+                   max_frames=None, single_process=True, run_mode=RunMode.STEP)
 
 
 class SuperDenseFusion(rflow.Interface):
@@ -287,7 +365,7 @@ class SuperDenseFusion(rflow.Interface):
 
 
 @rflow.graph()
-def test(g):
+def scene3(g):
     ds_g = rflow.open_graph("../../test-data/rgbd/scene3", "sample")
 
     g.frame_to_frame = FrameToFrameOdometry(
@@ -309,9 +387,29 @@ def test(g):
     with g.dense_fusion as args:
         args.dataset = ds_g.to_ftb
 
+@rflow.graph()
+def iclnuim(g):
+    ds_g = rflow.open_graph("../../test-data/rgbd/iclnuim", "iclnuim")
+
+    g.frame_to_frame = FrameToFrameOdometry(
+        rflow.FSResource("lr0-frame2frame.json"))
+    with g.frame_to_frame as args:
+        args.dataset = ds_g.lr0_to_ftb
+
+    g.view_frame_to_frame = ViewOdometry()
+    with g.view_frame_to_frame as args:
+        args.dataset = ds_g.lr0_to_ftb
+        args.odometry = g.frame_to_frame
+
+    g.fusion = SurfelFusion(rflow.FSResource("lr0.ply"))
+    with g.fusion as args:
+        args.dataset = ds_g.lr0_to_ftb
+        args.odometry = g.frame_to_frame
+
+    g.dense_fusion = SuperDenseFusion(rflow.FSResource("lr0.ply"))
+    with g.dense_fusion as args:
+        args.dataset = ds_g.lr0_to_ftb
+        
 
 if __name__ == '__main__':
-    import ipdb
-    ipdb.set_trace()
-
     rflow.command.main()

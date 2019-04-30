@@ -3,6 +3,7 @@
 
 import numpy as np
 import cv2
+import torch
 
 from .camera import KCamera, RTCamera
 from .datatypes import PointCloud
@@ -107,14 +108,9 @@ class FramePoints:
     """
 
     def __init__(self, frame: Frame):
-        xs, ys = np.meshgrid(np.arange(frame.depth_image.shape[1]),
-                             np.arange(frame.depth_image.shape[0]))
         info = frame.info
-        self.depth_image = (frame.depth_image*info.depth_scale + info.depth_bias).astype(np.float32)
-        points = np.dstack(
-            [xs, ys, self.depth_image]).astype(np.float32)
-
-        self.uv_points = points.reshape(-1, 3, 1)
+        self.depth_image = (frame.depth_image*info.depth_scale +
+                            info.depth_bias).astype(np.float32)
 
         depth_mask = frame.depth_image > 0
         if frame.fg_mask is not None:
@@ -122,7 +118,13 @@ class FramePoints:
         else:
             self.fg_mask = depth_mask
 
-        self.uv_points = self.uv_points[self.fg_mask.flatten()]
+        xs, ys = np.meshgrid(np.arange(frame.depth_image.shape[1]),
+                             np.arange(frame.depth_image.shape[0]))
+        self.xyz_image = np.dstack(
+            [xs, ys, self.depth_image]).astype(np.float32)
+
+        self.points = self.xyz_image.reshape(-1, 3, 1)
+        self.points = self.points[self.fg_mask.flatten()]
 
         if frame.rgb_image is not None:
             self.colors = frame.rgb_image.reshape(-1, 3)
@@ -130,6 +132,7 @@ class FramePoints:
 
         self.kcam = info.kcam
         self._camera_points = None
+        self._camera_xyz = None
 
     @property
     def camera_points(self):
@@ -139,12 +142,23 @@ class FramePoints:
         """
 
         if self.kcam is None:
-            raise RuntimeError("Snapshot doesn't have the K camera")
+            raise RuntimeError("Frame doesn't have intrinsics camera")
 
         if self._camera_points is None:
-            self._camera_points = self.kcam.backproject(self.uv_points)
-
+            self._camera_points = self.kcam.backproject(self.points)
         return self._camera_points
+
+    @property
+    def camera_xyz_image(self):
+        if self.kcam is None:
+            raise RuntimeError("Frame doesn't have intrinsics camera")
+
+        if self._camera_xyz is None:
+            self._camera_xyz = self.kcam.backproject(
+                self.xyz_image.reshape(-1, 3, 1))
+            self._camera_xyz = self._camera_xyz.reshape(self.xyz_image.shape)
+
+        return self._camera_xyz
 
 
 def _compute_normals0(depth_img):
@@ -196,8 +210,13 @@ def compute_normals(depth_img):
 
 def frame_to_pointcloud(frame):
     points = FramePoints(frame)
+    import tenviz
+    #normals = compute_normals(points.depth_image)
+    # normals = tenviz.calculate_depth_normals(torch.from_numpy(points.depth_image)).numpy()
 
-    normals = compute_normals(points.depth_image)
+    normals = tenviz.calculate_depth_normals2(
+        torch.from_numpy(points.camera_xyz_image),
+        torch.from_numpy(points.fg_mask.astype(np.uint8))).numpy()
     normals = normals.reshape(-1, 3)
     normals = normals[points.fg_mask.flatten()]
 

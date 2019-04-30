@@ -102,13 +102,11 @@ class KCamera:
         """Project image to camera space.
         """
 
-        xyz_coords = points
+        xyz_coords = points.copy()
         fx = self.matrix[0, 0]
         fy = self.matrix[1, 1]
         cx = self.matrix[0, 2]
         cy = self.matrix[1, 2]
-
-        #import ipdb; ipdb.set_trace()
 
         z = xyz_coords[:, 2, 0]
         xyz_coords[:, 0, 0] = (xyz_coords[:, 0, 0] - cx) * z / fx
@@ -127,6 +125,9 @@ class KCamera:
         points[:, 0:2, 0] /= z
         return points
 
+    def pixel_center(self):
+        return (self.matrix[0, 2], self.matrix[1, 2])
+                        
     def __str__(self):
         return str(self.__dict__)
 
@@ -233,6 +234,9 @@ class RTCamera:
         points = np.matmul(self.world_to_cam, points)
         points = np.delete(points, 3, waxis)
         return points
+
+    def center(self):
+        return self.matrix[:3, 3]
 
     def __str__(self):
         return str(self.__dict__)

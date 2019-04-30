@@ -12,7 +12,7 @@ import cv2
 from natsort import natsorted
 
 from fiontb.camera import KCamera, RTCamera
-from .datatype import Snapshot
+from fiontb.frame import Frame, FrameInfo
 
 Entry = namedtuple("ICLNuimEntry", ["extr_cam", "depth_path", "rgb_path"])
 
@@ -62,10 +62,10 @@ class ICLNuim:
         depth_image = undistort_depth(depth_image,
                                       CAM_INTRINSIC.matrix)
 
-        return Snapshot(depth_image, kcam=CAM_INTRINSIC,
-                        rgb_image=color_img,
-                        rt_cam=entry.extr_cam,
-                        timestamp=idx)
+        info = FrameInfo(CAM_INTRINSIC, depth_scale=1.0, depth_bias=0.0, depth_max=4500.0,
+                         timestamp=idx, rt_cam=entry.extr_cam)
+        frame = Frame(info, depth_image, color_img)
+        return frame
 
     def __len__(self):
         return len(self.trajectory)

@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from sklearn.neighbors import KDTree
 from scipy.spatial import cKDTree
+import cv2
 
 from fiontb.datatypes import PointCloud, pcl_stack
 from ._brutesearch import BruteNNSearch
@@ -19,7 +20,7 @@ class SceneSurfelData:
             (num_surfels, 3), dtype=torch.float32).to(device)
         self.colors = torch.zeros(
             (num_surfels, 3), dtype=torch.int16).to(device)
-        self.radius = torch.zeros(
+        self.radii = torch.zeros(
             (num_surfels,), dtype=torch.float32).to(device)
         self.counts = torch.zeros(
             (num_surfels,), dtype=torch.float32).to(device)
@@ -55,10 +56,19 @@ class SceneSurfelData:
         self.points = self.points.share_memory_()
         self.colors = self.colors.share_memory_()
         self.normals = self.normals.share_memory_()
-        self.radius = self.radius.share_memory_()
+        self.radii = self.radii.share_memory_()
         self.counts = self.counts.share_memory_()
         self.timestamps = self.timestamps.share_memory_()
         self.surfel_mask = self.surfel_mask.share_memory_()
+
+
+def torch_pcl(pcl, device):
+    pcl = PointCloud(torch.from_numpy(pcl.points).to(device),
+                     torch.from_numpy(pcl.colors).short().to(device),
+                     torch.from_numpy(pcl.normals).to(device))
+
+    return pcl
+
 
 class SurfelFusion:
     def __init__(self, surfels, max_distance=0.05, normal_max_angle=20.0,
@@ -71,39 +81,34 @@ class SurfelFusion:
         self._is_first_fusion = True
         self._start_timestamp = time.time()
 
-    def _get_confidence(self, points, rt_cam):
-        camera_center = torch.from_numpy(
-            rt_cam.matrix[:3, 3]).to(self.surfels.device)
-        live_confidence = torch.norm(
-            points - camera_center, p=4, dim=1)
-        live_confidence = torch.exp(-live_confidence/(2.0*math.pow(2, 0.6)))
-        return live_confidence
+    def _get_confidence(self, frame_points):
+        camera_center = torch.tensor(frame_points.kcam.pixel_center())
 
-    def _first_fuse(self, live_pcl, rt_cam, timestamp):
-        indices = torch.arange(0, live_pcl.size)
-        points = torch.from_numpy(
-            live_pcl.points).to(self.surfels.device)
-        self.surfels.points[indices] = points
+        xy = torch.from_numpy(frame_points.points[:, :2]).squeeze()
 
-        self.surfels.colors[indices] = torch.from_numpy(
-            live_pcl.colors).short().to(self.surfels.device)
+        confidence = torch.norm(
+            xy - camera_center, p=2, dim=1)
+        confidence = confidence / confidence.max()
+        
+        confidence = torch.exp(-torch.pow(confidence, 2) /
+                               (2.0*math.pow(0.6, 2)))
 
-        self.surfels.normals[indices] = torch.from_numpy(
-            live_pcl.normals).to(self.surfels.device)
+        return confidence.to(self.surfels.device)
 
-        self.surfels.counts[indices] = self._get_confidence(points, rt_cam)
+    def fuse(self, frame_points, live_pcl, kcam, rt_cam):
+        focal_len = (kcam.matrix[0, 0] + kcam.matrix[1, 1]) * .5
 
-        self.surfels.timestamps[indices] = timestamp
-        self.surfels.mark_active(indices)
-        self._is_first_fusion = False
-
-        return (indices.to(self.surfels.device),
-                torch.tensor([], dtype=torch.int64))
-
-    def fuse(self, live_pcl, rt_cam):
         timestamp = int((time.time() - self._start_timestamp)*1000)
         if self._is_first_fusion:
-            return self._first_fuse(live_pcl, rt_cam, timestamp)
+            indices = torch.arange(0, live_pcl.size)
+            live_pcl = torch_pcl(live_pcl, self.surfels.device)
+            live_confidence = self._get_confidence(frame_points)
+
+            self._add_surfels(indices, indices, live_pcl,
+                              live_confidence, timestamp, focal_len)
+            self._is_first_fusion = False
+            return (indices.to(self.surfels.device),
+                    torch.tensor([], dtype=torch.int64))
 
         active_mask = self.surfels.active_mask()
 
@@ -113,10 +118,7 @@ class SurfelFusion:
         dist_mtx = dist_mtx.flatten()
         idx_mtx = idx_mtx.flatten()
 
-        live_pcl = PointCloud(torch.from_numpy(live_pcl.points).to(self.surfels.device),
-                              torch.from_numpy(
-                                  live_pcl.colors).short().to(self.surfels.device),
-                              torch.from_numpy(live_pcl.normals).to(self.surfels.device))
+        live_pcl = torch_pcl(live_pcl, self.surfels.device)
 
         live_fuse_idxs = np.where(dist_mtx < self.max_distance)[0]
         model_fuse_idxs = idx_mtx[live_fuse_idxs]
@@ -131,12 +133,20 @@ class SurfelFusion:
         live_fuse_idxs = live_fuse_idxs[good_norm_mask]
         model_fuse_idxs = model_fuse_idxs[good_norm_mask]
 
-        live_confidence = self._get_confidence(live_pcl.points, rt_cam)
+        live_confidence = self._get_confidence(frame_points)
 
         self._fuse_surfels(live_confidence[live_fuse_idxs], live_pcl,
                            model_fuse_idxs, live_fuse_idxs)
 
-        empty_indices = self._add_surfels(dist_mtx, live_confidence, live_pcl)
+        live_new_idxs = torch.from_numpy(
+            np.where(dist_mtx > self.max_distance)[0])
+        live_new_idxs = live_new_idxs.flatten()
+
+        empty_indices = self.surfels.get_inactive_indices(
+            live_new_idxs.shape[0])
+        if empty_indices.size(0) > 0:
+            self._add_surfels(empty_indices, live_new_idxs, live_pcl,
+                              live_confidence, timestamp, focal_len)
 
         update_indices = torch.cat(
             [model_fuse_idxs.to(self.surfels.device), empty_indices])
@@ -171,23 +181,26 @@ class SurfelFusion:
 
         self.surfels.counts[model_fuse_idxs] = count_update.squeeze()
 
-    def _add_surfels(self, dist_mtx, live_confidence, live_pcl):
-        live_new_idxs = torch.from_numpy(
-            np.where(dist_mtx > self.max_distance)[0])
-        live_new_idxs = live_new_idxs.flatten()
+    def _add_surfels(self, empty_indices, live_indices, live_pcl, live_confidence,
+                     timestamp, focal_len):
 
-        empty_indices = self.surfels.get_inactive_indices(
-            live_new_idxs.shape[0])
         self.surfels.mark_active(empty_indices)
 
-        self.surfels.points[empty_indices] = live_pcl.points[live_new_idxs]
-        self.surfels.colors[empty_indices] = live_pcl.colors[live_new_idxs]
-        self.surfels.normals[empty_indices] = live_pcl.normals[live_new_idxs]
-        self.surfels.counts[empty_indices] = live_confidence[live_new_idxs]
+        points = live_pcl.points[live_indices]
+        self.surfels.points[empty_indices] = points
+        self.surfels.colors[empty_indices] = live_pcl.colors[live_indices]
+        normals = live_pcl.normals[live_indices]
+        self.surfels.normals[empty_indices] = normals
 
-        return empty_indices
+        radii = (points[:, 2] / focal_len) * math.sqrt(2)
+        self.surfels.radii[empty_indices] = torch.min(
+            2*radii, radii/normals[:, 2].abs())
+
+        self.surfels.counts[empty_indices] = live_confidence[live_indices]
+        self.surfels.timestamps[empty_indices] = timestamp
 
     def _remove_surfels(self, curr_timestamp, active_mask):
+        return torch.tensor([], dtype=torch.int64)
         remove_mask = (
             curr_timestamp - self.surfels.timestamps[active_mask]) > self.max_unstable_time
         remove_indices = active_mask.nonzero().squeeze()[
