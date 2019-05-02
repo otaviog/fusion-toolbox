@@ -21,3 +21,12 @@ fiontb.data.sens.write:
 
 view.fiontb.data.sens:
 	python3 -m fiontb.data._tests.test_sens
+
+fiontb.datatypes:
+	python3 -m unittest fiontb._tests.test_datatypes
+
+fiontb.camera:
+	python3 -m unittest fiontb._tests.test_camera
+
+fiontb.frame:
+	python3 -m unittest fiontb._tests.test_frame

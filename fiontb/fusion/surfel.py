@@ -3,12 +3,9 @@ import time
 
 import torch
 import numpy as np
-from sklearn.neighbors import KDTree
-from scipy.spatial import cKDTree
-import cv2
 
 from fiontb.datatypes import PointCloud, pcl_stack
-from ._brutesearch import BruteNNSearch
+from ._nearestpoints import KDTree
 
 
 class SceneSurfelData:
@@ -19,7 +16,7 @@ class SceneSurfelData:
         self.normals = torch.zeros(
             (num_surfels, 3), dtype=torch.float32).to(device)
         self.colors = torch.zeros(
-            (num_surfels, 3), dtype=torch.int16).to(device)
+            (num_surfels, 3), dtype=torch.uint8).to(device)
         self.radii = torch.zeros(
             (num_surfels,), dtype=torch.float32).to(device)
         self.counts = torch.zeros(
@@ -64,7 +61,7 @@ class SceneSurfelData:
 
 def torch_pcl(pcl, device):
     pcl = PointCloud(torch.from_numpy(pcl.points).to(device),
-                     torch.from_numpy(pcl.colors).short().to(device),
+                     torch.from_numpy(pcl.colors).to(device),
                      torch.from_numpy(pcl.normals).to(device))
 
     return pcl
@@ -89,42 +86,81 @@ class SurfelFusion:
         confidence = torch.norm(
             xy - camera_center, p=2, dim=1)
         confidence = confidence / confidence.max()
-        
+
         confidence = torch.exp(-torch.pow(confidence, 2) /
                                (2.0*math.pow(0.6, 2)))
 
         return confidence.to(self.surfels.device)
 
     def fuse(self, frame_points, live_pcl, kcam, rt_cam):
+        live_pcl = torch_pcl(live_pcl, self.surfels.device)
+
         focal_len = (kcam.matrix[0, 0] + kcam.matrix[1, 1]) * .5
+        live_confidence = self._get_confidence(frame_points)
+
+        # Computes radii
+        live_radii = (live_pcl.points[:, 2] / focal_len) * math.sqrt(2)
+        live_radii = torch.min(2*live_radii, live_radii /
+                               live_pcl.normals[:, 2].abs())
 
         timestamp = int((time.time() - self._start_timestamp)*1000)
         if self._is_first_fusion:
-            indices = torch.arange(0, live_pcl.size)
-            live_pcl = torch_pcl(live_pcl, self.surfels.device)
-            live_confidence = self._get_confidence(frame_points)
+            new_idxs = torch.arange(0, live_pcl.size)
 
-            self._add_surfels(indices, indices, live_pcl,
+            self._add_surfels(new_idxs, new_idxs, live_pcl, live_radii,
                               live_confidence, timestamp, focal_len)
             self._is_first_fusion = False
-            return (indices.to(self.surfels.device),
+            return (new_idxs.to(self.surfels.device),
                     torch.tensor([], dtype=torch.int64))
 
         active_mask = self.surfels.active_mask()
+        nn_search = KDTree(self.surfels.points[active_mask].cpu(), self.surfels.device)
+        dist_mtx, idx_mtx = nn_search.query(live_pcl.points)
 
-        search = cKDTree(
-            self.surfels.points[active_mask].cpu(), balanced_tree=False)
-        dist_mtx, idx_mtx = search.query(live_pcl.points, 1)
-        dist_mtx = dist_mtx.flatten()
-        idx_mtx = idx_mtx.flatten()
+        import ipdb; ipdb.set_trace()
 
-        live_pcl = torch_pcl(live_pcl, self.surfels.device)
-
-        live_fuse_idxs = np.where(dist_mtx < self.max_distance)[0]
+        live_normals = live_pcl.normals.transpose(1, 0).contiguous().view(-1, 3, 1)
+        model_normals = self.surfels.normals[idx_mtx]
+        
+        normal_dots = torch.bmm(model_normals, live_normals).squeeze()
+        sel = (normal_dots < self.normal_min_dot) & (dist_mtx < 0.05)
+        
+        # Distance select
+        live_fuse_idxs = sel.any(dim=1).nonzero()
+        # model_fuse_idxs = 
+        
         model_fuse_idxs = idx_mtx[live_fuse_idxs]
         live_fuse_idxs = torch.from_numpy(live_fuse_idxs)
         model_fuse_idxs = torch.from_numpy(model_fuse_idxs)
 
+        live_confidence = self._get_confidence(frame_points)
+
+        fuse_updated_idxs = self._fuse_surfels(live_confidence[live_fuse_idxs], live_pcl,
+                                               model_fuse_idxs, live_fuse_idxs)
+
+        live_new_idxs = torch.from_numpy(
+            np.where(dist_mtx > self.max_distance)[0])
+        live_new_idxs = live_new_idxs.flatten()
+
+        new_indices = torch.tensor([], dtype=torch.int64)
+        if live_new_idxs.size(0) > 0:
+            new_indices = self.surfels.get_inactive_indices(
+                live_new_idxs.shape[0])
+
+            self._add_surfels(new_indices, live_new_idxs, live_pcl,
+                              live_confidence, timestamp, focal_len)
+
+        update_indices = torch.cat(
+            [fuse_updated_idxs.to(self.surfels.device), new_indices])
+
+        self.surfels.timestamps[update_indices] = timestamp
+
+        remove_indices = self._remove_surfels(timestamp, active_mask)
+
+        return update_indices, remove_indices
+
+    def _fuse_surfels(self, live_confidence, live_radii, live_pcl, model_fuse_idxs, live_fuse_idxs):
+        # Test if normals are compatible
         norm_dot = torch.bmm(
             live_pcl.normals[live_fuse_idxs].view(-1, 1, 3),
             self.surfels.normals[model_fuse_idxs].view(-1, 3, 1)).squeeze()
@@ -133,55 +169,46 @@ class SurfelFusion:
         live_fuse_idxs = live_fuse_idxs[good_norm_mask]
         model_fuse_idxs = model_fuse_idxs[good_norm_mask]
 
-        live_confidence = self._get_confidence(frame_points)
-
-        self._fuse_surfels(live_confidence[live_fuse_idxs], live_pcl,
-                           model_fuse_idxs, live_fuse_idxs)
-
-        live_new_idxs = torch.from_numpy(
-            np.where(dist_mtx > self.max_distance)[0])
-        live_new_idxs = live_new_idxs.flatten()
-
-        empty_indices = self.surfels.get_inactive_indices(
-            live_new_idxs.shape[0])
-        if empty_indices.size(0) > 0:
-            self._add_surfels(empty_indices, live_new_idxs, live_pcl,
-                              live_confidence, timestamp, focal_len)
-
-        update_indices = torch.cat(
-            [model_fuse_idxs.to(self.surfels.device), empty_indices])
-
-        self.surfels.timestamps[update_indices] = timestamp
-
-        remove_indices = self._remove_surfels(timestamp, active_mask)
-
-        return update_indices, remove_indices
-
-    def _fuse_surfels(self, live_confidence, live_pcl, model_fuse_idxs, live_fuse_idxs):
         count = self.surfels.counts[model_fuse_idxs]
-        count_update = count + live_confidence
 
         # For element-wise multiplication
         count = count.view(-1, 1)
-        count_update = count_update.view(-1, 1)
         live_confidence = live_confidence.view(-1, 1)
 
-        model_point_update = self.surfels.points[model_fuse_idxs] * count
-        live_points = live_pcl.points[live_fuse_idxs]*live_confidence
-        self.surfels.points[model_fuse_idxs] = (
-            model_point_update + live_points) / count_update
+        count_update = count + live_confidence
 
-        self.surfels.colors[model_fuse_idxs] += live_pcl.colors[live_fuse_idxs]
-        self.surfels.colors[model_fuse_idxs] /= 2
-
-        model_normal_update = self.surfels.normals[model_fuse_idxs]*count
-        live_normals = live_pcl.normals[live_fuse_idxs]*live_confidence
-        self.surfels.normals[model_fuse_idxs] = (
-            model_normal_update + live_normals) / count_update
-
+        # update all visible surfels
         self.surfels.counts[model_fuse_idxs] = count_update.squeeze()
 
-    def _add_surfels(self, empty_indices, live_indices, live_pcl, live_confidence,
+        radii_mask = live_radii < self.surfels.radii * \
+            (1.0 + self.merge_min_radio)
+        live_update_idxs = live_fuse_idxs[radii_mask]
+        model_update_idxs = model_fuse_idxs[radii_mask]
+
+        # point update
+        model_point_update = self.surfels.points[model_update_idxs] * count
+        live_points = live_pcl.points[live_update_idxs]*live_confidence
+        self.surfels.points[model_update_idxs] = (
+            model_point_update + live_points) / count_update
+
+        # color update
+        model_color_update = (self.surfels.colors[model_update_idxs].float()
+                              * count)
+        live_color = live_pcl.colors[live_update_idxs].float()*live_confidence
+        self.surfels.colors[model_update_idxs] = ((
+            model_color_update + live_color) / count_update).byte()
+
+        # normal update
+        model_normal_update = self.surfels.normals[model_update_idxs]*count
+        live_normals = live_pcl.normals[live_update_idxs]*live_confidence
+        normals = model_normal_update + live_normals
+        normals /= count_update
+        normals /= normals.norm(2, 1).view(-1, 1)
+        self.surfels.normals[model_update_idxs] = normals
+
+        return model_update_idxs
+
+    def _add_surfels(self, empty_indices, live_indices, live_pcl, live_radii, live_confidence,
                      timestamp, focal_len):
 
         self.surfels.mark_active(empty_indices)
@@ -192,9 +219,7 @@ class SurfelFusion:
         normals = live_pcl.normals[live_indices]
         self.surfels.normals[empty_indices] = normals
 
-        radii = (points[:, 2] / focal_len) * math.sqrt(2)
-        self.surfels.radii[empty_indices] = torch.min(
-            2*radii, radii/normals[:, 2].abs())
+        self.surfels.radii[empty_indices] = live_radii
 
         self.surfels.counts[empty_indices] = live_confidence[live_indices]
         self.surfels.timestamps[empty_indices] = timestamp

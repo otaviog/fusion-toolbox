@@ -4,6 +4,7 @@
 from queue import Empty
 from multiprocessing import Lock
 from enum import Enum
+from cProfile import Profile
 
 import numpy as np
 import cv2
@@ -169,7 +170,7 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
         surfel_update_queue = mp.Queue(5)
     else:
         surfel_update_queue = DummyQueue()
-
+        
     frame_queue = mp.Queue()
     rec_loop = ReconstructionLoop(
         frame_queue,
@@ -188,6 +189,9 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
     render_surfels = context.add_surfel_cloud()
     viewer = context.viewer(cam_manip=tenviz.CameraManipulator.WASD)
 
+    prof = Profile()
+    prof.enable()
+    
     with context.current():
         render_surfels.points.from_tensor(surfels.points)
         render_surfels.normals.from_tensor(surfels.normals)
@@ -212,7 +216,8 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
             if read_next_frame and frame_queue.empty():
                 print("Next frame")
                 frame, ret = sensor.next_frame()
-                # frame.depth_image = cv2.blur(frame.depth_image, (3, 3))
+                no_blur_depth_image = frame.depth_image
+                frame.depth_image = cv2.blur(frame.depth_image, (3, 3))
 
                 points = FramePoints(frame)
                 normals = tenviz.calculate_depth_normals2(
@@ -220,6 +225,9 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                     torch.from_numpy(points.fg_mask.astype(np.uint8))).numpy()
 
                 sensor_ui.update(frame, normals)
+
+                frame.depth_image = no_blur_depth_image
+                points = FramePoints(frame)
                 live_pcl = PointCloud(points.camera_points, points.colors,
                                       normals.reshape(-1, 3)[points.fg_mask.flatten()])
 
@@ -232,22 +240,23 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                 read_next_frame = run_mode != RunMode.STEP
             try:
                 surfel_update, surfel_removal = surfel_update_queue.get_nowait()
-                surfel_update_cpu = surfel_update
-                surfel_update = surfel_update.to(surfels.device)
-                with context.current():
-                    surfels_lock.acquire()
-                    points = surfels.points[surfel_update]
+                if surfel_update.size(0) > 0:
+                    surfel_update_cpu = surfel_update
+                    surfel_update = surfel_update.to(surfels.device)
+                    with context.current():
+                        surfels_lock.acquire()
+                        points = surfels.points[surfel_update]
 
-                    render_surfels.update_bounds(points)
-                    render_surfels.points[surfel_update] = points
-                    render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
-                    colors = surfels.colors[surfel_update].byte()
-                    render_surfels.colors[surfel_update] = colors
-                    render_surfels.radii[surfel_update] = surfels.radii[surfel_update].view(
-                        -1, 1)
-                    render_surfels.mark_visible(surfel_update_cpu)
-                    # TODO: umark visible
-                    surfels_lock.release()
+                        render_surfels.update_bounds(points)
+                        render_surfels.points[surfel_update] = points
+                        render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
+                        colors = surfels.colors[surfel_update].byte()
+                        render_surfels.colors[surfel_update] = colors
+                        render_surfels.radii[surfel_update] = surfels.radii[surfel_update].view(
+                            -1, 1)
+                        render_surfels.mark_visible(surfel_update_cpu)
+                        # TODO: umark visible
+                        surfels_lock.release()
             except Empty:
                 pass
 
@@ -286,6 +295,8 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
         proc.join()
 
     cv2.destroyAllWindows()
+    prof.disable()
+    prof.dump_stats("profile.prof")
     # dense_pcl = surfels.to_point_cloud()
     # tenviz.io.write_3dobject(output_file, dense_pcl.points,
     # normals=dense_pcl.normals, colors=dense_pcl.colors)
