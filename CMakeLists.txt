@@ -26,6 +26,6 @@ find_package(Eigen3 REQUIRED)
 find_package(PythonLibs 3 REQUIRED)
 
 set(CMAKE_CXX_FLAGS -fPIC)
-
+include_directories(${CMAKE_SOURCE_DIR}/include)
 add_subdirectory(src)
 

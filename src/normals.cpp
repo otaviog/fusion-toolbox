@@ -1,9 +1,6 @@
 #include "normals.hpp"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#include <Eigen/Eigen>
-#pragma GCC diagnostic pop
+#include "eigen_common.hpp"
 
 namespace fiontb {
 inline Eigen::Vector3f Normal(const Eigen::Vector3f &p0,
@@ -18,6 +15,7 @@ torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
       torch::empty({xyz_image.size(0), xyz_image.size(1), 3}, torch::kFloat);
   auto n_acc = normal_image.accessor<float, 3>();
 
+  volatile void *data = normal_image.data_ptr();
   const auto xyz_a = xyz_image.accessor<float, 3>();
   const auto mask_a = mask_image.accessor<uint8_t, 2>();
 

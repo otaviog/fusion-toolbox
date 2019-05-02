@@ -6,6 +6,7 @@ from multiprocessing import Lock
 from enum import Enum
 from cProfile import Profile
 
+
 import numpy as np
 import cv2
 import open3d
@@ -19,6 +20,7 @@ import tenviz
 from fiontb.datatypes import PointCloud
 from fiontb.camera import RTCamera
 from fiontb.frame import frame_to_pointcloud, compute_normals, FramePoints
+import fiontb.fiontblib as fiontblib
 
 import fiontb.sensor
 import fiontb.fusion
@@ -220,7 +222,7 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                 frame.depth_image = cv2.blur(frame.depth_image, (3, 3))
 
                 points = FramePoints(frame)
-                normals = tenviz.calculate_depth_normals2(
+                normals = fiontblib.calculate_depth_normals(
                     torch.from_numpy(points.camera_xyz_image),
                     torch.from_numpy(points.fg_mask.astype(np.uint8))).numpy()
 
@@ -240,11 +242,11 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                 read_next_frame = run_mode != RunMode.STEP
             try:
                 surfel_update, surfel_removal = surfel_update_queue.get_nowait()
+                surfels_lock.acquire()
                 if surfel_update.size(0) > 0:
                     surfel_update_cpu = surfel_update
                     surfel_update = surfel_update.to(surfels.device)
                     with context.current():
-                        surfels_lock.acquire()
                         points = surfels.points[surfel_update]
 
                         render_surfels.update_bounds(points)
@@ -255,8 +257,10 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                         render_surfels.radii[surfel_update] = surfels.radii[surfel_update].view(
                             -1, 1)
                         render_surfels.mark_visible(surfel_update_cpu)
-                        # TODO: umark visible
-                        surfels_lock.release()
+
+
+                render_surfels.mark_invisible(surfel_removal.cpu())
+                surfels_lock.release()
             except Empty:
                 pass
 

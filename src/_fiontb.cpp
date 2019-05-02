@@ -4,6 +4,7 @@
 #include <torch/torch.h>
 
 #include "normals.hpp"
+#include "surfel_fusion.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -11,4 +12,5 @@ namespace py = pybind11;
 PYBIND11_MODULE(_fiontb, m) {
   using namespace fiontb;
   m.def("calculate_depth_normals", &CalculateFrameNormals);
+  m.def("filter_search", &FilterSearch);
 }
