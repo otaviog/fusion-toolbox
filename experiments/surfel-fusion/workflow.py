@@ -163,7 +163,7 @@ class SensorFrameUI:
 def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_process=False,
                run_mode=RunMode.PLAY):
     torch.multiprocessing.set_start_method('spawn')
-
+    
     surfels = fiontb.fusion.surfel.SceneSurfelData(1024*1024*3, "cuda:0")
     surfels.share_memory()
     surfels_lock = Lock()
@@ -172,7 +172,7 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
         surfel_update_queue = mp.Queue(5)
     else:
         surfel_update_queue = DummyQueue()
-        
+
     frame_queue = mp.Queue()
     rec_loop = ReconstructionLoop(
         frame_queue,
@@ -189,20 +189,22 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
 
     context = tenviz.Context(640, 640)
     render_surfels = context.add_surfel_cloud()
-    viewer = context.viewer(cam_manip=tenviz.CameraManipulator.WASD)
+    viewer = context.viewer(
+        [render_surfels], cam_manip=tenviz.CameraManipulator.WASD)
 
     prof = Profile()
     prof.enable()
-    
+
     with context.current():
         render_surfels.points.from_tensor(surfels.points)
         render_surfels.normals.from_tensor(surfels.normals)
         render_surfels.colors.from_tensor(surfels.colors.byte())
         render_surfels.radii.from_tensor(surfels.radii.view(-1, 1))
+        render_surfels.counts.from_tensor(surfels.counts.view(-1, 1))
 
-    inv_y = np.eye(4)
+    inv_y = np.eye(4, dtype=np.float32)
     inv_y[1, 1] *= -1
-    render_surfels.transform = inv_y
+    render_surfels.set_transform(torch.from_numpy(inv_y))
 
     read_next_frame = True
 
@@ -256,8 +258,9 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                         render_surfels.colors[surfel_update] = colors
                         render_surfels.radii[surfel_update] = surfels.radii[surfel_update].view(
                             -1, 1)
+                        render_surfels.counts[surfel_update] = surfels.counts[surfel_update].view(
+                            -1, 1)
                         render_surfels.mark_visible(surfel_update_cpu)
-
 
                 render_surfels.mark_invisible(surfel_removal.cpu())
                 surfels_lock.release()
@@ -279,7 +282,7 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
                         run_mode = RunMode.PLAY
                 elif key == 'n':
                     read_next_frame = True
-
+                
                 return True
 
             key = viewer.draw(0)
@@ -289,6 +292,9 @@ def _main_loop(sensor, output_file, odometry=None, max_frames=None, single_proce
             key = cv2.waitKey(1)
             if not _handle_key(key):
                 break
+
+            if chr(key & 0xff) == 't':
+                import ipdb; ipdb.set_trace()
 
             frame_count += 1
     except KeyboardInterrupt:
@@ -402,6 +408,7 @@ def scene3(g):
     with g.dense_fusion as args:
         args.dataset = ds_g.to_ftb
 
+
 @rflow.graph()
 def iclnuim(g):
     ds_g = rflow.open_graph("../../test-data/rgbd/iclnuim", "iclnuim")
@@ -424,7 +431,7 @@ def iclnuim(g):
     g.dense_fusion = SuperDenseFusion(rflow.FSResource("lr0.ply"))
     with g.dense_fusion as args:
         args.dataset = ds_g.lr0_to_ftb
-        
+
 
 if __name__ == '__main__':
     rflow.command.main()

@@ -2,6 +2,7 @@
 """
 
 import numpy as np
+import torch
 
 
 class KCamera:
@@ -39,7 +40,7 @@ class KCamera:
     def from_json(cls, json):
         """Loads from json representaion.
         """
-        return cls(np.array(json['matrix']),
+        return cls(np.array(json['matrix'], np.float32),
                    undist_coeff=json.get('undist_coeff', None),
                    depth_radial_distortion=json['is_radial_depth'],
                    image_size=json.get('image_size', None))
@@ -117,17 +118,20 @@ class KCamera:
     def project(self, points):
         """Project camera to image space.
         """
-        points = np.matmul(self.matrix, points)
+        points = self.matrix @ points.reshape(-1, 3, 1)
 
         z = points[:, 2, 0]
 
-        z = np.vstack([z, z]).T
-        points[:, 0:2, 0] /= z
-        return points
+        points[:, 0:2, 0] /= z.reshape(-1, 1)
+        return points.squeeze()
 
     def pixel_center(self):
         return (self.matrix[0, 2], self.matrix[1, 2])
-                        
+
+    def torch(self):
+        return KCamera(torch.from_numpy(self.matrix),
+                       self.undist_coeff, self.depth_radial_distortion, self.image_size)
+
     def __str__(self):
         return str(self.__dict__)
 
@@ -141,13 +145,6 @@ class Homogeneous:
 
     def __init__(self, matrix):
         self.matrix = matrix
-
-    def __matmul0__(self, points):
-        points = np.insert(points, 3, 1, axis=1)
-        points = self.matrix @ points.reshape(-1, 4, 1)
-        points = np.delete(points, 3, 1)
-        points = points.squeeze()
-        return points
 
     def __matmul__(self, points):
         points = self.matrix[:3, :3] @ points.reshape(-1, 3, 1)
@@ -190,7 +187,7 @@ class RTCamera:
 
     @classmethod
     def from_json(cls, json):
-        return cls(np.array(json['matrix']))
+        return cls(np.array(json['matrix'], np.float32))
 
     def to_json(self):
         return {'matrix': self.matrix.tolist()}

@@ -7,7 +7,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 
-if (NOT EXISTS ${CMAKE_SOURCE_DIR}/3rd-party/libtorch-shared-with-deps-latest.zip)
+if (NOT EXISTS ${CMAKE_SOURCE_DIR}/3rd-party/libtorch)
   message("Downloading libtorch")
   file(DOWNLOAD https://download.pytorch.org/libtorch/cu90/libtorch-shared-with-deps-latest.zip
 	${CMAKE_SOURCE_DIR}/3rd-party/libtorch-shared-with-deps-latest.zip SHOW_PROGRESS)

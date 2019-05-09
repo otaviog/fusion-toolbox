@@ -124,7 +124,7 @@ class SurfelFusion:
         nn_search = KDTree(
             self.surfels.points[active_mask].cpu(), self.surfels.device)
         dist_mtx, idx_mtx = nn_search.query(live_pcl.points)
-
+        
         fuse_idxs = fiontblib.filter_search(
             dist_mtx.cpu(), idx_mtx.cpu(), live_pcl.normals.cpu(),
             self.surfels.normals[active_mask].cpu(), 0.05,
@@ -149,9 +149,10 @@ class SurfelFusion:
             self._add_surfels(new_indices, live_new_idxs, live_pcl,
                               live_confidence, live_radii, timestamp)
             model_update_idxs = torch.cat([model_update_idxs, new_indices])
+        
+        # model_remove_idxs = self._remove_surfels(timestamp, active_mask)
 
-        model_remove_idxs = self._remove_surfels(timestamp, active_mask)
-
+        model_remove_idxs = torch.tensor([], dtype=torch.int64)
         return model_update_idxs, model_remove_idxs
 
     def _fuse_surfels(self, live_pcl, live_confidence, live_radii, live_idxs, model_idxs):
@@ -208,6 +209,9 @@ class SurfelFusion:
         self.surfels.timestamps[model_empty_idxs] = timestamp
 
     def _remove_surfels(self, curr_timestamp, active_mask):
+        unstable_idxs = (self.surfels.count[active_mask] < self.max_unstable_count).nonzero().squeeze()
+        #unstable_idxs
+        
         remove_mask = (
             curr_timestamp - self.surfels.timestamps[active_mask]) > self.max_unstable_time
         remove_indices = active_mask.nonzero().squeeze()[
