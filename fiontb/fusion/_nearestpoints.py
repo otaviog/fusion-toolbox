@@ -6,7 +6,7 @@ from scipy.spatial import cKDTree
 from fiontb.camera import Homogeneous
 #from fiontb.fiontblib import IndexMap
 #from fiontb.sparse.octtree import OctTree
-from fiontb.fiontblib import OctTree
+from fiontb.fiontblib import Octree
 
 
 class KDTree:
@@ -53,7 +53,7 @@ class ProjectionNN:
 
         # self.indexmap = IndexMap(width, height, image_points)
         # points = points.to(device)
-        self.tree = OctTree(points, 2048)
+        self.tree = Octree(points, 2048)
         # import ipdb; ipdb.set_trace()
 
 
@@ -86,7 +86,7 @@ def _main():
     prof.enable()
     
     model.verts = model.verts.to("cuda:0")
-    
+    live.verts = live.verts.to("cuda:0")[:500, :]
     proj_nn = ProjectionNN(kcam, rt_cam, model.verts, "cuda:0", (640, 480))
     dist, idx = proj_nn.query(live.verts, 4)
     prof.disable()

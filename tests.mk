@@ -31,13 +31,13 @@ fiontb.camera:
 fiontb.frame:
 	python3 -m unittest fiontb._tests.test_frame
 
-fiontb.sparse.octtree:
+fiontb.sparse.octree:
 	python3 -m unittest fiontb.sparse._test.test_octtree
 
-fiontb.sparse.cocttree:
-	python3 -m unittest fiontb.sparse._test.test_cocttree
+fiontb.sparse.coctree:
+	python3 -m unittest fiontb.sparse._test.test_coctree
 
-fiontb.sparse.cocttree.memcheck:
+fiontb.sparse.coctree.memcheck:
 	valgrind --tool=memcheck --log-file=valgrind-out.txt python3 -m unittest fiontb.sparse._test.test_cocttree 
 
 fiontb.sparse.aabb:

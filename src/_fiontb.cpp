@@ -4,7 +4,7 @@
 #include <torch/torch.h>
 
 #include "normals.hpp"
-#include "octtree.hpp"
+#include "octree.hpp"
 #include "surfel_fusion.hpp"
 
 using namespace std;
@@ -21,7 +21,7 @@ PYBIND11_MODULE(_fiontb, m) {
       .def_readwrite("grid", &IndexMap::grid_)
       .def_readwrite("model", &IndexMap::model_points_);
 
-  py::class_<OctTree>(m, "OctTree")
+  py::class_<Octree>(m, "Octree")
       .def(py::init<torch::Tensor, int>())
-      .def("query", &OctTree::Query);
+      .def("query", &Octree::Query);
 }

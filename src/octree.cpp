@@ -1,4 +1,4 @@
-#include "octtree.hpp"
+#include "octree.hpp"
 
 #include <map>
 #include <vector>
@@ -44,12 +44,12 @@ class OctNode {
 };
 
 OctNode::OctNode(const torch::Tensor &indices, torch::Tensor points,
-                 const AABB &azdbox, int leaf_num_points)
+                 const AABB &split_box, int leaf_num_points)
     : leaf_(false) {
   using Eigen::Vector3f;
 
-  // box_ = AABB(points.index_select(0, indices));
-  box_ = azdbox;
+  box_ = AABB(points.index_select(0, indices));
+  // box_ = split_box;
   const Vector3f mi = box_.get_min();
   const Vector3f ma = box_.get_max();
   const Vector3f ce = (mi + ma) * 0.5;
@@ -68,10 +68,14 @@ OctNode::OctNode(const torch::Tensor &indices, torch::Tensor points,
 
     torch::Tensor mask = curr_box.IsInside(indices, points);
 
-    const int inside_count = mask.sum().item<int>();
-    if (inside_count == 0) continue;
+    // const int inside_count = mask.sum().item<int>();
+    // if (inside_count == 0) continue;
 
     torch::Tensor inside_indices = indices.masked_select(mask);
+    const int inside_count = inside_indices.size(0);
+    if (inside_count == 0) {
+      continue;
+    }
     if (inside_count < leaf_num_points) {
       children_[box_idx] = new OctNode(inside_indices, points, curr_box);
     } else {
@@ -94,6 +98,10 @@ OctNode::~OctNode() {
   }
 }
 
+void dump_tensor(torch::Tensor tensor, const string &out) {
+  std::ofstream file(out.c_str());
+  at::print(file, tensor, 99);
+}
 void OctNode::Query(torch::Tensor qpoints, torch::Tensor which_qpoints,
                     float radius, map<long, QueryResult> &results) const {
   if (IsLeaf()) {
@@ -120,28 +128,30 @@ void OctNode::Query(torch::Tensor qpoints, torch::Tensor which_qpoints,
     const AABB &box = child->get_box();
     auto mask = box.IsInside(qpoints, radius);
 
-    const int inside_count = mask.sum().item<int>();
-    if (inside_count == 0) {
-      continue;
-    }
+    //const int inside_count = mask.sum().item<int>();
+    //if (inside_count == 0) {
+    //continue;
+    //}
 
     torch::Tensor sub_qpoints =
         qpoints.masked_select(mask.view({-1, 1})).view({-1, 3});
+    if (sub_qpoints.size(0) == 0) {
+      continue;
+    }
     torch::Tensor sub_which_qpoints = which_qpoints.masked_select(mask.cpu());
     child->Query(sub_qpoints, sub_which_qpoints, radius, results);
   }
 }
 }  // namespace priv
 
-OctTree::OctTree(torch::Tensor points, int leaf_num_points)
-    : box_(AABB(points)) {
+Octree::Octree(torch::Tensor points, int leaf_num_points) : box_(AABB(points)) {
   torch::TensorOptions opts(torch::kInt64);
   opts = opts.device(points.device());
   root_ = new priv::OctNode(torch::arange(0, points.size(0), opts).squeeze(),
                             points, box_, leaf_num_points);
 }
 
-OctTree::~OctTree() { delete root_; }
+Octree::~Octree() { delete root_; }
 
 void CopyResultToTensor(const torch::TensorAccessor<float, 1> &sorted_dists,
                         const torch::TensorAccessor<long, 1> &indices,
@@ -160,8 +170,8 @@ void CopyResultToTensor(const torch::TensorAccessor<float, 1> &sorted_dists,
   }
 }
 
-pair<torch::Tensor, torch::Tensor> OctTree::Query(const torch::Tensor &qpoints,
-                                                  int max_k, float radius) {
+pair<torch::Tensor, torch::Tensor> Octree::Query(const torch::Tensor &qpoints,
+                                                 int max_k, float radius) {
   if (max_k == 1000) {
     at::print(qpoints, 99);
   }
@@ -198,6 +208,5 @@ pair<torch::Tensor, torch::Tensor> OctTree::Query(const torch::Tensor &qpoints,
 
   return make_pair(dist_mtx, idx_mtx);
 }
-
 
 }  // namespace fiontb
