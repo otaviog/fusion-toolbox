@@ -20,42 +20,69 @@ AABB::AABB(const torch::Tensor &points) {
   max_ = from_tensorv3f(ma.cpu());
 }
 
+void GPUCreateAABBFromPoints(const torch::Tensor &indices, const torch::Tensor &points,
+                             float min[3], float max[3]);
+
+AABB::AABB(const torch::Tensor &indices, const torch::Tensor &points) {
+  
+}
+
+
 bool AABB::IsInside(const Eigen::Vector3f &point) const {
   return (min_[0] >= point[0] && max_[0] <= point[0]) &&
          (min_[1] >= point[1] && max_[1] <= point[1]) &&
          (min_[2] >= point[2] && max_[2] <= point[2]);
 }
 
-torch::Tensor CallIsInside(const torch::Tensor &indices,
-                           const torch::Tensor &points, float min[3],
-                           float max[3]);
+bool AABB::IsInside(const Eigen::Vector3f &point, float radius) const {
+  Eigen::Vector3f closest(GetClosestPoint(point));
+
+  const Eigen::Vector3f v = point - closest;
+  return v.squaredNorm() <= radius*radius;
+}
+
+torch::Tensor GPUIsInside(const torch::Tensor &indices,
+                          const torch::Tensor &points, float min[3],
+                          float max[3]);
 
 torch::Tensor AABB::IsInside(const torch::Tensor &indices,
                              const torch::Tensor &points) const {
   float min[3] = {min_[0], min_[1], min_[2]};
   float max[3] = {max_[0], max_[1], max_[2]};
 
-  return CallIsInside(indices, points, min, max);
+  return GPUIsInside(indices, points, min, max);
 }
 
-torch::Tensor CallIsInside(const torch::Tensor &points, float min[3],
+torch::Tensor GPUIsInside(const torch::Tensor &points, float min[3],
                            float max[3]);
 
 torch::Tensor AABB::IsInside(const torch::Tensor &points) const {
   float min[3] = {min_[0], min_[1], min_[2]};
   float max[3] = {max_[0], max_[1], max_[2]};
 
-  return CallIsInside(points, min, max);
+  return GPUIsInside(points, min, max);
 }
 
-torch::Tensor CallIsInside(const torch::Tensor &points, float radius,
+torch::Tensor GPUIsInside(const torch::Tensor &points, float radius,
                            float min[3], float max[3]);
 
 torch::Tensor AABB::IsInside(const torch::Tensor &points, float radius) const {
   float min[3] = {min_[0], min_[1], min_[2]};
   float max[3] = {max_[0], max_[1], max_[2]};
 
-  return CallIsInside(points, radius, min, max);
+  return GPUIsInside(points, radius, min, max);
+}
+
+torch::Tensor GPUIsInside(const torch::Tensor &indices,
+                           const torch::Tensor &points, float radius,
+                           float min[3], float max[3]);
+
+torch::Tensor AABB::IsInside(const torch::Tensor &indices,
+                             const torch::Tensor &points, float radius) const {
+  float min[3] = {min_[0], min_[1], min_[2]};
+  float max[3] = {max_[0], max_[1], max_[2]};
+
+  return GPUIsInside(indices, points, radius, min, max);
 }
 
 Eigen::Vector3f AABB::GetClosestPoint(const Eigen::Vector3f &point) const {

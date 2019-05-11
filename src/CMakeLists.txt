@@ -2,7 +2,7 @@ include_directories(${PYTHON_INCLUDE_DIR})
 
 cuda_add_library(_fiontb SHARED normals.cpp surfel_fusion.cpp _fiontb.cpp
   aabb.cpp aabb.cu
-  octree.cpp)
+  octree.cpp octree.cu)
 
 target_include_directories(_fiontb
   PUBLIC
@@ -16,4 +16,4 @@ set_target_properties(_fiontb
 set_property(TARGET _fiontb PROPERTY CXX_STANDARD 14)
 set_target_properties(_fiontb PROPERTIES PREFIX "")
 set_target_properties(_fiontb PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/fiontb)
-
+target_compile_options(_fiontb PRIVATE -Wall -Wextra -pedantic)

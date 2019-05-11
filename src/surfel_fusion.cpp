@@ -85,11 +85,6 @@ pair<torch::Tensor, torch::Tensor> IndexMap::Query(const torch::Tensor &query_po
     const float y = qp_acc[row][1];
     const Eigen::Vector3f qpoint(x, y, qp_acc[row][2]);
     
-    const int ix = int(x);
-    const int iy = int(y);
-    
-    int k = 8;
-
     int nn_slot = 0;
     for (int wnd_y = -1; wnd_y < 3; ++wnd_y) {
       for (int wnd_x = -1; wnd_x < 3; ++wnd_x) {

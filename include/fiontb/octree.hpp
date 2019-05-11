@@ -47,9 +47,11 @@ class Octree {
    * with `inf` in the first tensor are marked with `-1` in the
    * second.
    */
-  std::pair<torch::Tensor, torch::Tensor> Query(const torch::Tensor &qpoints,
+  std::pair<torch::Tensor, torch::Tensor> Query(torch::Tensor qpoints,
                                                 int max_k, float radius);
 
+  int get_leaf_node_count() const;
+  
  private:
   AABB box_;
   priv::OctNode *root_;

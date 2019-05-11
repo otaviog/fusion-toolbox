@@ -37,7 +37,7 @@ class Render:
 
 class ProjectionNN:
     def __init__(self, kcam, rt_cam, points, device, image_size):
-        
+
         # camera_points = Homogeneous(
         #     torch.from_numpy(rt_cam.world_to_cam)) @ points
         # image_points = kcam.project(camera_points)
@@ -53,16 +53,15 @@ class ProjectionNN:
 
         # self.indexmap = IndexMap(width, height, image_points)
         # points = points.to(device)
-        self.tree = Octree(points, 2048)
+        self.tree = Octree(points, 512)
         # import ipdb; ipdb.set_trace()
-
 
         self.kcam = kcam
 
     def query(self, points, k):
         #points = self.kcam.project(points)
-        #return self.indexmap.query(points, k, 0.1)
-        return self.tree.query(points, k, 0.1)
+        # return self.indexmap.query(points, k, 0.1)
+        return self.tree.query2(points, k, 0.01)
 
 
 def _main():
@@ -84,9 +83,13 @@ def _main():
 
     prof = Profile()
     prof.enable()
-    
+
+    tree = cKDTree(model.verts.numpy())
+    tree.query(live.verts.numpy()[:2048,], 4, distance_upper_bound=0.01)
+
     model.verts = model.verts.to("cuda:0")
-    live.verts = live.verts.to("cuda:0")[:500, :]
+    live.verts = live.verts.to("cuda:0")[:2048, ]
+
     proj_nn = ProjectionNN(kcam, rt_cam, model.verts, "cuda:0", (640, 480))
     dist, idx = proj_nn.query(live.verts, 4)
     prof.disable()

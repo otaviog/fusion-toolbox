@@ -37,6 +37,15 @@ fiontb.sparse.octree:
 fiontb.sparse.coctree:
 	python3 -m unittest fiontb.sparse._test.test_coctree
 
+fiontb.sparse.benchmark_knn:
+	python3 -m fiontb.sparse._test.benchmark_knn
+
+fiontb.sparse.benchmark_knn.cprofile:
+	python3 -m fiontb.sparse._test.benchmark_knn --cprofile profile.cprof
+
+fiontb.sparse.benchmark_knn.profile:
+	valgrind --tool=cachegrind python3 -m fiontb.sparse._test.benchmark_knn
+
 fiontb.sparse.coctree.memcheck:
 	valgrind --tool=memcheck --log-file=valgrind-out.txt python3 -m unittest fiontb.sparse._test.test_cocttree 
 

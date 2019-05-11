@@ -5,13 +5,47 @@
 
 #include <ATen/core/Formatting.h>
 
+#include "cuda_runtime_api.h"
+
 using namespace std;
 
 namespace fiontb {
+// Defined in .cu
+torch::Tensor GPUPointDistances(const torch::Tensor &qpoints_idxs,
+                                const torch::Tensor &qpoints,
+                                const torch::Tensor &mpoints_idxs,
+                                const torch::Tensor &mpoints);
+
+torch::Tensor GPUPointDistances(int qidx, float qx, float qy, float qz,
+                                const torch::Tensor &mpoints_idxs,
+                                const torch::Tensor &mpoints);
+
+void GPUCopyResultToTensor(const torch::Tensor &sorted_dists,
+                           const torch::Tensor &sorted_indices,
+                           const torch::Tensor &indices, int qidx, float radius,
+                           torch::Tensor out_distances,
+                           torch::Tensor out_indices);
+
+namespace { 
+static void CPUCopyResultToTensor(
+    const torch::TensorAccessor<float, 1> &sorted_dists,
+    const torch::TensorAccessor<long, 1> &indices,
+    const torch::TensorAccessor<long, 1> &sorted_indices, const int qpoint,
+    float radius, torch::TensorAccessor<float, 2> out_distances,
+    torch::TensorAccessor<long, 2> out_indices) {
+  for (int i = 0; i < min(sorted_dists.size(0), out_distances.size(1)); ++i) {
+    const float dist = sorted_dists[i];
+    if (dist > radius) {
+      break;
+    }
+
+    out_distances[qpoint][i] = dist;
+    out_indices[qpoint][i] = indices[sorted_indices[i]];
+  }
+}
+}
+
 namespace priv {
-struct QueryResult {
-  std::vector<torch::Tensor> distances, index;
-};
 
 class OctNode {
  public:
@@ -32,14 +66,15 @@ class OctNode {
 
   const torch::Tensor get_indices() const { return indices_; }
 
-  void Query(torch::Tensor qpoint, torch::Tensor which_qpoints, float radius,
-             std::map<long, QueryResult> &result) const;
+  void Query(const Eigen::Vector3f qpoint, int max_k, float radius,
+             std::vector<const OctNode *> &leafs) const;
+
+  int GetLeafNodeCount() const;
 
  private:
   bool leaf_;
   OctNode *children_[8];
   torch::Tensor indices_;
-  torch::Tensor points_;
   AABB box_;
 };
 
@@ -67,10 +102,6 @@ OctNode::OctNode(const torch::Tensor &indices, torch::Tensor points,
     children_[box_idx] = nullptr;
 
     torch::Tensor mask = curr_box.IsInside(indices, points);
-
-    // const int inside_count = mask.sum().item<int>();
-    // if (inside_count == 0) continue;
-
     torch::Tensor inside_indices = indices.masked_select(mask);
     const int inside_count = inside_indices.size(0);
     if (inside_count == 0) {
@@ -86,7 +117,8 @@ OctNode::OctNode(const torch::Tensor &indices, torch::Tensor points,
 }
 
 OctNode::OctNode(torch::Tensor indices, torch::Tensor points, const AABB &box)
-    : leaf_(true), indices_(indices), points_(points), box_(box) {
+    : leaf_(true), indices_(indices), box_(box) {
+
   for (int box_idx = 0; box_idx < 8; ++box_idx) {
     children_[box_idx] = nullptr;
   }
@@ -102,20 +134,11 @@ void dump_tensor(torch::Tensor tensor, const string &out) {
   std::ofstream file(out.c_str());
   at::print(file, tensor, 99);
 }
-void OctNode::Query(torch::Tensor qpoints, torch::Tensor which_qpoints,
-                    float radius, map<long, QueryResult> &results) const {
+
+void OctNode::Query(const Eigen::Vector3f qpoint, int max_k, float radius,
+                    std::vector<const OctNode *> &leafs) const {
   if (IsLeaf()) {
-    auto local_mpoints = points_.index_select(0, indices_);
-
-    torch::Tensor distances = torch::cdist(local_mpoints, qpoints);
-    auto wq_acc = which_qpoints.accessor<long, 1>();
-
-    for (long i = 0; i < which_qpoints.size(0); ++i) {
-      const long idx = wq_acc[i];
-      results[idx].distances.push_back(distances.narrow(1, i, 1));
-      results[idx].index.push_back(indices_);
-    }
-
+    leafs.push_back(this);
     return;
   }
 
@@ -126,25 +149,31 @@ void OctNode::Query(torch::Tensor qpoints, torch::Tensor which_qpoints,
     }
 
     const AABB &box = child->get_box();
-    auto mask = box.IsInside(qpoints, radius);
-
-    //const int inside_count = mask.sum().item<int>();
-    //if (inside_count == 0) {
-    //continue;
-    //}
-
-    torch::Tensor sub_qpoints =
-        qpoints.masked_select(mask.view({-1, 1})).view({-1, 3});
-    if (sub_qpoints.size(0) == 0) {
+    if (!box.IsInside(qpoint, radius)) {
       continue;
     }
-    torch::Tensor sub_which_qpoints = which_qpoints.masked_select(mask.cpu());
-    child->Query(sub_qpoints, sub_which_qpoints, radius, results);
+
+    child->Query(qpoint, max_k, radius, leafs);
   }
+}
+
+int OctNode::GetLeafNodeCount() const {
+  if (IsLeaf()) {
+    return 1;
+  }
+
+  int count = 0;
+  for (int i = 0; i < 8; ++i) {
+    if (children_[i] == nullptr) continue;
+    count += children_[i]->GetLeafNodeCount();
+  }
+
+  return count;
 }
 }  // namespace priv
 
-Octree::Octree(torch::Tensor points, int leaf_num_points) : box_(AABB(points)) {
+Octree::Octree(torch::Tensor points, int leaf_num_points)
+    : box_(AABB(points)), points_(points) {
   torch::TensorOptions opts(torch::kInt64);
   opts = opts.device(points.device());
   root_ = new priv::OctNode(torch::arange(0, points.size(0), opts).squeeze(),
@@ -153,60 +182,57 @@ Octree::Octree(torch::Tensor points, int leaf_num_points) : box_(AABB(points)) {
 
 Octree::~Octree() { delete root_; }
 
-void CopyResultToTensor(const torch::TensorAccessor<float, 1> &sorted_dists,
-                        const torch::TensorAccessor<long, 1> &indices,
-                        const torch::TensorAccessor<long, 1> &sorted_indices,
-                        const int qpoint, float radius,
-                        torch::TensorAccessor<float, 2> out_distances,
-                        torch::TensorAccessor<long, 2> out_indices) {
-  for (int i = 0; i < min(sorted_dists.size(0), out_distances.size(1)); ++i) {
-    const float dist = sorted_dists[i];
-    if (dist > radius) {
-      break;
+std::pair<torch::Tensor, torch::Tensor> Octree::Query(
+    const torch::Tensor _qpoints, int max_k, float radius) {
+  torch::Tensor qpoints_cpu;
+  if (_qpoints.is_cuda()) {
+    qpoints_cpu = _qpoints.cpu();
+  } else {
+    qpoints_cpu = _qpoints;
+  }
+
+  torch::Tensor dist_mtx =
+      torch::full({_qpoints.size(0), max_k},
+                  std::numeric_limits<float>::infinity(), points_.device());
+
+  torch::Tensor idx_mtx =
+      torch::full({_qpoints.size(0), max_k}, -1,
+                  torch::TensorOptions(torch::kInt64).device(points_.device()));
+
+  const auto qcc = qpoints_cpu.accessor<float, 2>();
+  vector<const priv::OctNode *> leafs;
+  leafs.reserve(10);
+  for (int i = 0; i < qcc.size(0); ++i) {
+    Eigen::Vector3f qpoint(qcc[i][0], qcc[i][1], qcc[i][2]);
+    leafs.clear();
+
+    root_->Query(qpoint, max_k, radius, leafs);
+
+    if (leafs.empty()) {
+      continue;
+    }
+    vector<torch::Tensor> idx_vec;
+    idx_vec.reserve(leafs.size());
+    for (size_t j = 0; j < leafs.size(); ++j) {
+      idx_vec.push_back(leafs[j]->get_indices());
     }
 
-    out_distances[qpoint][i] = dist;
-    out_indices[qpoint][i] = indices[sorted_indices[i]];
-  }
-}
+    torch::Tensor indices = torch::cat(idx_vec);
+    torch::Tensor distances =
+        GPUPointDistances(i, qpoint[0], qpoint[1], qpoint[2], indices, points_);
 
-pair<torch::Tensor, torch::Tensor> Octree::Query(const torch::Tensor &qpoints,
-                                                 int max_k, float radius) {
-  if (max_k == 1000) {
-    at::print(qpoints, 99);
-  }
-  torch::Tensor which_qpoints =
-      torch::arange(0, qpoints.size(0), torch::kInt64).squeeze();
-  map<long, priv::QueryResult> results;
-  auto iqpoints = root_->get_box().GetClosestPoint(qpoints);
-  root_->Query(iqpoints, which_qpoints, radius, results);
+    auto sorting =
+        distances.topk(std::min(long(max_k), distances.size(1)), 1, false);
 
-  torch::Tensor dist_mtx = torch::full({qpoints.size(0), max_k},
-                                       std::numeric_limits<float>::infinity());
-  torch::Tensor idx_mtx =
-      torch::full({qpoints.size(0), max_k}, -1, torch::kInt64);
+    auto sorted_dists = std::get<0>(sorting);
+    auto sorted_idxs = std::get<1>(sorting);
 
-  for (auto res : results) {
-    const long qpoint_idx = res.first;
-    const priv::QueryResult &qres = res.second;
-
-    auto distances = torch::cat(qres.distances);
-    auto indices = torch::cat(qres.index).cpu().view(-1);
-
-    auto sorting = distances.sort(0);
-    auto sorted_distances = std::get<0>(sorting).cpu().view(-1);
-    auto sorted_indices = std::get<1>(sorting).cpu().view(-1);
-
-    auto a1 = sorted_distances.accessor<float, 1>();
-    auto a2 = indices.accessor<long, 1>();
-    auto a3 = sorted_indices.accessor<long, 1>();
-    auto a4 = dist_mtx.accessor<float, 2>();
-    auto a5 = idx_mtx.accessor<long, 2>();
-
-    CopyResultToTensor(a1, a2, a3, qpoint_idx, radius, a4, a5);
+    GPUCopyResultToTensor(sorted_dists, sorted_idxs, indices, i, radius,
+                          dist_mtx, idx_mtx);
   }
 
   return make_pair(dist_mtx, idx_mtx);
 }
 
+int Octree::get_leaf_node_count() const { return root_->GetLeafNodeCount(); }
 }  // namespace fiontb
