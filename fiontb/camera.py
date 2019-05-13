@@ -118,7 +118,12 @@ class KCamera:
     def project(self, points):
         """Project camera to image space.
         """
-        points = self.matrix @ points.reshape(-1, 3, 1)
+
+        matrix = self.matrix
+        if isinstance(points, torch.Tensor):
+            matrix = torch.from_numpy(self.matrix).float()
+
+        points = matrix @ points.reshape(-1, 3, 1)
 
         z = points[:, 2, 0]
 
@@ -206,6 +211,12 @@ class RTCamera:
 
     def integrate(self, rt_cam):
         self.matrix = rt_cam.matrix @ self.matrix
+
+    def translate(self, tx, ty, tz):
+        return RTCamera(self.matrix @ np.array([[1, 0, 0, tx],
+                                                [0, 1, 0, ty],
+                                                [0, 0, 1, tz],
+                                                [0, 0, 0, 1]]))
 
     def transform_world_to_cam_dep(self, points):
         """Transform points from world to camera space.

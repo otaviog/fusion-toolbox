@@ -8,6 +8,7 @@ from fiontb.datatypes import PointCloud, pcl_stack
 import fiontb.fiontblib as fiontblib
 
 from ._nearestpoints import KDTree
+from fiontb.sparse import cOctree
 
 
 class SceneSurfelData:
@@ -121,10 +122,13 @@ class SurfelFusion:
                     torch.tensor([], dtype=torch.int64))
 
         active_mask = self.surfels.active_mask()
+        import ipdb; ipdb.set_trace()
+        # nn_search = cOctree(self.surfels.points[active_mask], 2048)        
         nn_search = KDTree(
             self.surfels.points[active_mask].cpu(), self.surfels.device)
-        dist_mtx, idx_mtx = nn_search.query(live_pcl.points)
-        
+
+        dist_mtx, idx_mtx = nn_search.query(live_pcl.points, 8, 0.01)
+
         fuse_idxs = fiontblib.filter_search(
             dist_mtx.cpu(), idx_mtx.cpu(), live_pcl.normals.cpu(),
             self.surfels.normals[active_mask].cpu(), 0.05,
@@ -149,7 +153,7 @@ class SurfelFusion:
             self._add_surfels(new_indices, live_new_idxs, live_pcl,
                               live_confidence, live_radii, timestamp)
             model_update_idxs = torch.cat([model_update_idxs, new_indices])
-        
+
         # model_remove_idxs = self._remove_surfels(timestamp, active_mask)
 
         model_remove_idxs = torch.tensor([], dtype=torch.int64)
@@ -209,9 +213,10 @@ class SurfelFusion:
         self.surfels.timestamps[model_empty_idxs] = timestamp
 
     def _remove_surfels(self, curr_timestamp, active_mask):
-        unstable_idxs = (self.surfels.count[active_mask] < self.max_unstable_count).nonzero().squeeze()
-        #unstable_idxs
-        
+        unstable_idxs = (
+            self.surfels.count[active_mask] < self.max_unstable_count).nonzero().squeeze()
+        # unstable_idxs
+
         remove_mask = (
             curr_timestamp - self.surfels.timestamps[active_mask]) > self.max_unstable_time
         remove_indices = active_mask.nonzero().squeeze()[
@@ -220,6 +225,21 @@ class SurfelFusion:
 
         return remove_indices
 
+    def _merge_points(self, active_mask):
+        stable_idxs = (
+            self.surfels.count[active_mask] > self.max_unstable_count).nonzero().squeeze()
+        nn_search = Search(self.surfels.points[active_mask])
+        dist_mtx, idx_mtx = nn_search.search(self.surfels.points[stable_idxs])
+
+        remove_idxs = set()
+        for stable_idx, (dist, idx) in zip(stable_idxs, dist_mtx, idx_mtx):
+            if dist < 0.01:
+                remove_idxs.add(idx)
+                self.sta
+
+            
+
+            
 
 class DenseFusion:
     def __init__(self, keep_frames, sample_size):

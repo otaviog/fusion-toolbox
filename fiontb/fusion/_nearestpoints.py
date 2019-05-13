@@ -14,8 +14,9 @@ class KDTree:
         self.tree = cKDTree(points.cpu(), balanced_tree=False)
         self.device = device
 
-    def query(self, points):
-        dist_mtx, idx_mtx = self.tree.query(points.cpu().numpy(), 9)
+    def query(self, points, max_k, radius):
+        dist_mtx, idx_mtx = self.tree.query(points.cpu().numpy(), max_k,
+                                            distance_upper_bound=radius)
 
         return (torch.from_numpy(dist_mtx).float().to(self.device),
                 torch.from_numpy(idx_mtx).long().to(self.device))

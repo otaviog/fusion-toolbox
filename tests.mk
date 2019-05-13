@@ -52,3 +52,5 @@ fiontb.sparse.coctree.memcheck:
 fiontb.sparse.aabb:
 	python3 -m unittest fiontb.sparse._test.test_aabb
 
+fiontb.sparse.indexmap:
+	python3 -m unittest fiontb.sparse._test.test_indexmap
