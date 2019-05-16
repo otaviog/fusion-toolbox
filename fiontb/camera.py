@@ -143,6 +143,15 @@ class KCamera:
     def __repr__(self):
         return str(self.__dict__)
 
+    def __eq__(self, other):
+        if not isinstance(other, KCamera):
+            return False
+
+        return (np.all(self.matrix == other.matrix)
+                and (self.undist_coeff == other.undist_coeff)
+                and (self.depth_radial_distortion == other.depth_radial_distortion)
+                and (self.image_size == other.image_size))
+
 
 class Homogeneous:
     """Helper class to multiply [4x4] matrix by [Nx3x1] points.

@@ -7,16 +7,10 @@ import cv2
 import numpy as np
 from matplotlib.pyplot import get_cmap
 
-import shapelab
+import tenviz
 
 from fiontb.frame import FramePoints
 from fiontb.camera import Homogeneous
-
-class _Viewer:
-    def __init__(self, width, height):
-        self.ctx = shapelab.RenderContext(width, height)
-        self.view = self.ctx.viewer()
-
 
 _CAM_HAND_MATRIX = np.eye(4)
 _CAM_HAND_MATRIX[2, 2] = -1
@@ -34,8 +28,10 @@ class DatasetViewer:
         self.show_mask = False
         self.last_proc_data = {'idx': -1}
 
-        self.viewer_cam = _Viewer(640, 480)
-        self.viewer_cam.view.set_title("{}: camera space".format(title))
+        self.context = tenviz.Context(640, 480)
+
+        self.cam_viewer = self.context.viewer()
+        self.cam_viewer.set_title("{}: camera space".format(title))
 
         self.viewer_world = _Viewer(640, 480)
         self.viewer_world.view.set_title("{}: world space".format(title))
@@ -90,8 +86,10 @@ class DatasetViewer:
                 'fg_mask': frame.fg_mask
             }
 
-            self.viewer_cam.ctx.clear_scene()
-
+            with self.context.current():
+            self.cam_viewer.scene.remove(self.tv_camera_pcl)
+            self.context.remove(self.tv_camera_pcl)
+            
             pcl = FramePoints(frame)
 
             cam_space = pcl.camera_points
@@ -99,15 +97,15 @@ class DatasetViewer:
             _cam_matrix_inv_y = _CAM_HAND_MATRIX.copy()
             _cam_matrix_inv_y[1, 1] *= -1
 
-            self.viewer_cam.ctx.add_point_cloud(
-                Homogeneous(_cam_matrix_inv_y) @ cam_space,
-                pcl.colors)
+            with self.context.current():
+                self.tv_camera_pcl = tenviz.create_point_cloud(
+                    Homogeneous(_cam_matrix_inv_y) @ cam_space,
+                    pcl.colors)
 
-            cam_proj = shapelab.projection_from_kcam(
+            cam_proj = tenviz.projection_from_kcam(
                 finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
 
-            self.viewer_cam.view.reset_view()
-            self.viewer_cam.view.set_view(0, 0)
+            self.cam_viewer.reset_view()
 
             if finfo.rt_cam is not None:
                 self._update_world(idx, finfo.rt_cam,
@@ -139,8 +137,9 @@ class DatasetViewer:
         while True:
             self._update_canvas(None)
             key = cv2.waitKey(1)
-            self.viewer_cam.view.draw(0)
-            self.viewer_world.view.draw(0)
+            
+            self.cam_viewer.draw(0)
+            self.world_viewer.draw(0)
 
             if key == 27:
                 break

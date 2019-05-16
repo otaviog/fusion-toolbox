@@ -21,7 +21,7 @@ class IndexMap:
                 _SHADER_DIR / "indexmap_query.frag")
 
             draw = tenviz.DrawProgram(
-                tenviz.DrawMode.Points, program=self.program)
+                tenviz.DrawMode.Points, program=self.model_program)
 
             draw['v_point'] = model_points
             index = torch.arange(0, model_points.size(
@@ -42,12 +42,14 @@ class IndexMap:
                 })
 
         self.context.set_clear_color(0, -1, 255, -1)
-        #viewer = self.context.viewer([draw], tenviz.CameraManipulator.WASD)
-        # viewer.reset_view()
-        while False:
-            key = viewer.wait_key(1)
-            if key < 0:
-                break
+
+        if False:
+            viewer = self.context.viewer([draw], tenviz.CameraManipulator.WASD)
+            viewer.reset_view()
+            while True:
+                key = viewer.wait_key(1)
+                if key < 0:
+                    break
 
         self.context.render(
             torch.eye(4).float(),
@@ -94,7 +96,7 @@ class IndexMap:
             torch.from_numpy(self.proj.to_matrix()).float(),
             framebuffer, [draw])
 
-        if False:
+        if True:
             viewer = self.context.viewer([draw], tenviz.CameraManipulator.WASD)
             viewer.reset_view()
             while True:
