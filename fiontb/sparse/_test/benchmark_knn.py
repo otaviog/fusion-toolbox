@@ -31,9 +31,9 @@ def _main():
     timings = []
 
     model_points_np = model_points.numpy()
-    begin = time.perf_counter()
+    
     tree = cKDTree(model_points_np)
-
+    begin = time.perf_counter()
     tree.query(query_points, 10, distance_upper_bound=0.01)
     end = time.perf_counter()
 
@@ -41,8 +41,9 @@ def _main():
 
     model_points_gpu = model_points.to("cuda:0")
 
-    begin = time.perf_counter()
+
     octree = Octree(model_points_gpu, 1024)
+    begin = time.perf_counter()
     octree.query(query_points, 10, 0.01)
     end = time.perf_counter()
 

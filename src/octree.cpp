@@ -83,8 +83,8 @@ OctNode::OctNode(const torch::Tensor &indices, torch::Tensor points,
     : leaf_(false) {
   using Eigen::Vector3f;
 
-  box_ = AABB(points.index_select(0, indices));
-  // box_ = split_box;
+  //box_ = AABB(points.index_select(0, indices));
+  box_ = split_box;
   const Vector3f mi = box_.get_min();
   const Vector3f ma = box_.get_max();
   const Vector3f ce = (mi + ma) * 0.5;
@@ -154,6 +154,9 @@ void OctNode::Query(const Eigen::Vector3f qpoint, int max_k, float radius,
     }
 
     child->Query(qpoint, max_k, radius, leafs);
+
+    //if (leafs.size() == 1)
+    //break;
   }
 }
 
@@ -199,9 +202,11 @@ std::pair<torch::Tensor, torch::Tensor> Octree::Query(
       torch::full({_qpoints.size(0), max_k}, -1,
                   torch::TensorOptions(torch::kInt64).device(points_.device()));
 
-  const auto qcc = qpoints_cpu.accessor<float, 2>();
+  const auto qcc = qpoints_cpu.packed_accessor<float, 2>();
   vector<const priv::OctNode *> leafs;
   leafs.reserve(10);
+
+  //#pragma omp parallel for
   for (int i = 0; i < qcc.size(0); ++i) {
     Eigen::Vector3f qpoint(qcc[i][0], qcc[i][1], qcc[i][2]);
     leafs.clear();
@@ -213,11 +218,14 @@ std::pair<torch::Tensor, torch::Tensor> Octree::Query(
     }
     vector<torch::Tensor> idx_vec;
     idx_vec.reserve(leafs.size());
+    if (leafs.empty())
+      continue;
     for (size_t j = 0; j < leafs.size(); ++j) {
       idx_vec.push_back(leafs[j]->get_indices());
     }
-
-    torch::Tensor indices = torch::cat(idx_vec);
+    
+    //torch::Tensor indices = torch::cat(idx_vec);
+    torch::Tensor indices = leafs[0]->get_indices();
     torch::Tensor distances =
         GPUPointDistances(i, qpoint[0], qpoint[1], qpoint[2], indices, points_);
 

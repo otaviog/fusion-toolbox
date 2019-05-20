@@ -25,6 +25,8 @@ find_package(Torch REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PythonLibs 3 REQUIRED)
 
+find_package(OpenMP)
+
 set(CMAKE_CXX_FLAGS -fPIC)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 add_subdirectory(src)
