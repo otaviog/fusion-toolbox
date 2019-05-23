@@ -79,7 +79,7 @@ class GeneratePointClouds(rflow.Interface):
                 sampling.size(0), 2500)
             sampling = sampling[idxs]
             if i:
-                sampling += torch.rand(sampling.shape)*0.1
+                sampling += torch.rand(sampling.shape)*0.01
                 i = False
 
             pcls.append((view, sampling))

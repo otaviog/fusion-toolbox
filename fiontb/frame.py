@@ -5,7 +5,8 @@ import numpy as np
 import cv2
 import torch
 
-from .camera import KCamera, RTCamera
+import fiontb.fiontblib as fiontblib
+from .camera import KCamera, RTCamera, Homogeneous
 from .datatypes import PointCloud
 
 
@@ -103,7 +104,7 @@ class Frame:
         self.fg_mask = fg_mask
 
 
-class FramePoints:
+class FramePointCloud:
     """Pre point cloud data.
     """
 
@@ -112,115 +113,59 @@ class FramePoints:
         self.depth_image = (frame.depth_image*info.depth_scale +
                             info.depth_bias).astype(np.float32)
 
-        depth_mask = frame.depth_image > 0
+        self.depth_mask = frame.depth_image > 0
+        self.fg_mask = self.depth_mask
         if frame.fg_mask is not None:
-            self.fg_mask = np.logical_and(frame.fg_mask, depth_mask)
-        else:
-            self.fg_mask = depth_mask
+            self.fg_mask = np.logical_and(frame.fg_mask, self.depth_mask)
 
         xs, ys = np.meshgrid(np.arange(frame.depth_image.shape[1]),
                              np.arange(frame.depth_image.shape[0]))
-        self.xyz_image = np.dstack(
+        self.image_points = np.dstack(
             [xs, ys, self.depth_image]).astype(np.float32)
 
-        self.points = self.xyz_image.reshape(-1, 3, 1)
-        self.points = self.points[self.fg_mask.flatten()]
-
         if frame.rgb_image is not None:
-            self.colors = frame.rgb_image.reshape(-1, 3)
-            self.colors = self.colors[self.fg_mask.flatten()]
+            self.colors = frame.rgb_image
 
         self.kcam = info.kcam
-        self._camera_points = None
-        self._camera_xyz = None
+        self.rt_cam = info.rt_cam
+        self._points = None
+        self._normals = None
 
     @property
-    def camera_points(self):
+    def points(self):
         """Points in the camera space property.
 
         Returns: (:obj:`numpy.ndarray`): [Nx3x1] array of points in the camera space.
         """
 
-        if self.kcam is None:
-            raise RuntimeError("Frame doesn't have intrinsics camera")
+        if self._points is None:
+            if self.kcam is None:
+                raise RuntimeError("Frame doesn't have intrinsics camera")
 
-        if self._camera_points is None:
-            self._camera_points = self.kcam.backproject(self.points)
-        return self._camera_points
+            self._points = self.kcam.backproject(
+                self.image_points.reshape(-1, 3, 1)).reshape(self.image_points.shape)
+        return self._points
 
     @property
-    def camera_xyz_image(self):
-        if self.kcam is None:
-            raise RuntimeError("Frame doesn't have intrinsics camera")
+    def normals(self):
+        if self._normals is None:
+            self._normals = fiontblib.calculate_depth_normals(
+                torch.from_numpy(self.points),
+                torch.from_numpy(self.depth_mask.astype(np.uint8))).numpy()
 
-        if self._camera_xyz is None:
-            self._camera_xyz = self.kcam.backproject(
-                self.xyz_image.reshape(-1, 3, 1))
-            self._camera_xyz = self._camera_xyz.reshape(self.xyz_image.shape)
+        return self._normals
 
-        return self._camera_xyz
+    def unordered_point_cloud(self, world_space=True):
+        mask = self.fg_mask.flatten()
 
+        normals = self.normals.reshape(-1, 3)
+        normals = normals[mask]
 
-def _compute_normals0(depth_img):
-    zdy, zdx = np.gradient(depth_img)
-    normals = np.dstack((-zdx, -zdy, np.ones_like(depth_img)))
-    norm = np.linalg.norm(normals, axis=2)
-    normals /= norm.reshape(norm.shape[0], norm.shape[1], 1)
+        pcl = PointCloud(self.points.reshape(-1, 3)[mask],
+                         self.colors.reshape(-1, 3)[mask],
+                         normals)
 
-    return normals
+        if world_space and self.rt_cam is not None:
+            pcl.transform(self.rt_cam.cam_to_world)
 
-
-def compute_normals(depth_img):
-    """Compute normals from a depth image.
-
-    Args:
-
-        depth_img (:obj:`numpy.ndarray`): Depth image [HxW].
-    """
-    depth_img = depth_img.astype(np.float32)
-    filter1 = np.array([
-        [1, 2, 1],
-        [0, 0, 0],
-        [-1, -2, -1]]) / 8
-    filter2 = np.array([
-        [1, 0, -1],
-        [2, 0, -2],
-        [1, 0, -1]]) / 8
-
-    filter1 = np.flip(filter1, 0)
-    filter2 = np.flip(filter2, 1)
-
-    img_x = cv2.filter2D(depth_img, -1, filter1, None,
-                         (-1, -1), 0, cv2.BORDER_CONSTANT)
-    img_y = cv2.filter2D(depth_img, -1, filter2, None,
-                         (-1, -1), 0, cv2.BORDER_CONSTANT)
-
-    img_x *= -1
-    img_y *= -1
-
-    norms = np.sqrt(img_x*img_x + img_y*img_y + 1)
-
-    img_z = 1.0 / norms
-    img_x *= img_z
-    img_y *= img_z
-
-    normals = np.dstack([img_x, img_y, img_z])
-    return normals
-
-
-def frame_to_pointcloud(frame):
-    points = FramePoints(frame)
-    import tenviz
-    #normals = compute_normals(points.depth_image)
-    # normals = tenviz.calculate_depth_normals(torch.from_numpy(points.depth_image)).numpy()
-
-    normals = tenviz.calculate_depth_normals2(
-        torch.from_numpy(points.camera_xyz_image),
-        torch.from_numpy(points.fg_mask.astype(np.uint8))).numpy()
-    normals = normals.reshape(-1, 3)
-    normals = normals[points.fg_mask.flatten()]
-
-    live_pcl = PointCloud(points.camera_points,
-                          points.colors, normals)
-
-    return live_pcl
+        return pcl

@@ -1,5 +1,5 @@
 import numpy as np
-import numpy as np
+import torch
 
 from .camera import Homogeneous
 
@@ -30,6 +30,16 @@ class PointCloud:
         self.points = points
         self.colors = colors
         self.normals = normals
+
+    def torch(self):
+        return PointCloud(torch.from_numpy(self.points),
+                          torch.from_numpy(self.colors),
+                          torch.from_numpy(self.normals))
+
+    def copy(self):
+        return PointCloud(self.points.copy(),
+                          self.colors.copy(),
+                          self.normals.copy())
 
     def transform(self, matrix):
         if self.points.size == 0:

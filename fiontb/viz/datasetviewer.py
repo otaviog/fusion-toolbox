@@ -10,7 +10,7 @@ from matplotlib.pyplot import get_cmap
 
 import tenviz
 
-from fiontb.frame import FramePoints
+from fiontb.frame import FramePointCloud
 from fiontb.camera import Homogeneous
 
 _CAM_HAND_MATRIX = np.eye(4)
@@ -65,6 +65,7 @@ class DatasetViewer:
             vcam = tenviz.create_virtual_camera(
                 cam_proj, rt_cam.cam_to_world @ _CAM_HAND_MATRIX)
             self.world_viewer.get_scene().add(vcam)
+
             self.pcl_deque.append((pcl, vcam))
 
         if not self.visited_idxs:
@@ -101,7 +102,7 @@ class DatasetViewer:
         with self.context.current():
             self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
 
-        pcl = FramePoints(frame)
+        pcl = FramePointCloud(frame)
 
         cam_space = pcl.camera_points
 
@@ -123,7 +124,7 @@ class DatasetViewer:
         if finfo.rt_cam is not None:
             self._update_world(idx, finfo.rt_cam, cam_space,
                                pcl.colors, cam_proj)
-            pass
+
         self.context.collect_garbage()
 
     def _update_canvas(self, _):

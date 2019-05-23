@@ -50,13 +50,18 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
         if frame.rgb_image is not None:
             rgb_file = "{}{:05d}_rgb.png".format(prefix, i)
             cv2.imwrite(str(base_path / rgb_file),
-                        frame.rgb_image)
+                        cv2.cvtColor(frame.rgb_image, cv2.COLOR_RGB2BGR))
             frame_dict['rgb_image'] = rgb_file
 
         if frame.fg_mask is not None:
-            # cv2.imwrite(str(base_path / "{}_{:05d}_mask.png".format(prefix, i)),
-            # snap.fg_mask)
-            pass  # TODO
+            mask_file = "{}{:05d}_mask.png".format(prefix, i)
+            fg_mask = frame.fg_mask
+            if fg_mask.max() == 1:
+                fg_mask *= 255
+
+            cv2.imwrite(str(base_path / mask_file),
+                        fg_mask)
+            frame_dict['mask_image'] = mask_file
 
         frames.append(frame_dict)
 
@@ -79,8 +84,10 @@ class FTBDataset:
             rgb_image = cv2.imread(
                 str(self.base_path / frame_json['rgb_image']))
         fg_mask = None
-        if 'fg_mask' in frame_json:
-            fg_mask = cv2.imread(str(self.base_path / frame_json['fg_mask']))
+        if 'mask_image' in frame_json:
+            fg_mask = cv2.imread(
+                str(self.base_path / frame_json['mask_image']))
+            fg_mask = (fg_mask > 0)[:, :, 0]
 
         info = FrameInfo.from_json(frame_json['info'])
         frame = Frame(info, depth_image, rgb_image=rgb_image, fg_mask=fg_mask)

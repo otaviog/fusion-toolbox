@@ -11,6 +11,31 @@ from ._nearestpoints import KDTree
 from fiontb.sparse import cOctree
 
 
+def compute_surfel_radii(cam_points, normals, kcam):
+    focal_len = abs(kcam.matrix[0, 0] + kcam.matrix[1, 1]) * .5
+    radii = (
+        cam_points[:, 2] / focal_len) * math.sqrt(2)
+    radii = torch.min(2*radii, radii /
+                      normals[:, 2].squeeze().abs())
+
+    return radii
+
+
+def compute_confidences(frame_points, kcam):
+    camera_center = torch.tensor(kcam.pixel_center())
+
+    xy_coords = frame_points[:, :2]
+
+    confidences = torch.norm(
+        xy_coords - camera_center, p=2, dim=1)
+    confidences = confidences / confidences.max()
+
+    confidences = torch.exp(-torch.pow(confidences, 2) /
+                            (2.0*math.pow(0.6, 2)))
+
+    return confidences
+
+
 class SceneSurfelData:
     def __init__(self, num_surfels, device):
         self.device = device
@@ -29,11 +54,41 @@ class SceneSurfelData:
         self.surfel_mask = torch.ones(
             (num_surfels, ), dtype=torch.uint8).to(device)
 
+    @classmethod
+    def from_point_cloud(cls, frame_pcl, device, timestamp):
+        cam_pcl = frame_pcl.unordered_point_cloud(world_space=False).torch()
+
+        img_mask = frame_pcl.fg_mask.flatten()
+        img_points = torch.from_numpy(
+            frame_pcl.image_points.reshape(-1, 3)[img_mask])
+        confs = compute_confidences(img_points, frame_pcl.kcam)
+
+        radii = compute_surfel_radii(cam_pcl.points, cam_pcl.normals,
+                                     frame_pcl.kcam)
+
+        world_pcl = frame_pcl.unordered_point_cloud(world_space=True).torch()
+        surfels = cls(cam_pcl.points.size(0), device)
+        surfels.points[:] = world_pcl.points
+        surfels.colors[:] = world_pcl.colors
+        surfels.normals[:] = world_pcl.normals
+        surfels.radii[:] = radii
+        surfels.counts[:] = confs
+        surfels.timestamps[:] = timestamp
+        surfels.surfel_mask[:] = 0
+
+        return surfels
+
     def mark_active(self, indices):
         self.surfel_mask[indices] = 0
 
     def mark_inactive(self, indices):
         self.surfel_mask[indices] = 1
+
+    def num_active_surfels(self):
+        return (self.surfel_mask == 0).sum()
+
+    def get_active_indices(self):
+        return (self.surfel_mask == 0).nonzero().flatten()
 
     def get_inactive_indices(self, num):
         return self.surfel_mask.nonzero()[:num].flatten()
@@ -51,6 +106,19 @@ class SceneSurfelData:
             points=self.points[active_mask].cpu().numpy(),
             colors=self.colors[active_mask].cpu().numpy().astype(np.uint8),
             normals=self.normals[active_mask].cpu().numpy())
+
+    def compact(self):
+        active_mask = self.active_mask()
+
+        compact = SceneSurfelData(active_mask.sum(), self.device)
+        compact.points[:] = self.points[active_mask]
+        compact.normals[:] = self.normals[active_mask]
+        compact.colors[:] = self.colors[active_mask]
+        compact.radii = self.radii[active_mask]
+        compact.counts = self.counts[active_mask]
+        compact.timestamps = self.timestamps[active_mask]
+        compact.surfel_mask[:] = 0
+        return compact
 
     def share_memory(self):
         self.points = self.points.share_memory_()
@@ -97,15 +165,15 @@ class SurfelFusion:
 
         return confidence.to(self.surfels.device)
 
-    def fuse(self, frame_points, live_pcl, kcam, rt_cam):
+    def fuse(self, frame_pcl, live_pcl, kcam, rt_cam):
         live_pcl = torch_pcl(live_pcl, self.surfels.device)
-
-        focal_len = (kcam.matrix[0, 0] + kcam.matrix[1, 1]) * .5
-        live_confidence = self._get_confidence(frame_points)
+        live_confidence = self._get_confidence(frame_pcl)
 
         # Computes radii
+        focal_len = abs(kcam.matrix[0, 0] + kcam.matrix[1, 1]) * .5
         live_radii = (
-            live_pcl.points[:, 2].squeeze() / focal_len) * math.sqrt(2)
+            frame_pcl.camera_points[:, 2] / focal_len) * math.sqrt(2)
+        live_radii = torch.from_numpy(live_radii).to(self.surfels.device)
         live_radii = torch.min(2*live_radii, live_radii /
                                live_pcl.normals[:, 2].squeeze().abs())
 
@@ -122,12 +190,14 @@ class SurfelFusion:
                     torch.tensor([], dtype=torch.int64))
 
         active_mask = self.surfels.active_mask()
-        import ipdb; ipdb.set_trace()
-        # nn_search = cOctree(self.surfels.points[active_mask], 2048)        
+
+        # nn_search = cOctree(self.surfels.points[active_mask], 2048)
         nn_search = KDTree(
             self.surfels.points[active_mask].cpu(), self.surfels.device)
 
         dist_mtx, idx_mtx = nn_search.query(live_pcl.points, 8, 0.01)
+        import ipdb
+        ipdb.set_trace()
 
         fuse_idxs = fiontblib.filter_search(
             dist_mtx.cpu(), idx_mtx.cpu(), live_pcl.normals.cpu(),
@@ -237,9 +307,6 @@ class SurfelFusion:
                 remove_idxs.add(idx)
                 self.sta
 
-            
-
-            
 
 class DenseFusion:
     def __init__(self, keep_frames, sample_size):

@@ -54,7 +54,7 @@ class DatasetSensor:
     """Simulates a sensor using a dataset instance.
     """
 
-    def __init__(self, dataset):
+    def __init__(self, dataset, start_idx=0):
         """
         Args:
 
@@ -62,7 +62,7 @@ class DatasetSensor:
         """
 
         self.dataset = dataset
-        self.current_idx = 0
+        self.current_idx = start_idx
 
     def next_frame(self):
         """Reads the next frame from the dataset.
