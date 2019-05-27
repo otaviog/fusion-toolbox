@@ -7,9 +7,9 @@ from fiontb import from_open3d, to_open3d
 from fiontb.camera import RTCamera
 
 
-def estimate_icp(live_pcl, model_pcl):
-    live_pcl = live_pcl.to_open3d(compute_normals=True)
-    model_pcl = model_pcl.to_open3d(compute_normals=True)
+def estimate_icp(live_pcl, model_pcl, compute_normals=False):
+    live_pcl = live_pcl.to_open3d(compute_normals=compute_normals)
+    model_pcl = model_pcl.to_open3d(compute_normals=compute_normals)
 
     result = registration_colored_icp(
         live_pcl, model_pcl, 0.5, np.eye(4),

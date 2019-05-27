@@ -102,9 +102,8 @@ class DatasetViewer:
         with self.context.current():
             self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
 
-        pcl = FramePointCloud(frame)
-
-        cam_space = pcl.camera_points
+        pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
+        cam_space = pcl.points
 
         _cam_matrix_inv_y = _CAM_HAND_MATRIX.copy()
         _cam_matrix_inv_y[1, 1] *= -1

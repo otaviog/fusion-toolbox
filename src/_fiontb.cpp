@@ -3,6 +3,7 @@
 #include <torch/python.h>
 #include <torch/torch.h>
 
+#include "indexmap.hpp"
 #include "normals.hpp"
 #include "octree.hpp"
 #include "surfel_fusion.hpp"
@@ -16,7 +17,7 @@ PYBIND11_MODULE(_fiontb, m) {
   m.def("filter_search", &FilterSearch);
 
   py::class_<IndexMap>(m, "IndexMap")
-      .def(py::init<int, int, torch::Tensor>())
+      .def(py::init<torch::Tensor, int, int>())
       .def("query", &IndexMap::Query)
       .def_readwrite("grid", &IndexMap::grid_)
       .def_readwrite("model", &IndexMap::model_points_);

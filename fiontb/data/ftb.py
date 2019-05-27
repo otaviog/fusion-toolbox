@@ -10,7 +10,7 @@ import numpy as np
 from fiontb.frame import Frame, FrameInfo
 
 
-def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
+def write_ftb(base_path, dataset, prefix="frame_", max_frames=None, start_frame=0):
     """Write a dataset as a FTB directory.
 
     Args:
@@ -30,11 +30,11 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
     frames = []
 
     if max_frames is not None:
-        max_frames = min(max_frames, len(dataset))
+        max_frames = min(start_frame+max_frames, len(dataset))
     else:
         max_frames = len(dataset)
 
-    for i in tqdm(range(max_frames)):
+    for i in tqdm(range(start_frame, max_frames)):
         frame = dataset[i]
         info = frame.info
         frame_dict = {
@@ -70,10 +70,17 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None):
 
 
 class FTBDataset:
-    def __init__(self, frames_json, base_path, ground_truth_model_path=None):
+    def __init__(self, frames_json, frame_infos, base_path, ground_truth_model_path=None):
         self.frames_json = frames_json
+        self.frame_infos = frame_infos
         self.base_path = base_path
         self.ground_truth_model_path = ground_truth_model_path
+
+    def get_info(self, idx):
+        return self.frame_infos[idx]
+
+    def set_info(self, idx, info):
+        self.frame_infos[idx] = info
 
     def __getitem__(self, idx):
         frame_json = self.frames_json[idx]
@@ -83,13 +90,14 @@ class FTBDataset:
         if 'rgb_image' in frame_json:
             rgb_image = cv2.imread(
                 str(self.base_path / frame_json['rgb_image']))
+            rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
         fg_mask = None
         if 'mask_image' in frame_json:
             fg_mask = cv2.imread(
                 str(self.base_path / frame_json['mask_image']))
             fg_mask = (fg_mask > 0)[:, :, 0]
 
-        info = FrameInfo.from_json(frame_json['info'])
+        info = self.frame_infos[idx]
         frame = Frame(info, depth_image, rgb_image=rgb_image, fg_mask=fg_mask)
 
         return frame
@@ -101,6 +109,9 @@ class FTBDataset:
 def load_ftb(base_path, ground_truth_model_path=None):
     base_path = Path(base_path)
     with open(str(base_path / "frames.json"), 'r') as stream:
-        frame_infos = json.load(stream)['root']
+        frames = json.load(stream)['root']
 
-    return FTBDataset(frame_infos, base_path, ground_truth_model_path)
+    frame_infos = [FrameInfo.from_json(frame_json['info'])
+                   for frame_json in frames]
+
+    return FTBDataset(frames, frame_infos, base_path, ground_truth_model_path)

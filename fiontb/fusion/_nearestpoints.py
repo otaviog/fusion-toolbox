@@ -39,12 +39,12 @@ class Render:
 class ProjectionNN:
     def __init__(self, kcam, rt_cam, points, device, image_size):
 
-        # camera_points = Homogeneous(
-        #     torch.from_numpy(rt_cam.world_to_cam)) @ points
+        camera_points = Homogeneous(
+            torch.from_numpy(rt_cam.world_to_cam)) @ points
         # image_points = kcam.project(camera_points)
 
-        # width, height = image_size
-
+        width, height = image_size
+        
         # image_points = image_points[:, :2].floor()
         # mask = ((image_points >= 0).all(1)
         #         & (image_points[:, 0] < width)
@@ -52,9 +52,9 @@ class ProjectionNN:
 
         # image_points = image_points[mask, :]
 
-        # self.indexmap = IndexMap(width, height, image_points)
+        self.indexmap = cIndexMap(camera_points, kcam, width, height, 1.0)
         # points = points.to(device)
-        self.tree = Octree(points, 512)
+        #self.tree = Octree(points, 512)
         # import ipdb; ipdb.set_trace()
 
         self.kcam = kcam

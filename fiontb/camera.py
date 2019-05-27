@@ -130,6 +130,14 @@ class KCamera:
         points[:, 0:2, 0] /= z.reshape(-1, 1)
         return points.squeeze()
 
+    def project_and_cull(self, points, img_width, img_height):
+        points = self.project(points)
+
+        mask = (points >= 0).all(1)
+        mask = mask & (points[:, 0] < img_width) & (points[:, 1] < img_height)
+
+        return points[mask, :]
+        
     def pixel_center(self):
         return (self.matrix[0, 2], self.matrix[1, 2])
 
