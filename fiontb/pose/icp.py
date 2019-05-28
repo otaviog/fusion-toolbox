@@ -3,7 +3,6 @@ from open3d import (registration_colored_icp, ICPConvergenceCriteria,
                     TransformationEstimationPointToPlane)
 
 import numpy as np
-from fiontb import from_open3d, to_open3d
 from fiontb.camera import RTCamera
 
 

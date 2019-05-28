@@ -42,7 +42,7 @@ class SurfelReconstructionStep(ReconstructionLoop):
 
         self.surfels_lock.acquire()
         surfel_update, surfel_removal = self.fusion_ctx.fuse(
-            frame_points, live_pcl, kcam, self.curr_rt_cam)
+            frame_points, live_pcl, kcam)
         self.surfels_lock.release()
         self.surfel_update_queue.put(
             (surfel_update.cpu(), surfel_removal.cpu()))

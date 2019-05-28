@@ -7,7 +7,7 @@ import torch
 
 import fiontb.fiontblib as fiontblib
 from .camera import KCamera, RTCamera, Homogeneous
-from .datatypes import PointCloud
+from .pointcloud import PointCloud
 
 
 class FrameInfo:

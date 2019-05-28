@@ -14,6 +14,7 @@ import tenviz
 import fiontb.fusion.surfel
 from fiontb.frame import FramePointCloud
 from fiontb.filtering import blur_depth_image
+from fiontb.viz.surfelrender import SurfelRender
 
 
 class DummyQueue:
@@ -117,7 +118,7 @@ def run_main_loop(sensor, rec_step, output_file, odometry=None, max_frames=None,
                   run_mode=RunMode.PLAY):
     torch.multiprocessing.set_start_method('spawn')
 
-    surfels = fiontb.fusion.surfel.SceneSurfelData(1024*1024*3, "cuda:0")
+    surfels = fiontb.fusion.surfel.SurfelData(1024*1024*3, "cuda:0")
     surfels.share_memory()
     surfels_lock = Lock()
 
@@ -141,23 +142,18 @@ def run_main_loop(sensor, rec_step, output_file, odometry=None, max_frames=None,
         rec_loop.init()
 
     context = tenviz.Context(640, 640)
-    render_surfels = context.add_surfel_cloud()
+    with context.current():
+        surfel_render = SurfelRender(surfels)
+
     viewer = context.viewer(
-        [render_surfels], cam_manip=tenviz.CameraManipulator.WASD)
+        [surfel_render], cam_manip=tenviz.CameraManipulator.WASD)
 
     prof = Profile()
     prof.enable()
 
-    with context.current():
-        render_surfels.points.from_tensor(surfels.points)
-        render_surfels.normals.from_tensor(surfels.normals)
-        render_surfels.colors.from_tensor(surfels.colors.byte())
-        render_surfels.radii.from_tensor(surfels.radii.view(-1, 1))
-        render_surfels.counts.from_tensor(surfels.counts.view(-1, 1))
-
     inv_y = np.eye(4, dtype=np.float32)
     # inv_y[1, 1] *= -1
-    render_surfels.set_transform(torch.from_numpy(inv_y))
+    surfel_render.set_transform(torch.from_numpy(inv_y))
 
     read_next_frame = True
 
@@ -178,8 +174,8 @@ def run_main_loop(sensor, rec_step, output_file, odometry=None, max_frames=None,
                     frame.depth_image, 3, frame.depth_image > 0)
                 frame_pcl = FramePointCloud(frame)
 
-                sensor_ui.update(frame, frame_pcl.normal_image)
-                live_pcl = frame_pcl.to_point_cloud(world_space=False)
+                sensor_ui.update(frame, frame_pcl.normals)
+                live_pcl = frame_pcl.unordered_point_cloud(world_space=False)
 
                 if not single_process:
                     frame_queue.put(
@@ -192,23 +188,11 @@ def run_main_loop(sensor, rec_step, output_file, odometry=None, max_frames=None,
                 surfel_update, surfel_removal = surfel_update_queue.get_nowait()
                 surfels_lock.acquire()
                 if surfel_update.size(0) > 0:
-                    surfel_update_cpu = surfel_update
-                    surfel_update = surfel_update.to(surfels.device)
+                    # surfel_update_cpu = surfel_update
+                    # surfel_update = surfel_update.to(surfels.device)
                     with context.current():
-                        points = surfels.points[surfel_update]
+                        surfel_render.update(surfel_update)
 
-                        render_surfels.update_bounds(points)
-                        render_surfels.points[surfel_update] = points
-                        render_surfels.normals[surfel_update] = surfels.normals[surfel_update]
-                        colors = surfels.colors[surfel_update].byte()
-                        render_surfels.colors[surfel_update] = colors
-                        render_surfels.radii[surfel_update] = surfels.radii[surfel_update].view(
-                            -1, 1)
-                        render_surfels.counts[surfel_update] = surfels.counts[surfel_update].view(
-                            -1, 1)
-                        render_surfels.mark_visible(surfel_update_cpu)
-
-                render_surfels.mark_invisible(surfel_removal.cpu())
                 surfels_lock.release()
             except Empty:
                 pass
