@@ -62,6 +62,7 @@ class SurfelData:
         img_mask = frame_pcl.fg_mask.flatten()
         img_points = torch.from_numpy(
             frame_pcl.image_points.reshape(-1, 3)[img_mask])
+        img_mask = frame_pcl.fg_mask.flatten()
         confs = compute_confidences(img_points, frame_pcl.kcam)
 
         radii = compute_surfel_radii(cam_pcl.points, cam_pcl.normals,
@@ -105,7 +106,7 @@ class SurfelData:
 
         return PointCloud(
             points=self.points[active_mask].cpu().numpy(),
-            colors=self.colors[active_mask].cpu().numpy().astype(np.uint8),
+            colors=self.colors[active_mask].cpu().numpy(),
             normals=self.normals[active_mask].cpu().numpy())
 
     def compact(self):
@@ -139,14 +140,6 @@ class SurfelData:
 
     def __repr__(self):
         return str(self)
-
-
-def torch_pcl(pcl, device):
-    pcl = PointCloud(torch.from_numpy(pcl.points).to(device),
-                     torch.from_numpy(pcl.colors).to(device),
-                     torch.from_numpy(pcl.normals).to(device))
-
-    return pcl
 
 
 class SurfelFusion:
@@ -201,7 +194,7 @@ class SurfelFusion:
 
         fuse_idxs = fiontblib.filter_search(
             dist_mtx.cpu(), idx_mtx.cpu(), live_pcl.normals.cpu(),
-            self.surfels.normals[active_mask].cpu(), 0.05,
+            self.surfels.normals[active_mask].cpu(), 0.02,
             self.normal_min_dot)
 
         fuse_idxs = fuse_idxs.to(self.surfels.device)
@@ -210,7 +203,7 @@ class SurfelFusion:
         model_fuse_idxs = active_mask.nonzero().squeeze()[
             model_fuse_idxs].squeeze()
 
-        model_update_idxs = self._fuse_surfels(
+        model_update_idxs = self._merge_surfels(
             live_pcl, live_confidence[live_fuse_idxs], live_radii[live_fuse_idxs],
             live_fuse_idxs, model_fuse_idxs)
         self.surfels.timestamps[model_update_idxs] = timestamp
@@ -228,42 +221,43 @@ class SurfelFusion:
 
         return model_update_idxs, model_remove_idxs
 
-    def _fuse_surfels(self, live_pcl, live_confidence, live_radii, live_idxs, model_idxs):
-        count = self.surfels.confs[model_idxs]
-        count_update = count + live_confidence.squeeze()
+    def _merge_surfels(self, live_pcl, live_confidence, live_radii, live_idxs, model_idxs):
+        confs = self.surfels.confs[model_idxs]
+        confs_update = confs + live_confidence.squeeze()
 
         # update all visible surfels
-        self.surfels.confs[model_idxs] = count_update
+        self.surfels.confs[model_idxs] = confs_update
 
         radii_mask = (live_radii < self.surfels.radii[model_idxs] *
                       (1.0 + self.merge_min_radio))
         live_idxs = live_idxs[radii_mask]
         model_idxs = model_idxs[radii_mask]
 
-        count = count[radii_mask].view(-1, 1)
-        count_update = count_update[radii_mask].view(-1, 1)
+        confs = confs[radii_mask].view(-1, 1)
+        confs_update = confs_update[radii_mask].view(-1, 1)
 
         live_confidence = live_confidence[radii_mask].view(-1, 1)
         live_radii = live_radii[radii_mask].view(-1, 1)
 
         # point update
-        model_point_update = self.surfels.points[model_idxs] * count
+        model_point_update = self.surfels.points[model_idxs] * confs
         live_points = live_pcl.points[live_idxs]*live_confidence
+
         self.surfels.points[model_idxs] = (
-            model_point_update + live_points) / count_update
+            model_point_update + live_points) / confs_update
 
         # color update
         model_color_update = (self.surfels.colors[model_idxs].float()
-                              * count)
+                              * confs)
         live_color = live_pcl.colors[live_idxs].float()*live_confidence
         self.surfels.colors[model_idxs] = ((
-            model_color_update + live_color) / count_update).byte()
+            model_color_update + live_color) / confs_update).byte()
 
         # normal update
-        model_normal_update = self.surfels.normals[model_idxs]*count
+        model_normal_update = self.surfels.normals[model_idxs]*confs
         live_normals = live_pcl.normals[live_idxs]*live_confidence
         normals = model_normal_update + live_normals
-        normals /= count_update
+        normals /= confs_update
         normals /= normals.norm(2, 1).view(-1, 1)
         self.surfels.normals[model_idxs] = normals
 
@@ -275,6 +269,7 @@ class SurfelFusion:
         self.surfels.mark_active(model_empty_idxs)
 
         self.surfels.points[model_empty_idxs] = live_pcl.points[live_idxs]
+
         self.surfels.colors[model_empty_idxs] = live_pcl.colors[live_idxs]
         self.surfels.normals[model_empty_idxs] = live_pcl.normals[live_idxs]
         self.surfels.radii[model_empty_idxs] = live_radii[live_idxs]
@@ -295,7 +290,7 @@ class SurfelFusion:
 
     def _merge_points(self, active_mask):
         stable_idxs = (
-            self.surfels.count[active_mask] > self.max_unstable_count).nonzero().squeeze()
+            self.surfels.confs[active_mask] > self.max_unstable_confs).nonzero().squeeze()
         nn_search = Search(self.surfels.points[active_mask])
         dist_mtx, idx_mtx = nn_search.search(self.surfels.points[stable_idxs])
 

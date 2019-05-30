@@ -2,11 +2,10 @@
 """
 
 import numpy as np
-import cv2
 import torch
 
 import fiontb.fiontblib as fiontblib
-from .camera import KCamera, RTCamera, Homogeneous
+from .camera import KCamera, RTCamera
 from .pointcloud import PointCloud
 
 
@@ -110,7 +109,8 @@ class FramePointCloud:
 
     def __init__(self, frame: Frame):
         info = frame.info
-        self.depth_image = (frame.depth_image*info.depth_scale +
+
+        self.depth_image = (frame.depth_image.astype(np.float64)*info.depth_scale +
                             info.depth_bias).astype(np.float32)
 
         self.depth_mask = frame.depth_image > 0
@@ -143,7 +143,7 @@ class FramePointCloud:
                 raise RuntimeError("Frame doesn't have intrinsics camera")
 
             self._points = self.kcam.backproject(
-                self.image_points.reshape(-1, 3, 1)).reshape(self.image_points.shape)
+                self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
         return self._points
 
     @property

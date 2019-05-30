@@ -15,7 +15,9 @@ _SHADER_DIR = Path(__file__).parent / 'shaders'
 class RenderMode(Enum):
     Color = 0
     Confs = 1
-    Times = 2
+    Normal = 2
+    Gray = 3
+    Times = 4
 
 
 class SurfelRender(tenviz.DrawProgram):
@@ -39,10 +41,11 @@ class SurfelRender(tenviz.DrawProgram):
         self['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
         self['in_pos'] = self.points
-        self['in_color'] = self.colors
         self['in_normal'] = self.normals
         self['in_radius'] = self.radii
+        self['in_color'] = self.colors
         self['in_conf'] = self.confs
+        # self['in_times'] = self.times
         self._max_conf = 0
 
         surfel_tex = np.array(Image.open(str(Path(__file__).parent
@@ -51,39 +54,47 @@ class SurfelRender(tenviz.DrawProgram):
 
         self['BaseTexture'] = tenviz.tex_from_torch(surfel_tex)
 
-        cmap = get_cmap('viridis', 2048)
+        cmap = get_cmap('plasma', 2048)
         cmap_tensor = torch.tensor([cmap(i) for i in range(2048)])[:, :3]
         cmap_tensor = cmap_tensor.view(1, -1, 3)
 
         self['ColorMap'] = tenviz.tex_from_torch(cmap_tensor,
                                                  target=tenviz.GLTexTarget.k2D)
 
+        self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)
 
-        update_idxs = torch.arange(0, num_surfels, dtype=torch.int64)
+        update_idxs = self.surfel_data.get_active_indices()
         self.update(update_idxs)
 
     def update(self, update_idxs):
+        active_idxs = self.surfel_data.get_active_indices()
+        self.indices.from_tensor(active_idxs.int())
+
+        if update_idxs.numel() == 0:
+            return
+
         update_idxs = update_idxs.to(self.surfel_data.device)
         points = self.surfel_data.points[update_idxs]
         self.set_bounds(points)
 
         self.points[update_idxs] = points
         self.normals[update_idxs] = self.surfel_data.normals[update_idxs]
-        self.colors[update_idxs] = self.surfel_data.colors[update_idxs]
+
         self.radii[update_idxs] = self.surfel_data.radii[update_idxs]
+
+        self.colors[update_idxs] = self.surfel_data.colors[update_idxs]
+
         self.confs[update_idxs] = self.surfel_data.confs[update_idxs]
         self._max_conf = max(
             self.surfel_data.confs[update_idxs].max(), self._max_conf)
         self['MaxConf'] = torch.Tensor([self._max_conf])
 
-        active_idxs = self.surfel_data.get_active_indices()
-
-        self.indices.from_tensor(active_idxs.int())
-
     def set_render_mode(self, render_mode):
         self['RenderMode'] = torch.tensor([render_mode.value], dtype=torch.int)
 
+    def set_stable_threshold(self, stable_conf_thresh):
+        self['StableThresh'] = torch.tensor([stable_conf_thresh], dtype=torch.float32)
 
 def _test():
     import tenviz.io

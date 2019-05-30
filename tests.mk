@@ -60,3 +60,6 @@ fiontb.spatial.indexmap:
 
 fiontb.spatial.cindexmap:
 	python3 -m unittest fiontb.spatial._test.test_cindexmap
+
+fiontb.filtering:
+	python3 -m unittest fiontb._tests.test_filtering

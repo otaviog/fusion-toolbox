@@ -109,9 +109,9 @@ class KCamera:
         cx = self.matrix[0, 2]
         cy = self.matrix[1, 2]
 
-        z = xyz_coords[:, 2, 0]
-        xyz_coords[:, 0, 0] = (xyz_coords[:, 0, 0] - cx) * z / fx
-        xyz_coords[:, 1, 0] = (xyz_coords[:, 1, 0] - cy) * z / fy
+        z = xyz_coords[:, 2]
+        xyz_coords[:, 0] = (xyz_coords[:, 0] - cx) * z / fx
+        xyz_coords[:, 1] = (xyz_coords[:, 1] - cy) * z / fy
 
         return xyz_coords
 
