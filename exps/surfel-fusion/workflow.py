@@ -1,13 +1,13 @@
 """Workflow for testing fusion using surfels.
 """
 
-import rflow
 import numpy as np
-
 import open3d
 
+import rflow
+
 from odometry import FrameToFrameOdometry, ViewOdometry
-from ui import ReconstructionLoop, run_main_loop, RunMode
+from ui import ReconstructionLoop, MainLoop, RunMode
 from fiontb.camera import RTCamera
 import fiontb.fusion
 import fiontb.pose.icp
@@ -42,7 +42,7 @@ class SurfelReconstructionStep(ReconstructionLoop):
 
         self.surfels_lock.acquire()
         surfel_update, surfel_removal = self.fusion_ctx.fuse(
-            frame_points, live_pcl, kcam, self.curr_rt_cam)
+            frame_points, live_pcl, kcam)
         self.surfels_lock.release()
         self.surfel_update_queue.put(
             (surfel_update.cpu(), surfel_removal.cpu()))
@@ -52,9 +52,16 @@ class SurfelReconstructionStep(ReconstructionLoop):
 
 class SurfelFusion(rflow.Interface):
     def evaluate(self, resource, dataset, odometry):
-        sensor = fiontb.sensor.DatasetSensor(dataset, 220)
-        run_main_loop(sensor, SurfelReconstructionStep, resource.filepath, odometry,
-                      max_frames=None, single_process=True, run_mode=RunMode.STEP)
+        from cProfile import Profile
+        sensor = fiontb.sensor.DatasetSensor(dataset)
+        
+        loop = MainLoop(sensor, SurfelReconstructionStep, resource.filepath, odometry,
+                        max_frames=None, single_process=True, run_mode=RunMode.STEP)
+        prof = Profile()
+        prof.enable()
+        loop.run()
+        prof.disable()
+        prof.dump_stats("surfel_fusion.prof")
 
 
 class SuperDenseFusion(rflow.Interface):
@@ -100,10 +107,10 @@ class LoadFTB(rflow.Interface):
 
 
 @rflow.graph()
-def char1(g):
-    g.dataset = LoadFTB(rflow.FSResource("045_chair1"))
+def chair1(g):
+    g.dataset = LoadFTB(rflow.FSResource("chair1"))
 
-    g.fusion = SurfelFusion(rflow.FSResource("045.ply"))
+    g.fusion = SurfelFusion(rflow.FSResource("chair1.ply"))
     with g.fusion as args:
         args.dataset = g.dataset
         args.odometry = None

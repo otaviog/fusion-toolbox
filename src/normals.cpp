@@ -18,35 +18,46 @@ torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
   const auto xyz_a = xyz_image.accessor<float, 3>();
   const auto mask_a = mask_image.accessor<uint8_t, 2>();
 
-  const int where[][2] = {{0, 1}, {1, 1}, {1, -1}, {0, -1}, {-1, -1}, {1, 0}};
+  const int where[][2] = {{0, 1},  {1, 1},   {1, 0},  {1, -1},
+                          {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}};
+
+  const int iwidth = xyz_image.size(1);
+  const int iheight = xyz_image.size(0);
 
   for (int row = 0; row < xyz_image.size(0); ++row) {
     for (int col = 0; col < xyz_image.size(1); ++col) {
+      n_acc[row][col][0] = n_acc[row][col][1] = n_acc[row][col][2] = 0.0f;
+
+      if (mask_a[row][col] == 0) continue;
+
+      Eigen::Vector3f center(xyz_a[row][col][0], xyz_a[row][col][1],
+                             xyz_a[row][col][2]);
       Eigen::Vector3f norm(0, 0, 0);
       int count = 0;
-      for (int i = 0; i < 6; i++) {
-        const int r1 = row + where[i][0];
-        if (r1 < 0 || r1 >= xyz_image.size(0)) continue;
 
-        const int c1 = col + where[i][1];
-        if (c1 < 0 || c1 >= xyz_image.size(1)) continue;
+      for (int i = 0; i < 8; ++i) {
+        const int r1 = row + where[i][1];
+        if (r1 < 0 || r1 >= iheight) continue;
+
+        const int c1 = col + where[i][0];
+        if (c1 < 0 || c1 >= iwidth) continue;
 
         if (mask_a[r1][c1] == 0) continue;
 
-        const int j = (i + 1) % 6;
-        const int r2 = row + where[j][0];
-        if (r2 < 0 || r2 >= xyz_image.size(0)) continue;
+        const int j = (i + 2) % 8;
+        const int r2 = row + where[j][1];
+        if (r2 < 0 || r2 >= iheight) continue;
 
-        const int c2 = col + where[j][1];
-        if (c2 < 0 || c2 >= xyz_image.size(1)) continue;
+        const int c2 = col + where[j][0];
+        if (c2 < 0 || c2 >= iwidth) continue;
 
         if (mask_a[r2][c2] == 0) continue;
-        norm += Normal(Eigen::Vector3f(xyz_a[row][col][0], xyz_a[row][col][1],
-                                       xyz_a[row][col][2]),
-                       Eigen::Vector3f(xyz_a[r1][c1][0], xyz_a[r1][c1][1],
-                                       xyz_a[r1][c1][2]),
+
+        norm += Normal(center,
                        Eigen::Vector3f(xyz_a[r2][c2][0], xyz_a[r2][c2][1],
-                                       xyz_a[r2][c2][2]));
+                                       xyz_a[r2][c2][2]),
+                       Eigen::Vector3f(xyz_a[r1][c1][0], xyz_a[r1][c1][1],
+                                       xyz_a[r1][c1][2]));
         ++count;
       }
       if (count > 0) {
@@ -55,8 +66,6 @@ torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
         n_acc[row][col][0] = norm[0];
         n_acc[row][col][1] = norm[1];
         n_acc[row][col][2] = norm[2];
-      } else {
-        n_acc[row][col][0] = n_acc[row][col][1] = n_acc[row][col][2] = 0.0f;
       }
     }
   }

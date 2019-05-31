@@ -31,10 +31,18 @@ class PointCloud:
         self.colors = colors
         self.normals = normals
 
-    def torch(self):
-        return PointCloud(torch.from_numpy(self.points),
-                          torch.from_numpy(self.colors),
-                          torch.from_numpy(self.normals))
+    def torch(self, device=None):
+
+        pcl = PointCloud(torch.from_numpy(self.points),
+                         torch.from_numpy(self.colors),
+                         torch.from_numpy(self.normals))
+
+        if device is not None:
+            pcl.points = pcl.points.to(device)
+            pcl.colors = pcl.colors.to(device)
+            pcl.normals = pcl.normals.to(device)
+
+        return pcl
 
     def copy(self):
         return PointCloud(self.points.copy(),

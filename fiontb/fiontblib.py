@@ -1,2 +1,3 @@
 import torch
-from ._fiontb import calculate_depth_normals, filter_search, IndexMap, Octree
+from ._fiontb import (calculate_depth_normals, filter_search,
+                      IndexMap, Octree, filter_depth_image)

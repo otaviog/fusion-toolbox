@@ -26,7 +26,7 @@ class FrameToFrameOdometry(rflow.Interface):
             if not ret:
                 break
 
-            live_pcl = FramePointCloud(frame).to_point_cloud(world_space=False)
+            live_pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
             # live_pcl.transform(accum_rt_cam.cam_to_world)
 
             if last_pcl is not None:
