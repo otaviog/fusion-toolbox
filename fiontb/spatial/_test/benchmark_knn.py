@@ -41,7 +41,6 @@ def _main():
 
     model_points_gpu = model_points.to("cuda:0")
 
-
     octree = Octree(model_points_gpu, 1024)
     begin = time.perf_counter()
     octree.query(query_points, 10, 0.01)

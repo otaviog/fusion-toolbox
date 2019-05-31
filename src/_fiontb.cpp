@@ -17,7 +17,7 @@ PYBIND11_MODULE(_fiontb, m) {
   m.def("filter_search", &FilterSearch);
 
   py::class_<IndexMap>(m, "IndexMap")
-      .def(py::init<torch::Tensor, int, int>())
+      .def(py::init<torch::Tensor, torch::Tensor, int, int, int, int>())
       .def("query", &IndexMap::Query)
       .def_readwrite("grid", &IndexMap::grid_)
       .def_readwrite("model", &IndexMap::model_points_);

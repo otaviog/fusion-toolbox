@@ -7,9 +7,13 @@ using namespace std;
 namespace fiontb {
 const int MAX_SLOTS = 9;
 
-IndexMap::IndexMap(torch::Tensor proj_points, int width, int height) {
+IndexMap::IndexMap(torch::Tensor proj_points, torch::Tensor model_points,
+                   int width, int height, int window_size, int depth_slots) {
   grid_ = torch::full({height, width, MAX_SLOTS}, -1, torch::kInt64);
-  model_points_ = proj_points;
+  proj_points_ = proj_points;
+  model_points_ = model_points;
+  depth_slots_ = depth_slots;
+  window_size_ = window_size;
 
   const auto pp_acc = proj_points.accessor<float, 2>();
   auto grid_acc = grid_.accessor<long, 3>();
@@ -18,17 +22,19 @@ IndexMap::IndexMap(torch::Tensor proj_points, int width, int height) {
     const int x = pp_acc[row][0];
     const int y = pp_acc[row][1];
     int k = 0;
-
-    for (; k < MAX_SLOTS - 1; ++k) {
+    do {
       if (grid_acc[y][x][k] == -1) break;
-    }
+      k++;
+    } while (k < MAX_SLOTS - 1);
 
     grid_acc[y][x][k] = row;
   }
 }
 
 pair<torch::Tensor, torch::Tensor> IndexMap::Query(
-    const torch::Tensor &query_points, int query_k) {
+    const torch::Tensor &proj_query_points, const torch::Tensor &query_points,
+    int query_k) {
+  const auto pqp_acc = proj_query_points.accessor<float, 2>();
   const auto qp_acc = query_points.accessor<float, 2>();
 
   const auto mp_acc = model_points_.accessor<float, 2>();
@@ -43,19 +49,21 @@ pair<torch::Tensor, torch::Tensor> IndexMap::Query(
   auto idx_acc = idx_mtx.accessor<long, 2>();
   auto dist_acc = dist_mtx.accessor<float, 2>();
 
-  for (long row = 0; row < qp_acc.size(0); ++row) {
-    const float x = qp_acc[row][0];
-    const float y = qp_acc[row][1];
-    const Eigen::Vector3f qpoint(x, y, qp_acc[row][2]);
+  std::vector<std::pair<long, float>> distances;
+  for (long row = 0; row < pqp_acc.size(0); ++row) {
+    const float x = pqp_acc[row][0];
+    const float y = pqp_acc[row][1];
+    const Eigen::Vector3f qpoint(qp_acc[row][0], qp_acc[row][1],
+                                 qp_acc[row][2]);
 
-    std::vector<std::pair<long, float>> distances;
+    distances.clear();
 
-    for (int wnd_y = -1; wnd_y < 2; ++wnd_y) {
-      for (int wnd_x = -1; wnd_x < 2; ++wnd_x) {
-        const int cy = y - wnd_y;
+    for (int wnd_y = 0; wnd_y < window_size_; ++wnd_y) {
+      for (int wnd_x = 0; wnd_x < window_size_; ++wnd_x) {
+        const int cy = y - (wnd_y - window_size_/2);
         if (cy < 0 || cy >= grid_.size(0)) continue;
 
-        const int cx = x - wnd_x;
+        const int cx = x - (wnd_x - window_size_/2);
         if (cx < 0 || cx >= grid_.size(1)) continue;
 
         for (int k = 0; k < MAX_SLOTS; ++k) {

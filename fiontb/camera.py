@@ -124,11 +124,12 @@ class KCamera:
             matrix = torch.from_numpy(self.matrix).float()
 
         points = matrix @ points.reshape(-1, 3, 1)
+        points = points.reshape(-1, 3)
 
-        z = points[:, 2, 0]
+        z = points[:, 2]
 
-        points[:, 0:2, 0] /= z.reshape(-1, 1)
-        return points.squeeze()
+        points[:, :2] /= z.reshape(-1, 1)
+        return points
 
     def project_and_cull(self, points, img_width, img_height):
         points = self.project(points)
@@ -140,10 +141,6 @@ class KCamera:
         
     def pixel_center(self):
         return (self.matrix[0, 2], self.matrix[1, 2])
-
-    def torch(self):
-        return KCamera(torch.from_numpy(self.matrix),
-                       self.undist_coeff, self.depth_radial_distortion, self.image_size)
 
     def __str__(self):
         return str(self.__dict__)
