@@ -5,8 +5,8 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from CGAL.CGAL_AABB_tree import AABB_tree_Triangle_3_soup
-from CGAL.CGAL_Kernel import Point_3, Triangle_3
+#from CGAL.CGAL_AABB_tree import AABB_tree_Triangle_3_soup
+#from CGAL.CGAL_Kernel import Point_3, Triangle_3
 from tqdm import tqdm
 
 
@@ -66,7 +66,7 @@ def mesh_accuracy(source_points, closest_pts, thresh_distance=0.01):
     return np.mean(distances < thresh_distance)
 
 
-def sample_points(verts, faces, point_density):
+def sample_points(verts, faces, point_density, normals=None):
     """Converts a mesh into a point-cloud.
 
     Args:
@@ -78,6 +78,7 @@ def sample_points(verts, faces, point_density):
         point_density (float): Ratio of points per face area.
     """
 
+    # pylint: disable=invalid-name
     areas = np.empty((faces.shape[0], ))
     for i, (idx0, idx1, idx2) in enumerate(faces):
         p0, p1, p2 = verts[idx0], verts[idx1], verts[idx2]
@@ -90,8 +91,13 @@ def sample_points(verts, faces, point_density):
     total_area = areas.sum()
 
     points = []
+    point_normals = []
+
     for i, (idx0, idx1, idx2) in enumerate(faces):
         p0, p1, p2 = verts[idx0], verts[idx1], verts[idx2]
+        if normals is not None:
+            n0, n1, n2 = normals[idx0], normals[idx1], normals[idx2]
+
         trig_area = areas[i]
 
         num_points = int((trig_area / total_area)*point_density)
@@ -102,5 +108,8 @@ def sample_points(verts, faces, point_density):
 
             rand_pt = p0*(1 - s0) + p1*(1 - rand1)*s0 + p2*rand1*s0
             points.append(rand_pt)
+            if normals is not None:
+                rand_norm = n0*(1 - s0) + n1*(1 - rand1)*s0 + n2*rand1*s0
+                point_normals.append(rand_norm)
 
-    return np.array(points)
+    return np.array(points), np.array(point_normals)

@@ -3,7 +3,10 @@ include_directories(${PYTHON_INCLUDE_DIR})
 cuda_add_library(_fiontb SHARED normals.cpp surfel_fusion.cpp _fiontb.cpp
   aabb.cpp aabb.cu
   octree.cpp octree.cu
-  indexmap.cpp filtering.cpp)
+  indexmap.cpp filtering.cpp
+  dense_volume.cpp
+  sparse_volume.cpp
+  tsdf_fusion.cpp)
 
 target_include_directories(_fiontb
   PUBLIC
