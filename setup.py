@@ -99,6 +99,7 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.'] +
                               build_args, cwd=self.build_temp)
 
+
 setup(
     name='fusion-toolbox',
     version='0.0.1',
@@ -124,9 +125,12 @@ setup(
                 'pylint',
                 'autopep8'],
         'test': ['coverage'],
-        },
+    },
     entry_points={
         'console_scripts': [
-            'ftb-view-dataset=fiontb.viz.datasetviewer:_main']
-        }   
+            'ftb-view-dataset=fiontb.viz.datasetviewer:_main',
+            'ftb-capture=fiontb.app.sensor_record.__main__:_main',
+            'ftb-klg-view=fiontb.app.klg_view.__main__:_main'
+        ]
+    }
 )

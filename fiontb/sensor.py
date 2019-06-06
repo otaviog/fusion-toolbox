@@ -27,7 +27,8 @@ class Sensor:
     """
 
     def __init__(self, device_uri, device_type):
-        self.device = onireader.Device(device_uri)
+        self.device = onireader.Device()
+        self.device.open("")
         kcam = DEVICE_TO_KCAM.get(device_type, None)
         self.kcam = KCamera(kcam)
 
@@ -42,7 +43,7 @@ class Sensor:
         depth_img, depth_ts, depth_idx = self.device.readDepth()
         rgb_img, rgb_ts, rgb_idx = self.device.readColor()
 
-        info = FrameInfo(self.kcam, depth_scale=0.001, depth_bias=0.0, depth_max=16000,
+        info = FrameInfo(self.kcam, depth_scale=1, depth_bias=0.0, depth_max=16000,
                          timestamp=depth_ts)
 
         frame = Frame(info, depth_img, rgb_image=rgb_img)

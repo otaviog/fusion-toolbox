@@ -6,7 +6,7 @@ namespace fiontb {
 DenseVolume::DenseVolume(int resolution, float voxel_size,
                          Eigen::Vector3i begin_pos)
     : resolution(resolution), voxel_size(voxel_size), begin_pos(begin_pos) {
-  sdf = torch::zeros({resolution, resolution, resolution}, torch::kFloat);
+  sdf = torch::full({resolution, resolution, resolution}, -1.0, torch::kFloat);
   weights = torch::zeros({resolution, resolution, resolution}, torch::kFloat);
 }
 
