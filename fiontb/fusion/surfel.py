@@ -3,6 +3,7 @@ import time
 
 import torch
 import numpy as np
+import tenviz
 
 from fiontb.pointcloud import PointCloud, pcl_stack
 import fiontb.fiontblib as fiontblib
@@ -36,27 +37,9 @@ def compute_confidences(frame_points, kcam):
     return confidences
 
 
-class SurfelData:
-    def __init__(self, num_surfels, device):
-        self.device = device
-        self._max_surfel_count = num_surfels
-        self.points = torch.zeros(
-            (num_surfels, 3), dtype=torch.float32).to(device)
-        self.normals = torch.zeros(
-            (num_surfels, 3), dtype=torch.float32).to(device)
-        self.colors = torch.zeros(
-            (num_surfels, 3), dtype=torch.uint8).to(device)
-        self.radii = torch.zeros(
-            (num_surfels,), dtype=torch.float32).to(device)
-        self.confs = torch.zeros(
-            (num_surfels,), dtype=torch.float32).to(device)
-        self.timestamps = torch.zeros(
-            (num_surfels, ), dtype=torch.int32).to(device)
-        self.surfel_mask = torch.ones(
-            (num_surfels, ), dtype=torch.uint8).to(device)
-
-    @classmethod
-    def from_point_cloud(cls, frame_pcl, device, timestamp):
+class SurfelCloud:
+    @staticmethod
+    def from_frame_pcl(cls, frame_pcl):
         cam_pcl = frame_pcl.unordered_point_cloud(world_space=False).torch()
 
         img_mask = frame_pcl.fg_mask.flatten()
@@ -68,46 +51,14 @@ class SurfelData:
         radii = compute_surfel_radii(cam_pcl.points, cam_pcl.normals,
                                      frame_pcl.kcam)
 
-        world_pcl = frame_pcl.unordered_point_cloud(world_space=True).torch()
-        surfels = cls(cam_pcl.points.size(0), device)
-        surfels.points[:] = world_pcl.points
-        surfels.colors[:] = world_pcl.colors
-        surfels.normals[:] = world_pcl.normals
-        surfels.radii[:] = radii
-        surfels.confs[:] = confs
-        surfels.timestamps[:] = timestamp
-        surfels.surfel_mask[:] = 0
+        return cls(cam_pcl.points, cam_pcl.colors, cam_pcl.normals, radii, confs):
 
-        return surfels
-
-    def mark_active(self, indices):
-        self.surfel_mask[indices] = 0
-
-    def mark_inactive(self, indices):
-        self.surfel_mask[indices] = 1
-
-    def num_active_surfels(self):
-        return (self.surfel_mask == 0).sum()
-
-    def get_active_indices(self):
-        return (self.surfel_mask == 0).nonzero().flatten()
-
-    def get_inactive_indices(self, num):
-        return self.surfel_mask.nonzero()[:num].flatten()
-
-    def active_points(self):
-        return self.points[self.active_mask()]
-
-    def active_mask(self):
-        return self.surfel_mask == 0
-
-    def to_point_cloud(self):
-        active_mask = self.active_mask()
-
-        return PointCloud(
-            points=self.points[active_mask].cpu().numpy(),
-            colors=self.colors[active_mask].cpu().numpy(),
-            normals=self.normals[active_mask].cpu().numpy())
+    def __init__(self, points, colors, normals, radii, confs):
+        self.points = points
+        self.colors = colors
+        self.normals = normals
+        self.radii = radii
+        self.confs = confs
 
     def compact(self):
         active_mask = self.active_mask()
@@ -131,6 +82,50 @@ class SurfelData:
         self.timestamps = self.timestamps.share_memory_()
         self.surfel_mask = self.surfel_mask.share_memory_()
 
+
+class SurfelsModel:
+    def __init__(self, context, max_surfels):
+        self.context = context
+        self._max_surfels = max_surfels
+
+        with self.context.current():
+            self.points = tenviz.buffer_empty(
+                max_surfels, 3, tenviz.BType.Float)
+            self.points_tex = tenviz.buffer_empty(
+                max_surfels, 3, tenviz.BType.Float)
+            self.normals = tenviz.buffer_empty(
+                max_surfels, 3, tenviz.BType.Float)
+            self.colors = tenviz.buffer_empty(
+                max_surfels, 3, tenviz.BType.Uint8)
+            self.radii = tenviz.buffer_empty(
+                max_surfels, 1, tenviz.BType.Float)
+            self.confs = tenviz.buffer_empty(
+                max_surfels, 1, tenviz.BType.Float)
+            self.timestamps = tenviz.buffer_empty(
+                max_surfels, 1, tenviz.BType.Int32)
+            self.surfel_mask = torch.ones((max_surfels, ), dtype=torch.uint8)
+
+    def mark_active(self, indices):
+        self.surfel_mask[indices] = 0
+
+    def mark_inactive(self, indices):
+        self.surfel_mask[indices] = 1
+
+    def num_active_surfels(self):
+        return (self.surfel_mask == 0).sum()
+
+    def get_active_indices(self):
+        return (self.surfel_mask == 0).nonzero().flatten()
+
+    def get_inactive_indices(self, num):
+        return self.surfel_mask.nonzero()[:num].flatten()
+
+    def active_points(self):
+        return self.points[self.active_mask()]
+
+    def active_mask(self):
+        return self.surfel_mask == 0
+
     @property
     def max_surfel_count(self):
         return self._max_surfel_count
@@ -146,6 +141,8 @@ class SurfelFusion:
     def __init__(self, surfels, max_distance=0.05, normal_max_angle=20.0,
                  stable_conf_thresh=10, max_unstable_time=15):
         self.surfels = surfels
+        self.indexmap = IndexMap(surfels.context, surfels)
+
         self.max_distance = max_distance
         self.normal_min_dot = 1 - normal_max_angle / 90.0
 
@@ -158,19 +155,8 @@ class SurfelFusion:
         self.merge_min_radio = 0.5
 
     def fuse(self, frame_pcl, live_pcl, kcam):
-        img_mask = frame_pcl.fg_mask.flatten()
+        surfel_cloud = SurfelCloud.from_frame_pcl(frame_pcl)
 
-        # Computes confidences
-        live_confidence = compute_confidences(
-            torch.from_numpy(frame_pcl.points.reshape(-1, 3)[img_mask]),
-            kcam).to(self.surfels.device)
-
-        # Computes radii
-        cam_pcl = frame_pcl.unordered_point_cloud(world_space=False).torch()
-        live_radii = compute_surfel_radii(
-            cam_pcl.points, cam_pcl.normals, kcam).to(self.surfels.device)
-
-        # timestamp = int((time.time() - self._start_timestamp)*1000)
         timestamp = self._start_timestamp
         self._start_timestamp += 1
 
@@ -181,100 +167,75 @@ class SurfelFusion:
             self._add_surfels(new_idxs, new_idxs, live_pcl,
                               live_confidence, live_radii, timestamp)
             self._is_first_fusion = False
-            return (new_idxs.to(self.surfels.device),
-                    torch.tensor([], dtype=torch.int64))
+            return
 
-        active_mask = self.surfels.active_mask()
+        live_idxs, model_idxs, live_unst_idxs = self.indexmap.query(
+            frame_pcl, surfel_cloud)
 
-        # nn_search = cOctree(self.surfels.points[active_mask], 2048)
-        nn_search = KDTree(
-            self.surfels.points[active_mask].cpu(), self.surfels.device)
+        if live_unst_idxs.size(0) > 0:
 
-        dist_mtx, idx_mtx = nn_search.query(live_pcl.points, 8, 0.01)
+            self._add_surfels(live_surfels.indexed_select(live_unst_idxs))
 
-        fuse_idxs = fiontblib.filter_search(
-            dist_mtx.cpu(), idx_mtx.cpu(), live_pcl.normals.cpu(),
-            self.surfels.normals[active_mask].cpu(), 0.02,
-            self.normal_min_dot)
+        with self.surfels.context.current():
+            model_surfels = SurfelCloud(
+                self.surfels.points[model_idxs],
+                self.surfels.colors[model_idxs],
+                self.surfels.normals[model_idxs],
+                self.surfels.radii[model_idxs],
+                self.surfels.confs[model_idxs])
 
-        fuse_idxs = fuse_idxs.to(self.surfels.device)
-        live_fuse_idxs = (fuse_idxs >= 0).nonzero().squeeze()
-        model_fuse_idxs = fuse_idxs[live_fuse_idxs]
-        model_fuse_idxs = active_mask.nonzero().squeeze()[
-            model_fuse_idxs].squeeze()
+        self._merge_surfels(
+            live_surfels.indexed_select(live_idxs),
+            model_surfels, model_idxs)
 
-        model_update_idxs = self._merge_surfels(
-            live_pcl, live_confidence[live_fuse_idxs], live_radii[live_fuse_idxs],
-            live_fuse_idxs, model_fuse_idxs)
         self.surfels.timestamps[model_update_idxs] = timestamp
 
-        live_new_idxs = (fuse_idxs == -1).nonzero().squeeze()
-        if live_new_idxs.size(0) > 0:
-            new_indices = self.surfels.get_inactive_indices(
-                live_new_idxs.shape[0])
+        # self._remove_surfels(active_mask)
 
-            self._add_surfels(new_indices, live_new_idxs, live_pcl,
-                              live_confidence, live_radii, timestamp)
-            model_update_idxs = torch.cat([model_update_idxs, new_indices])
+    def _merge_surfels(self, live, model, model_idxs):
 
-        model_remove_idxs = self._remove_surfels(active_mask)
+        self.model_surfels.confs = confs_update
 
-        return model_update_idxs, model_remove_idxs
-
-    def _merge_surfels(self, live_pcl, live_confidence, live_radii, live_idxs, model_idxs):
-        confs = self.surfels.confs[model_idxs]
-        confs_update = confs + live_confidence.squeeze()
-
-        # update all visible surfels
-        self.surfels.confs[model_idxs] = confs_update
-
-        radii_mask = (live_radii < self.surfels.radii[model_idxs] *
+        radii_mask = (live.radii < model.radii *
                       (1.0 + self.merge_min_radio))
-        live_idxs = live_idxs[radii_mask]
-        model_idxs = model_idxs[radii_mask]
+        # live_idxs = live_idxs[radii_mask]
+        # model_idxs = model_idxs[radii_mask]
 
         confs = confs[radii_mask].view(-1, 1)
         confs_update = confs_update[radii_mask].view(-1, 1)
 
-        live_confidence = live_confidence[radii_mask].view(-1, 1)
         live_radii = live_radii[radii_mask].view(-1, 1)
 
-        # point update
-        model_point_update = self.surfels.points[model_idxs] * confs
-        live_points = live_pcl.points[live_idxs]*live_confidence
+        confs_update = model.confs + live.confs.squeeze()
+        model.points = (model.points * confs + live.points *
+                        live.confs) / confs_update
+        model.colors = (model.colors * confs + live.colors *
+                        live.confs) / confs_update
 
-        self.surfels.points[model_idxs] = (
-            model_point_update + live_points) / confs_update
+        model.normals = (model.normals * confs +
+                         live.normals*live.confs) / confs_update
+        model.normals /= model.normals.norm(2, 1).view(-1, 1)
+        model.confs = confs_update
 
-        # color update
-        model_color_update = (self.surfels.colors[model_idxs].float()
-                              * confs)
-        live_color = live_pcl.colors[live_idxs].float()*live_confidence
-        self.surfels.colors[model_idxs] = ((
-            model_color_update + live_color) / confs_update).byte()
+        with self.surfels.context.current():
+            self.surfels.points[model_idxs] = model.points
+            self.surfels.colors[model_idxs] = model.colors
+            self.surfels.normals[model_idxs] = model.normals
+            self.surfels.confs[model_idxs] = model.confs
 
-        # normal update
-        model_normal_update = self.surfels.normals[model_idxs]*confs
-        live_normals = live_pcl.normals[live_idxs]*live_confidence
-        normals = model_normal_update + live_normals
-        normals /= confs_update
-        normals /= normals.norm(2, 1).view(-1, 1)
-        self.surfels.normals[model_idxs] = normals
+    def _add_surfels(self, new_surfels):
 
-        return model_idxs
+        new_indices = self.surfels.get_inactive_indices(
+            new_surfels.size)
+        self.surfels.mark_active(new_indices)
 
-    def _add_surfels(self, model_empty_idxs, live_idxs, live_pcl, live_confidence,
-                     live_radii, timestamp):
-
-        self.surfels.mark_active(model_empty_idxs)
-
-        self.surfels.points[model_empty_idxs] = live_pcl.points[live_idxs]
-
-        self.surfels.colors[model_empty_idxs] = live_pcl.colors[live_idxs]
-        self.surfels.normals[model_empty_idxs] = live_pcl.normals[live_idxs]
-        self.surfels.radii[model_empty_idxs] = live_radii[live_idxs]
-        self.surfels.confs[model_empty_idxs] = live_confidence[live_idxs]
-        self.surfels.timestamps[model_empty_idxs] = timestamp
+        with self.surfels.context.current():
+            self.surfels.points[new_indices] = new_surfels.points
+            self.surfels.colors[new_indices] = new_surfels.colors
+            self.surfels.normals[new_indices] = new_surfels.normals
+            self.surfels.radii[new_indices] = new_surfels.radii
+            self.surfels.confs[new_indices] = new_surfels.confs
+            # self.surfels.timestamps[new_indices] = timestamp
 
     def _remove_surfels(self, active_mask):
         # model_remove_idxs = torch.tensor([], dtype=torch.int64)

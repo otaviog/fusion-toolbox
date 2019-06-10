@@ -26,11 +26,12 @@ class Sensor:
     """Sensor IO based on OpenNI2.
     """
 
-    def __init__(self, device_uri, device_type):
-        self.device = onireader.Device()
-        self.device.open("")
-        kcam = DEVICE_TO_KCAM.get(device_type, None)
-        self.kcam = KCamera(kcam)
+    def __init__(self, device, device_type=None):
+        self.device = device
+        if device_type is None:
+            device_type = DeviceType.ASUS_XTION
+        kmatrix = DEVICE_TO_KCAM.get(device_type, None)
+        self.kcam = KCamera(kmatrix)
 
     def next_frame(self):
         """Reads the next frame from the device stream.

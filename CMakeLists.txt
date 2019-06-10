@@ -20,6 +20,13 @@ endif()
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
 set(Torch_DIR ${CMAKE_SOURCE_DIR}/3rd-party/libtorch/share/cmake/Torch)
+
+if (NOT EXISTS ${CMAKE_SOURCE_DIR}/3rd-party/Catch2)
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E tar xf Catch2.zip
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rd-party)
+endif()
+
 find_package(Torch REQUIRED)
 
 find_package(Eigen3 REQUIRED)

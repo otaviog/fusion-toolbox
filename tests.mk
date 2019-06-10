@@ -63,3 +63,6 @@ fiontb.spatial.cindexmap:
 
 fiontb.filtering:
 	python3 -m unittest fiontb._tests.test_filtering
+
+fiontb.spatial.trigoctree:
+	python3 -m unittest fiontb.spatial._test.test_trigoctree

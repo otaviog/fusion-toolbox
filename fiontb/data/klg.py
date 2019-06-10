@@ -103,6 +103,8 @@ class KLGWriter:
         else:
             timestamp = self.count + 1
 
+        timestamp = self.count + 1 # REMOVE
+        #print(timestamp)
         self.stream.write(struct.pack('q', timestamp))
         self.stream.write(struct.pack('i', len(compress_depth)))
         self.stream.write(struct.pack('i', len(jpg_rgb)))
@@ -111,6 +113,8 @@ class KLGWriter:
         self.stream.write(jpg_rgb)
 
         self.count += 1
+
+        return timestamp
 
     def finish(self):
         self.stream.seek(0, 0)
@@ -144,7 +148,7 @@ def write_klg(dataset, stream, format_depth_scale=None, max_frames=None):
     for i in tqdm(range(max_frames), desc="Writing KLG file"):
         frame = dataset[i]
 
-        writer.write(frame)
+        timestamp = writer.write_frame(frame)
         if frame.info.rt_cam is not None:
             rt_cam = frame.info.rt_cam
             rt_cams.append((timestamp, rt_cam))

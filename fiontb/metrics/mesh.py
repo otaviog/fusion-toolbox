@@ -4,11 +4,13 @@
 from multiprocessing import Pool
 
 import numpy as np
+import torch
 
 #from CGAL.CGAL_AABB_tree import AABB_tree_Triangle_3_soup
 #from CGAL.CGAL_Kernel import Point_3, Triangle_3
 from tqdm import tqdm
 
+from fiontb.fiontblib import query_closest_points
 
 _TREE = None
 
@@ -20,6 +22,27 @@ def _process(point):
 
 
 def closest_points(source_points, verts, trigs, processes=2):
+    """Returns the closest points on a mesh's surface from a given set of
+    points.
+
+    Args:
+
+        source_points (:obj:`numpy.ndarray`): Source points, [Nx3] shape
+
+        verts (:obj:`numpy.ndarray`): The mesh vertices, [Vx3] shape.
+
+        faces (:obj:`numpy.ndarray`): The mesh face indices, [Fx3] shape.
+
+    Returns: (:obj:`numpy.ndarray`): The closest points, [Nx3] shape.
+
+    """
+
+    return query_closest_points(torch.from_numpy(source_points).float(),
+                                torch.from_numpy(verts).float(),
+                                torch.from_numpy(trigs).long())
+
+
+def closest_pointsc(source_points, verts, trigs, processes=2):
     """Returns the closest points on a mesh's surface from a given set of
     points.
 

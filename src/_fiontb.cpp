@@ -8,10 +8,12 @@
 #include "dense_volume.hpp"
 #include "filtering.hpp"
 #include "indexmap.hpp"
+#include "metrics.hpp"
 #include "normals.hpp"
 #include "octree.hpp"
 #include "sparse_volume.hpp"
 #include "surfel_fusion.hpp"
+#include "trigoctree.hpp"
 #include "tsdf_fusion.hpp"
 
 using namespace std;
@@ -33,6 +35,10 @@ PYBIND11_MODULE(_fiontb, m) {
       .def(py::init<torch::Tensor, int>())
       .def("query", &Octree::Query);
 
+  py::class_<TrigOctree>(m, "TrigOctree")
+      .def(py::init<torch::Tensor, torch::Tensor, int>())
+      .def("query_closest_points", &TrigOctree::QueryClosest);
+
   py::class_<DenseVolume, shared_ptr<DenseVolume>>(m, "DenseVolume")
       .def(py::init<int, float, Eigen::Vector3i>())
       .def("to_point_cloud", &DenseVolume::ToPointCloud)
@@ -45,4 +51,6 @@ PYBIND11_MODULE(_fiontb, m) {
 
   m.def("fuse_dense_volume", &FuseDenseVolume);
   m.def("fuse_sparse_volume", &FuseSparseVolume);
+  m.def("query_point_to_triangles", &QueryPointToTriangles);
+  m.def("query_closest_points", &QueryClosestPoints);
 }

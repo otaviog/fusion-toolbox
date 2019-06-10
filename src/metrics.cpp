@@ -1,0 +1,176 @@
+#include "metrics.hpp"
+
+#include <cmath>
+
+using namespace std;
+
+namespace fiontb {
+
+namespace {
+bool IsPointInsideTriangle(const Eigen::Vector3f &query,
+                           const Eigen::Vector3f &p0, const Eigen::Vector3f &p1,
+                           const Eigen::Vector3f &p2) {
+  const Eigen::Vector3f q0 = p0 - query;
+  const Eigen::Vector3f q1 = p1 - query;
+  const Eigen::Vector3f q2 = p2 - query;
+
+  const Eigen::Vector3f norm_12 = q1.cross(q2);
+  const Eigen::Vector3f norm_20 = q2.cross(q0);
+  const Eigen::Vector3f norm_01 = q0.cross(q1);
+
+  if (norm_12.dot(norm_20) < 0.0f) {
+    return false;
+  } else if (norm_12.dot(norm_01) < 0.0f) {
+    return false;
+  }
+
+  return true;
+}
+
+Eigen::Vector3f GetClosestPointLine(const Eigen::Vector3f &query,
+                                    const Eigen::Vector3f &p0,
+                                    const Eigen::Vector3f &p1) {
+  Eigen::Vector3f vec = p1 - p0;
+  float t = (query - p0).dot(vec) / vec.dot(vec);
+  t = min(max(t, 0.0f), 1.0f);
+
+  return p0 + vec * t;
+}
+}  // namespace
+
+Eigen::Vector3f GetClosestPointTriangle(const Eigen::Vector3f &query,
+                                        const Eigen::Vector3f &p0,
+                                        const Eigen::Vector3f &p1,
+                                        const Eigen::Vector3f &p2) {
+  const Eigen::Vector3f plane_normal = (p1 - p0).cross(p2 - p0).normalized();
+  const float plane_dist = plane_normal.dot(p0);
+
+  const Eigen::Vector3f closest =
+      query - plane_normal * (plane_normal.dot(query) - plane_dist);
+
+  if (IsPointInsideTriangle(closest, p0, p1, p2)) {
+    return closest;
+  }
+
+  const Eigen::Vector3f c0 = GetClosestPointLine(query, p0, p1);
+  const Eigen::Vector3f c1 = GetClosestPointLine(query, p1, p2);
+  const Eigen::Vector3f c2 = GetClosestPointLine(query, p2, p0);
+
+  const float d0 = (query - c0).squaredNorm();
+  const float d1 = (query - c1).squaredNorm();
+  const float d2 = (query - c2).squaredNorm();
+
+  if (d0 < d1 && d0 < d2) {
+    return c0;
+  } else if (d1 < d0 && d1 < d2) {
+    return c1;
+  }
+
+  return c2;
+}
+
+pair<Eigen::Vector3f, long> QueryClosestPoint(const Eigen::Vector3f &qpoint,
+                                              const torch::Tensor &verts,
+                                              const torch::Tensor &faces) {
+  float min_distance = std::numeric_limits<float>::infinity();
+  Eigen::Vector3f min_closest;
+  long min_face;
+
+  const auto face_acc = faces.accessor<long, 2>();
+  const auto vert_acc = verts.accessor<float, 2>();
+
+  #pragma omp for
+  for (long i = 0; i < face_acc.size(0); ++i) {
+    const long f0 = face_acc[i][0];
+    const long f1 = face_acc[i][1];
+    const long f2 = face_acc[i][2];
+
+    const Eigen::Vector3f p0(vert_acc[f0][0], vert_acc[f0][1], vert_acc[f0][2]);
+    const Eigen::Vector3f p1(vert_acc[f1][0], vert_acc[f1][1], vert_acc[f1][2]);
+    const Eigen::Vector3f p2(vert_acc[f2][0], vert_acc[f2][1], vert_acc[f2][2]);
+
+    const Eigen::Vector3f closest = GetClosestPointTriangle(qpoint, p0, p1, p2);
+    const float distance = (closest - qpoint).squaredNorm();
+
+    if (distance < min_distance) {
+      min_distance = distance;
+      min_closest = closest;
+      min_face = i;
+    }
+  }
+
+  return make_pair(min_closest, min_face);
+}
+
+torch::Tensor QueryClosestPoints(const torch::Tensor &queries,
+                                 const torch::Tensor &verts,
+                                 const torch::Tensor &faces) {
+  const auto queries_acc = queries.accessor<float, 2>();
+  torch::Tensor result_points =
+      torch::full({queries.size(0), 3}, std::numeric_limits<float>::infinity(),
+                  torch::kFloat);
+
+  auto res_acc = result_points.accessor<float, 2>();
+
+  for (long q = 0; q < queries.size(0); ++q) {
+    Eigen::Vector3f qpoint(queries_acc[q][0], queries_acc[q][1],
+                           queries_acc[q][2]);
+
+    auto closest = QueryClosestPoint(qpoint, verts, faces).first;
+
+    res_acc[q][0] = closest[0];
+    res_acc[q][1] = closest[1];
+    res_acc[q][2] = closest[2];
+  }
+  return result_points;
+}
+
+pair<torch::Tensor, torch::Tensor> QueryPointToTriangles(
+    const torch::Tensor &queries, const torch::Tensor &verts,
+    const torch::Tensor &faces) {
+  const auto queries_acc = queries.accessor<float, 2>();
+  const auto face_acc = faces.accessor<long, 2>();
+  const auto vert_acc = verts.accessor<float, 2>();
+
+  torch::Tensor dist_mtx = torch::full(
+      {queries.size(0)}, std::numeric_limits<float>::infinity(), torch::kFloat);
+
+  torch::Tensor idx_mtx = torch::full({queries.size(0)}, -1, torch::kInt64);
+
+  auto dist_acc = dist_mtx.accessor<float, 1>();
+  auto idx_acc = idx_mtx.accessor<long, 1>();
+  for (long q = 0; q < queries.size(0); ++q) {
+    Eigen::Vector3f qpoint(queries_acc[q][0], queries_acc[q][1],
+                           queries_acc[q][2]);
+
+    float min_distance = std::numeric_limits<float>::infinity();
+    long min_idx = 0;
+    for (long i = 0; i < face_acc.size(0); ++i) {
+      long f0 = face_acc[i][0];
+      long f1 = face_acc[i][1];
+      long f2 = face_acc[i][2];
+
+      const Eigen::Vector3f p0(vert_acc[f0][0], vert_acc[f0][1],
+                               vert_acc[f0][2]);
+      const Eigen::Vector3f p1(vert_acc[f1][0], vert_acc[f1][1],
+                               vert_acc[f1][2]);
+      const Eigen::Vector3f p2(vert_acc[f2][0], vert_acc[f2][1],
+                               vert_acc[f2][2]);
+
+      const Eigen::Vector3f closest =
+          GetClosestPointTriangle(p0, p1, p2, qpoint);
+      const float distance = (closest - qpoint).norm();
+
+      if (distance < min_distance) {
+        min_distance = distance;
+        min_idx = i;
+      }
+    }
+
+    dist_acc[q] = min_distance;
+    idx_acc[q] = min_idx;
+  }
+  return make_pair(dist_mtx, idx_mtx);
+}
+
+}  // namespace fiontb

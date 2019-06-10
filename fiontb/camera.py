@@ -2,7 +2,12 @@
 """
 
 import numpy as np
+import quaternion
+
 import torch
+
+_GL_HAND_MTX = np.eye(4)
+_GL_HAND_MTX[2, 2] = -1
 
 
 class KCamera:
@@ -138,7 +143,7 @@ class KCamera:
         mask = mask & (points[:, 0] < img_width) & (points[:, 1] < img_height)
 
         return points[mask, :]
-        
+
     def pixel_center(self):
         return (self.matrix[0, 2], self.matrix[1, 2])
 
@@ -188,7 +193,7 @@ class RTCamera:
         self.matrix = matrix
 
     @classmethod
-    def create_from_params(cls, position, rotation_matrix):
+    def create_from_pos_rot(cls, position, rotation_matrix):
         """Constructor using position vector and rotation matrix.
 
         Args:
@@ -202,7 +207,29 @@ class RTCamera:
                             [0.0, 0.0, 0.0, 1.0]])
         g_rot = np.eye(4, 4)
         g_rot[0:3, 0:3] = rotation_matrix
-        return cls(np.matmul(g_trans, g_rot))
+        return cls(g_trans @ g_rot)
+
+    @classmethod
+    def create_from_pos_quat(cls, x, y, z, qw, qx, qy, qz):
+
+        g_trans = np.array([[1.0, 0.0, 0.0, x],
+                            [0.0, 1.0, 0.0, y],
+                            [0.0, 0.0, 1.0, z],
+                            [0.0, 0.0, 0.0, 1.0]])
+        g_rot = np.eye(4, 4)
+        g_rot[0:3, 0:3] = quaternion.as_rotation_matrix(
+            np.quaternion(qw, qx, qy, qz))
+
+        # return cls(g_trans @ g_rot)
+
+        rot_mtx = quaternion.as_rotation_matrix(
+            np.quaternion(qw, qx, qy, qz))
+
+        cam_mtx = np.eye(4)
+        cam_mtx[0:3, 0:3] = rot_mtx
+        cam_mtx[0:3, 3] = [x, y, z]
+
+        return cls(cam_mtx)
 
     @classmethod
     def from_json(cls, json):
@@ -222,6 +249,10 @@ class RTCamera:
         """Matrix with world to camera transformation
         """
         return np.linalg.inv(self.matrix)
+
+    @property
+    def opengl_view_cam(self):
+        return _GL_HAND_MTX @ self.world_to_cam
 
     def integrate(self, rt_cam):
         self.matrix = rt_cam.matrix @ self.matrix
