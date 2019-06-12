@@ -21,16 +21,8 @@ class RenderMode(Enum):
 
 
 class SurfelRender(tenviz.DrawProgram):
-    def __init__(self, surfel_data):
-        self.surfel_data = surfel_data
-
-        num_surfels = surfel_data.max_surfel_count
-        self.points = tenviz.buffer_empty(num_surfels, 3, tenviz.BType.Float)
-        self.normals = tenviz.buffer_empty(num_surfels, 3, tenviz.BType.Float)
-        self.colors = tenviz.buffer_empty(
-            num_surfels, 3, tenviz.BType.Uint8, normalize=True)
-        self.radii = tenviz.buffer_empty(num_surfels, 1, tenviz.BType.Float)
-        self.confs = tenviz.buffer_empty(num_surfels, 1, tenviz.BType.Float)
+    def __init__(self, surfel_model):
+        self.surfel_model = surfel_model
 
         super(SurfelRender, self).__init__(tenviz.DrawMode.Points,
                                            vert_shader=_SHADER_DIR / "surfel.vert",
@@ -40,11 +32,11 @@ class SurfelRender(tenviz.DrawProgram):
 
         self['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-        self['in_pos'] = self.points
-        self['in_normal'] = self.normals
-        self['in_radius'] = self.radii
-        self['in_color'] = self.colors
-        self['in_conf'] = self.confs
+        self['in_pos'] = surfel_model.points
+        self['in_normal'] = surfel_model.normals
+        self['in_radius'] = surfel_model.radii
+        self['in_color'] = surfel_model.colors
+        self['in_conf'] = surfel_model.confs
         # self['in_times'] = self.times
         self._max_conf = 0
 
@@ -64,71 +56,45 @@ class SurfelRender(tenviz.DrawProgram):
         self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)
 
-        update_idxs = self.surfel_data.get_active_indices()
+        update_idxs = self.surfel_model.get_active_indices()
         self.update(update_idxs)
 
     def update(self, update_idxs):
-        active_idxs = self.surfel_data.get_active_indices()
+        active_idxs = self.surfel_model.get_active_indices()
         self.indices.from_tensor(active_idxs.int())
-
-        if update_idxs.numel() == 0:
-            return
-
-        update_idxs = update_idxs.to(self.surfel_data.device)
-        points = self.surfel_data.points[update_idxs]
-        self.set_bounds(points)
-
-        self.points[update_idxs] = points
-        self.normals[update_idxs] = self.surfel_data.normals[update_idxs]
-
-        self.radii[update_idxs] = self.surfel_data.radii[update_idxs]
-
-        self.colors[update_idxs] = self.surfel_data.colors[update_idxs]
-
-        self.confs[update_idxs] = self.surfel_data.confs[update_idxs]
-        self._max_conf = max(
-            self.surfel_data.confs[update_idxs].max(), self._max_conf)
-        self['MaxConf'] = torch.Tensor([self._max_conf])
+        # self._max_conf = max(
+        #    self.surfel_model.confs[update_idxs].max(), self._max_conf)
+        # self['MaxConf'] = torch.Tensor([self._max_conf])
 
     def set_render_mode(self, render_mode):
         self['RenderMode'] = torch.tensor([render_mode.value], dtype=torch.int)
 
     def set_stable_threshold(self, stable_conf_thresh):
-        self['StableThresh'] = torch.tensor([stable_conf_thresh], dtype=torch.float32)
+        self['StableThresh'] = torch.tensor(
+            [stable_conf_thresh], dtype=torch.float32)
+
 
 def _test():
     import tenviz.io
-    from fiontb.fusion.surfel import SurfelData
+    from fiontb.fusion.surfel import SurfelsModel, SurfelCloud
 
     geo = tenviz.io.read_3dobject(
         Path(__file__).parent / "../../test-data/bunny/bun_zipper_res4.ply").torch()
     normals = tenviz.geometry.compute_normals(geo.verts, geo.faces)
 
-    device = "cuda:0"
-
-    surfels = SurfelData(geo.verts.size(0), device)
-
-    surfels.points[:] = geo.verts
-    surfels.normals[:] = normals
-
-    colors = (torch.abs(torch.rand(geo.verts.size(0), 3))*255).byte()
-    surfels.colors[:] = colors
-
-    surfels.radii[:] = torch.rand(
-        geo.verts.size(0), dtype=torch.float32).abs()*0.01
-
-    surfels.confs[:] = torch.rand(geo.verts.size(0), dtype=torch.float32).abs()
-
-    visible_indices = torch.arange(
-        0, geo.verts.size(0), dtype=torch.int64)
-
-    surfels.mark_active(visible_indices)
-
+    cloud = SurfelCloud(geo.verts,
+                        (torch.abs(torch.rand(geo.verts.size(0), 3))*255).byte(),
+                        normals, torch.rand(
+                            geo.verts.size(0), dtype=torch.float32).abs()*0.01,
+                        torch.rand(geo.verts.size(0), dtype=torch.float32).abs())
     ctx = tenviz.Context(640, 480)
+    model = SurfelsModel(ctx, geo.verts.size(0))
+    model.add_surfels(cloud)
+
     with ctx.current():
-        surfel_render = SurfelRender(surfels)
+        surfel_render = SurfelRender(model)
         # surfel_render.set_render_mode(RenderMode.Confs)
-        surfel_render.update(visible_indices)
+        # surfel_render.update(visible_indices)
 
     viewer = ctx.viewer([surfel_render], tenviz.CameraManipulator.WASD)
 

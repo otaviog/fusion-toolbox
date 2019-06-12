@@ -11,7 +11,7 @@ _SHADER_DIR = Path(__file__).parent / "_indexmap"
 
 class IndexMap:
     # TODO set up frame buffer sizes
-    def __init__(self, gl_context, surfel_model, kcam, min_depth, max_depth):
+    def __init__(self, gl_context, surfel_model):
         self.context = gl_context
         with self.context.current():
             self.update_program = tenviz.DrawProgram(
@@ -43,29 +43,27 @@ class IndexMap:
             self.query_program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
             self.query_fb = tenviz.create_framebuffer({
-                0: tenviz.FramebufferTarget.RInt32,
-                1: tenviz.FramebufferTarget.RInt32,
-                2: tenviz.FramebufferTarget.RGBFloat
+                0: tenviz.FramebufferTarget.RGBInt32,
+                1: tenviz.FramebufferTarget.RGBFloat
             })
         self.context.set_clear_color(0, 255, 255, 0)
 
-        self.proj = tenviz.projection_from_kcam(
+    def update(self, rt_cam, kcam, min_depth, max_depth):
+        proj = tenviz.projection_from_kcam(
             kcam.matrix, min_depth, max_depth)
-        self.proj_matrix = torch.from_numpy(self.proj.to_matrix()).float()
+        proj_matrix = torch.from_numpy(proj.to_matrix()).float()
 
-    def update(self, rt_cam):
         view_mtx = rt_cam.opengl_view_cam
-        self.context.render(self.proj_matrix,
+        self.context.render(proj_matrix,
                             torch.from_numpy(view_mtx).float(),
                             self.update_fb,
                             [self.update_program])
 
-    def query(self, frame_pcl, surfel_cloud):
+    def query(self, surfel_cloud, width, height, kcam, min_depth, max_depth):
         view_mtx = np.eye(4)
         view_mtx[2, 2] = -1
 
         with self.context.current():
-
             self.qpoint.from_tensor(surfel_cloud.points)
             self.qnormal.from_tensor(surfel_cloud.normals)
 
@@ -74,14 +72,18 @@ class IndexMap:
             self.query_program['IndexMapNormalsTex'] = indexmap_out[1]
             self.query_program['IndexMapTex'] = indexmap_out[2]
 
-            self.query_program['ImageWidth'] = frame_pcl.image_points.shape[1]
-            self.query_program['ImageHeight'] = frame_pcl.image_points.shape[0]
+            self.query_program['ImageWidth'] = width
+            self.query_program['ImageHeight'] = height
             self.query_program['Scale'] = 1.0
 
             # vc = tenviz.create_virtual_camera(
             # self.proj, np.linalg.inv(view_mtx))
 
-        self.context.render(self.proj_matrix,
+        proj = tenviz.projection_from_kcam(
+            kcam.matrix, min_depth, max_depth)
+        proj_matrix = torch.from_numpy(proj.to_matrix()).float()
+
+        self.context.render(proj_matrix,
                             torch.from_numpy(view_mtx).float(),
                             self.query_fb,
                             [self.query_program])
@@ -90,14 +92,16 @@ class IndexMap:
 
         with self.context.current():
             map_index = buffers[0].to_tensor()
-            frame_index = buffers[1].to_tensor()
 
-        fuse_mask = map_index != 0
+        valid_mask = map_index[:, :, 0] != 0
+        import ipdb; ipdb.set_trace()
+        frame_idxs = map_index[:, :, 2][valid_mask]
+        model_idxs = map_index[:, :, 1][valid_mask]
 
-        frame_idxs = frame_index[fuse_mask]
-        model_idxs = map_index[fuse_mask] - 1
-
-        return frame_idxs, model_idxs
+        frame_stable_idxs = frame_idxs[model_idxs >= 0]
+        frame_unstable_idxs = frame_idxs[model_idxs < 0]
+        
+        return frame_stable_idxs, model_idxs[model_idxs >= 0], frame_unstable_idxs
 
 
 def _main():
