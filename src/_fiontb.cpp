@@ -24,7 +24,7 @@ PYBIND11_MODULE(_fiontb, m) {
   m.def("calculate_depth_normals", &CalculateFrameNormals);
   m.def("filter_search", &FilterSearch);
   m.def("filter_depth_image", &FilterDepthImage);
-
+  m.def("bilateral_filter_depth_image", &BilateralFilterDepthImage);
   py::class_<IndexMap>(m, "IndexMap")
       .def(py::init<torch::Tensor, torch::Tensor, int, int, int, int>())
       .def("query", &IndexMap::Query)

@@ -5,7 +5,7 @@ layout (location = 1) in vec3 in_normal;
 
 uniform sampler2DRect IndexMapPointsTex;
 uniform sampler2DRect IndexMapNormalsTex;
-uniform usampler2DRect IndexMapTex;
+uniform isampler2DRect IndexMapTex;
 
 uniform int ImageWidth;
 uniform int ImageHeight;
@@ -48,9 +48,9 @@ void main() {
 		j+=indexYStep) {
 	  float ii = i*ImageWidth;
 	  float jj = (1.0 - j)*ImageHeight;
-	  uint current = uint(texture(IndexMapTex, vec2(ii, jj)));
+	  int current = int(texture(IndexMapTex, vec2(ii, jj)));
 	           
-	  if(current > 0U) {
+	  if(current > 0) {
 		vec3 vert = texture(IndexMapPointsTex, vec2(ii, jj)).xyz;
 		if (some_z < -999)
 		  some_z = vert.z;
@@ -72,10 +72,17 @@ void main() {
 
   frag_frame_index = gl_VertexID;
   if(found == 1) {
-	frag_map_index = int(best);
+	//frag_map_index = int(best);
+	//frag_map_index = int(texture(IndexMapTex, vec2(125, 250)).x);
+	frag_map_index = int(texture(IndexMapTex, vec2(tx*ImageWidth, (1.0 - in_point.y)*ImageHeight)).x);
+	//frag_map_index = 5;
 	frag_debug = vec3(0, 1, 0);
   } else {	
-	frag_map_index = -1;
+	frag_map_index = 0;
 	frag_debug = vec3(1, 0, 0);
   }
+
+  frag_map_index = int(texture(IndexMapTex, vec2(tx*ImageWidth, (1.0 - in_point.y)*ImageHeight)).x);
+
+  //frag_map_index = found;
 }

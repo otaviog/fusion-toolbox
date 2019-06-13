@@ -13,9 +13,6 @@ import tenviz
 from fiontb.frame import FramePointCloud
 from fiontb.camera import Homogeneous
 
-_CAM_HAND_MATRIX = np.eye(4)
-_CAM_HAND_MATRIX[2, 2] = -1
-
 
 class DatasetViewer:
     """Viewer of RGB-D datasets. It shows the image, depth, camera point
@@ -63,7 +60,8 @@ class DatasetViewer:
                                             torch.from_numpy(colors).byte())
             self.world_viewer.get_scene().add(pcl)
             vcam = tenviz.create_virtual_camera(
-                cam_proj, rt_cam.cam_to_world @ _CAM_HAND_MATRIX)
+                cam_proj,
+                np.linalg.inv(rt_cam.opengl_view_cam))
             self.world_viewer.get_scene().add(vcam)
 
             self.pcl_deque.append((pcl, vcam))
@@ -105,12 +103,13 @@ class DatasetViewer:
         pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
         cam_space = pcl.points
 
-        _cam_matrix_inv_y = _CAM_HAND_MATRIX.copy()
-        _cam_matrix_inv_y[1, 1] *= -1
+        hand_matrix = np.eye(4)
+        hand_matrix[2, 2] = -1
+        hand_matrix[1, 1] = -1
 
         with self.context.current():
             self.tv_camera_pcl = tenviz.create_point_cloud(
-                torch.from_numpy(Homogeneous(_cam_matrix_inv_y)
+                torch.from_numpy(Homogeneous(hand_matrix)
                                  @ cam_space).float(),
                 torch.from_numpy(pcl.colors))
         self.cam_viewer.get_scene().add(self.tv_camera_pcl)
@@ -158,19 +157,28 @@ class DatasetViewer:
 
         while True:
             self._update_canvas(None)
-            key = cv2.waitKey(1)
+            cv_key = cv2.waitKey(1)
 
-            self.cam_viewer.draw(0)
-            self.world_viewer.draw(0)
-
-            if key == 27:
+            if cv_key == 27:
                 break
 
-            key = chr(key & 0xff).lower()
+            if cv_key < 0:
+                cv_key = 0
 
-            if key == 'q':
+            quit = False
+            for key in [cv_key, self.cam_viewer.wait_key(0),
+                        self.world_viewer.wait_key(0)]:
+
+                if key < 0:
+                    quit = True
+                
+                key = chr(key & 0xff).lower()
+
+                if key == 'q':
+                    quit = True
+                elif key == 'm':
+                    self.show_mask = not self.show_mask
+
+            if quit:
                 break
-            elif key == 'm':
-                self.show_mask = not self.show_mask
-
         cv2.destroyWindow(self.title)

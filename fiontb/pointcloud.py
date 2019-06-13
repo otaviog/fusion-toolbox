@@ -60,6 +60,12 @@ class PointCloud:
             self.normals = (
                 normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
 
+    def index_select(self, index):
+        return PointCloud(
+            self.points[index],
+            self.colors[index],
+            self.normals[index])
+
     def to_open3d(self, compute_normals=False):
         """Converts the point to cloud to a :obj:`open3d.PointCloud`.
 
@@ -101,7 +107,7 @@ class PointCloud:
         return self.points.shape[0]
 
 
-def pcl_stack(pcl_list):
+def stack_pcl(pcl_list):
     pcl_list = [pcl for pcl in pcl_list
                 if not pcl.is_empty()]
     if not pcl_list:

@@ -176,6 +176,8 @@ class Homogeneous:
 
         return points.squeeze()
 
+def normal_transform_matrix(matrix):
+    return np.linalg.inv(matrix[:3, :3]).T
 
 class RTCamera:
     """Extrinsic camera transformation.

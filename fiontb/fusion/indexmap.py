@@ -5,6 +5,7 @@ import torch
 
 import tenviz
 
+import matplotlib.pyplot as plt
 
 _SHADER_DIR = Path(__file__).parent / "_indexmap"
 
@@ -46,7 +47,7 @@ class IndexMap:
                 0: tenviz.FramebufferTarget.RGBInt32,
                 1: tenviz.FramebufferTarget.RGBFloat
             })
-        self.context.set_clear_color(0, 255, 255, 0)
+
 
     def update(self, rt_cam, kcam, min_depth, max_depth):
         proj = tenviz.projection_from_kcam(
@@ -54,11 +55,20 @@ class IndexMap:
         proj_matrix = torch.from_numpy(proj.to_matrix()).float()
 
         view_mtx = rt_cam.opengl_view_cam
+        self.context.set_clear_color(0, 255, 255, 0)
         self.context.render(proj_matrix,
                             torch.from_numpy(view_mtx).float(),
                             self.update_fb,
                             [self.update_program])
 
+        with self.context.current():
+            buffers = self.update_fb.get_attachs()
+            T = buffers[2].to_tensor().numpy()
+
+        # self.context.viewer([self.update_program]).show(0)
+        plt.imshow(T)
+        plt.show()
+        
     def query(self, surfel_cloud, width, height, kcam, min_depth, max_depth):
         view_mtx = np.eye(4)
         view_mtx[2, 2] = -1
@@ -70,7 +80,8 @@ class IndexMap:
             indexmap_out = self.update_fb.get_attachs()
             self.query_program['IndexMapPointsTex'] = indexmap_out[0]
             self.query_program['IndexMapNormalsTex'] = indexmap_out[1]
-            self.query_program['IndexMapTex'] = indexmap_out[2]
+            tex = tenviz.tex_from_torch(indexmap_out[2].to_tensor(), tenviz.GLTexTarget.Rectangle)
+            self.query_program['IndexMapTex'] = tex
 
             self.query_program['ImageWidth'] = width
             self.query_program['ImageHeight'] = height
@@ -83,6 +94,7 @@ class IndexMap:
             kcam.matrix, min_depth, max_depth)
         proj_matrix = torch.from_numpy(proj.to_matrix()).float()
 
+        self.context.set_clear_color(0, 0, 0, 0)
         self.context.render(proj_matrix,
                             torch.from_numpy(view_mtx).float(),
                             self.query_fb,
@@ -92,16 +104,23 @@ class IndexMap:
 
         with self.context.current():
             map_index = buffers[0].to_tensor()
+            debug = buffers[1].to_tensor().numpy()
 
+        
+        plt.imshow(map_index[:, :, 1])
+        plt.show()
         valid_mask = map_index[:, :, 0] != 0
+
         import ipdb; ipdb.set_trace()
+
         frame_idxs = map_index[:, :, 2][valid_mask]
         model_idxs = map_index[:, :, 1][valid_mask]
 
         frame_stable_idxs = frame_idxs[model_idxs >= 0]
         frame_unstable_idxs = frame_idxs[model_idxs < 0]
         
-        return frame_stable_idxs, model_idxs[model_idxs >= 0], frame_unstable_idxs
+        return (frame_stable_idxs.long(), model_idxs[model_idxs > 0].long()-1,
+                frame_unstable_idxs.long())
 
 
 def _main():

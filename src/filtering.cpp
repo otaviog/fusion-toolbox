@@ -50,13 +50,13 @@ torch::Tensor FilterDepthImage(torch::Tensor input, torch::Tensor mask,
 
       float std_accum = 0;
       for (long value : values) {
-        std_accum = (float(value) - mean)*(float(value) - mean);
+        std_accum = (float(value) - mean) * (float(value) - mean);
       }
 
       const long stdv = std::sqrt(std_accum / values.size()) + 1;
-      
+
       long cvalue = in_acc[row][col];
-      
+
       long filter_accum = 0;
       int neighbor_count = 0;
       for (int krow = 0; krow < kernel.size(0); ++krow) {
@@ -73,7 +73,7 @@ torch::Tensor FilterDepthImage(torch::Tensor input, torch::Tensor mask,
 
           if (im_value == 0) continue;
           if (im_value < cvalue - stdv || im_value > cvalue + stdv) continue;
-          
+
           const float kr_value = kr_acc[krow][kcol];
 
           filter_accum += im_value * kr_value;
@@ -86,4 +86,56 @@ torch::Tensor FilterDepthImage(torch::Tensor input, torch::Tensor mask,
   }
   return result;
 }
+
+torch::Tensor BilateralFilterDepthImage(torch::Tensor input, torch::Tensor mask,
+                                        int filter_width,
+                                        float sigma_d,
+                                        float sigma_r) {
+  const auto in_acc = input.accessor<int16_t, 2>();
+  const auto mask_acc = mask.accessor<uint8_t, 2>();
+
+  const int iwidth = input.size(1);
+  const int iheight = input.size(0);
+
+  torch::Tensor result = torch::empty({iheight, iwidth}, torch::kInt16);
+  auto re_acc = result.accessor<int16_t, 2>();
+
+  const int half_width = filter_width / 2;
+
+  for (int row = 0; row < input.size(0); ++row) {
+    for (int col = 0; col < input.size(1); ++col) {
+      re_acc[row][col] = 0;
+      if (mask_acc[row][col] == 0) continue;
+
+      const long depth = in_acc[row][col];
+      float h, k;
+      h = k = 0.0f;
+      for (int krow = -half_width; krow <= half_width; ++krow) {
+        for (int kcol = -half_width; kcol <= half_width; ++kcol) {
+          const int y = row + krow;
+          if (y < 0 || y >= iheight) continue;
+
+          const int x = col + kcol;
+          if (x < 0 || x >= iwidth) continue;
+
+          if (mask_acc[y][x] == 0) continue;
+
+          const long curr_depth = in_acc[y][x];
+
+          const float d = float(kcol * kcol + krow * krow);
+          const float r = float((curr_depth - depth) * (curr_depth - depth));
+          const float weight = std::exp(-0.5f * (d * sigma_d + r * sigma_r));
+          h += curr_depth * weight;
+          k += weight;
+        }
+      }
+
+      if (k > 0.0f) {
+        re_acc[row][col] = h / k;
+      }
+    }
+  }
+  return result;
+}
+
 }  // namespace fiontb

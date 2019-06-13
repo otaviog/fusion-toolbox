@@ -15,5 +15,5 @@ void main() {
   out_point.z = -mpoint.point.z;
   
   out_normal = mpoint.normal;
-  out_index = mpoint.index;
+  out_index = mpoint.index + 1;
 }

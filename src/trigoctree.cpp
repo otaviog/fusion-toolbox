@@ -73,6 +73,8 @@ class TrigOctNode : public ATrigOctNode {
 
       torch::Tensor face_mask = torch::zeros({faces.size(0)}, torch::kUInt8);
       auto fmask_acc = face_mask.accessor<uint8_t, 1>();
+
+      #pragma omp parallel for
       for (int face = 0; face < face_acc.size(0); ++face) {
         const long f0 = face_acc[face][0];
         const long f1 = face_acc[face][1];
@@ -96,7 +98,7 @@ class TrigOctNode : public ATrigOctNode {
       const int select_count = selected_faces.size(0);
       if (select_count == 0) continue;
 
-      if (select_count < leaf_num_trigs) {
+      if (select_count <= leaf_num_trigs) {
         children_[box_idx] =
             new LeafTrigOctNode(verts, selected_faces, curr_box);
       } else {
@@ -205,6 +207,7 @@ pair<torch::Tensor, torch::Tensor> TrigOctree::QueryClosest(
   auto idx_acc = idx_mtx.accessor<long, 1>();
   const auto qacc = points.accessor<float, 2>();
 
+  #pragma omp parallel for
   for (int i = 0; i < points.size(0); ++i) {
     Eigen::Vector3f qpoint(qacc[i][0], qacc[i][1], qacc[i][2]);
     const auto bounded_qpoint = root_->get_box().GetClosestPoint(qpoint);

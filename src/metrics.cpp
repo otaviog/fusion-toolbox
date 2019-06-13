@@ -79,7 +79,6 @@ pair<Eigen::Vector3f, long> QueryClosestPoint(const Eigen::Vector3f &qpoint,
   const auto face_acc = faces.accessor<long, 2>();
   const auto vert_acc = verts.accessor<float, 2>();
 
-  #pragma omp for
   for (long i = 0; i < face_acc.size(0); ++i) {
     const long f0 = face_acc[i][0];
     const long f1 = face_acc[i][1];
@@ -112,6 +111,7 @@ torch::Tensor QueryClosestPoints(const torch::Tensor &queries,
 
   auto res_acc = result_points.accessor<float, 2>();
 
+  #pragma omp parallel for
   for (long q = 0; q < queries.size(0); ++q) {
     Eigen::Vector3f qpoint(queries_acc[q][0], queries_acc[q][1],
                            queries_acc[q][2]);

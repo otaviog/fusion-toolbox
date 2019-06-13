@@ -5,7 +5,8 @@ import torch
 import numpy as np
 import tenviz
 
-from fiontb.pointcloud import PointCloud, pcl_stack
+from fiontb.pointcloud import PointCloud, stack_pcl
+from fiontb.camera import Homogeneous, normal_transform_matrix
 import fiontb.fiontblib as fiontblib
 
 from .indexmap import IndexMap
@@ -66,6 +67,15 @@ class SurfelCloud:
                            self.radii[index],
                            self.confs[index])
 
+    def transform(self, matrix):
+        if self.points.size(0) == 0:
+            return
+
+        self.points = Homogeneous(torch.from_numpy(matrix)) @ self.points
+        normal_matrix = torch.from_numpy(normal_transform_matrix(matrix))
+        self.normals = (
+            normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
+
     def compact(self):
         active_mask = self.active_mask()
 
@@ -96,7 +106,7 @@ class SurfelCloud:
 class SurfelsModel:
     def __init__(self, context, max_surfels):
         self.context = context
-        self._max_surfels = max_surfels
+        self.max_surfels = max_surfels
 
         with self.context.current():
             self.points = tenviz.buffer_empty(
@@ -106,7 +116,7 @@ class SurfelsModel:
             self.normals = tenviz.buffer_empty(
                 max_surfels, 3, tenviz.BType.Float)
             self.colors = tenviz.buffer_empty(
-                max_surfels, 3, tenviz.BType.Uint8)
+                max_surfels, 3, tenviz.BType.Uint8, normalize=True)
             self.radii = tenviz.buffer_empty(
                 max_surfels, 1, tenviz.BType.Float)
             self.confs = tenviz.buffer_empty(
@@ -136,12 +146,9 @@ class SurfelsModel:
     def active_mask(self):
         return self.surfel_mask == 0
 
-    @property
-    def max_surfel_count(self):
-        return self._max_surfel_count
-
     def __str__(self):
-        return "Surfel with {} points".format(self.num_active_surfels())
+        return "SurfelModel with {} active points, {} max. capacity".format(
+            self.num_active_surfels(), self.max_surfels)
 
     def __repr__(self):
         return str(self)
@@ -183,19 +190,22 @@ class SurfelFusion:
         timestamp = self._start_timestamp
         self._start_timestamp += 1
         if self._is_first_fusion:
+            live_surfels.transform(rt_cam.cam_to_world)
             self.surfels.add_surfels(live_surfels)
             self._is_first_fusion = False
             return
 
         height, width = frame_pcl.image_points.shape[:2]
-        self.indexmap.update(rt_cam, kcam, 0.1, 10.0)
+        self.indexmap.update(rt_cam, kcam, 0.01, 10.0)
 
         live_idxs, model_idxs, live_unst_idxs = self.indexmap.query(
-            live_surfels, width, height, kcam, 0.1, 10.0)
+            live_surfels, width, height, kcam, 0.01, 10.0)
 
+        live_surfels.transform(rt_cam.cam_to_world)
         if live_unst_idxs.size(0) > 0:
             self.surfels.add_surfels(live_surfels.index_select(live_unst_idxs))
 
+        import ipdb; ipdb.set_trace()
         with self.surfels.context.current():
             model_surfels = SurfelCloud(
                 self.surfels.points[model_idxs],
@@ -298,10 +308,10 @@ class DenseFusion:
     def get_model(self):
         if not self.pcls:
             return PointCloud()
-        return pcl_stack(self.pcls)
+        return stack_pcl(self.pcls)
 
     def get_odometry_model(self):
         if not self.pcls:
             return PointCloud()
 
-        return pcl_stack(self.pcls[-self.keep_frames:])
+        return stack_pcl(self.pcls[-self.keep_frames:])

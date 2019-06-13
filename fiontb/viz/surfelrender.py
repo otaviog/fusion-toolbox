@@ -55,11 +55,9 @@ class SurfelRender(tenviz.DrawProgram):
 
         self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)
+        self.update()
 
-        update_idxs = self.surfel_model.get_active_indices()
-        self.update(update_idxs)
-
-    def update(self, update_idxs):
+    def update(self):
         active_idxs = self.surfel_model.get_active_indices()
         self.indices.from_tensor(active_idxs.int())
         # self._max_conf = max(

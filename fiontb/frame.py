@@ -96,11 +96,12 @@ class Frame:
          bool or uint8.
     """
 
-    def __init__(self, info: FrameInfo, depth_image, rgb_image=None, fg_mask=None):
+    def __init__(self, info: FrameInfo, depth_image, rgb_image=None, fg_mask=None, normal_image=None):
         self.info = info
         self.depth_image = depth_image
         self.rgb_image = rgb_image
         self.fg_mask = fg_mask
+        self.normal_image = normal_image
 
 
 class FramePointCloud:
@@ -130,6 +131,9 @@ class FramePointCloud:
         self.rt_cam = info.rt_cam
         self._points = None
         self._normals = None
+
+        if frame.normal_image is not None:
+            self._normals = frame.normal_image
 
     @property
     def points(self):
