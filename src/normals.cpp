@@ -1,5 +1,7 @@
 #include "normals.hpp"
 
+#include <iostream>
+
 #include "eigen_common.hpp"
 
 namespace fiontb {
@@ -9,7 +11,7 @@ inline Eigen::Vector3f Normal(const Eigen::Vector3f &p0,
   return (p1 - p0).cross(p2 - p0).normalized();
 }
 
-torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
+torch::Tensor CalculateFrameNormals1(const torch::Tensor xyz_image,
                                     const torch::Tensor mask_image) {
   torch::Tensor normal_image =
       torch::empty({xyz_image.size(0), xyz_image.size(1), 3}, torch::kFloat);
@@ -26,6 +28,7 @@ torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
 
   for (int row = 0; row < xyz_image.size(0); ++row) {
     for (int col = 0; col < xyz_image.size(1); ++col) {
+
       n_acc[row][col][0] = n_acc[row][col][1] = n_acc[row][col][2] = 0.0f;
 
       if (mask_a[row][col] == 0) continue;
@@ -67,6 +70,56 @@ torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
         n_acc[row][col][1] = norm[1];
         n_acc[row][col][2] = norm[2];
       }
+    }
+  }
+
+  return normal_image;
+}
+
+torch::Tensor CalculateFrameNormals(const torch::Tensor xyz_image,
+                                    const torch::Tensor mask_image) {
+  torch::Tensor normal_image =
+      torch::empty({xyz_image.size(0), xyz_image.size(1), 3}, torch::kFloat);
+  auto n_acc = normal_image.accessor<float, 3>();
+
+  const auto xyz_a = xyz_image.accessor<float, 3>();
+  const auto mask_a = mask_image.accessor<uint8_t, 2>();
+
+  const int iwidth = xyz_image.size(1);
+  const int iheight = xyz_image.size(0);
+
+  for (int row = 1; row < xyz_image.size(0) - 1; ++row) {
+    for (int col = 1; col < xyz_image.size(1) - 1; ++col) {
+      n_acc[row][col][0] = n_acc[row][col][1] = n_acc[row][col][2] = 0.0f;
+
+      if (mask_a[row][col] == 0) continue;
+
+      Eigen::Vector3f center(xyz_a[row][col][0], xyz_a[row][col][1],
+                             xyz_a[row][col][2]);
+      
+      const Eigen::Vector3f left(xyz_a[row][col - 1][0],
+                                 xyz_a[row][col - 1][1],
+                                 xyz_a[row][col - 1][2]);
+      const Eigen::Vector3f right(xyz_a[row][col + 1][0],
+                                  xyz_a[row][col + 1][1],
+                                  xyz_a[row][col + 1][2]);
+
+      const Eigen::Vector3f top(xyz_a[row - 1][col][0],
+                                xyz_a[row - 1][col][1],
+                                xyz_a[row - 1][col][2]);
+      const Eigen::Vector3f bottom(xyz_a[row + 1][col][0],
+                                   xyz_a[row + 1][col][1],
+                                   xyz_a[row + 1][col][2]);
+
+      const Eigen::Vector3f xvec =
+          ((center + left) * 0.5) - ((center + right) * 0.5);
+      const Eigen::Vector3f yvec =
+          (center + top) * 0.5 - (center + bottom) * 0.5;
+
+      const Eigen::Vector3f normal = xvec.cross(yvec).normalized();
+      n_acc[row][col][0] = normal[0];
+      n_acc[row][col][1] = normal[1];
+      n_acc[row][col][2] = normal[2];
     }
   }
 

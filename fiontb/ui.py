@@ -1,3 +1,7 @@
+"""
+User Interfaces.
+"""
+
 import cv2
 import numpy as np
 from matplotlib.pyplot import get_cmap
@@ -23,7 +27,7 @@ class FrameUI:
         if self.frame is None:
             return
 
-        cmap = get_cmap('viridis', self.frame.info.depth_max)
+        cmap = get_cmap('plasma', self.frame.info.depth_max)
         depth_img = (self.frame.depth_image / self.frame.info.depth_max)
         depth_img = cmap(depth_img)
         depth_img = depth_img[:, :, 0:3]
@@ -40,3 +44,8 @@ class FrameUI:
     def update(self, frame):
         self.frame = frame
         self._update(0)
+
+
+def convert_normals_to_rgb(normal_image):
+    normal_image = (normal_image + 1)*0.5*255
+    return normal_image.astype(np.uint8)

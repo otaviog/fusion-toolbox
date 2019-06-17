@@ -7,24 +7,30 @@ import open3d
 import rflow
 
 from odometry import FrameToFrameOdometry, ViewOdometry
-from ui import ReconstructionLoop, MainLoop, RunMode
+from ui import MainLoop, RunMode
 from fiontb.camera import RTCamera
 import fiontb.fusion
 import fiontb.pose.icp
 
 
-class SurfelReconstructionStep(ReconstructionLoop):
-    def __init__(self, surfels, surfels_lock, surfel_update_queue, odometry):
-        self.surfels = surfels
-        self.surfels_lock = surfels_lock
-        self.surfel_update_queue = surfel_update_queue
+class LoadFTB(rflow.Interface):
+    def evaluate(self, resource):
+        return self.load(resource)
+
+    def load(self, resource):
+        from fiontb.data.ftb import load_ftb
+
+        return load_ftb(resource.filepath)
+
+
+class ReconstructionStep:
+    def __init__(self, fusion_ctx, odometry):
+        self.fusion_ctx = fusion_ctx
         self.odometry = odometry
         self.count = 0
-
-        self.fusion_ctx = fiontb.fusion.SurfelFusion(surfels)
         self.curr_rt_cam = RTCamera(np.eye(4, dtype=np.float32))
 
-    def step(self, kcam, frame_points, live_pcl):
+    def step(self, kcam, frame_points):
         if self.odometry is not None:
             self.curr_rt_cam = RTCamera(
                 np.array(self.odometry[self.count]['rt_cam'], dtype=np.float32))
@@ -38,25 +44,34 @@ class SurfelReconstructionStep(ReconstructionLoop):
             else:
                 self.curr_rt_cam = frame_points.rt_cam
 
-        live_pcl.transform(self.curr_rt_cam.cam_to_world)
-
-        self.surfels_lock.acquire()
-        surfel_update, surfel_removal = self.fusion_ctx.fuse(
-            frame_points, live_pcl, kcam)
-        self.surfels_lock.release()
-        self.surfel_update_queue.put(
-            (surfel_update.cpu(), surfel_removal.cpu()))
+        # eye = RTCamera(np.eye(4, dtype=np.float32))
+        self.fusion_ctx.fuse(
+            frame_points, kcam, self.curr_rt_cam)
 
         self.count += 1
 
 
-class SurfelFusion(rflow.Interface):
+class FusionTask(rflow.Interface):
     def evaluate(self, resource, dataset, odometry):
         from cProfile import Profile
+        import torch
+        import tenviz
+
+        from fiontb.fusion.surfel import SurfelModel, SurfelFusion
+
+        device = "cuda:0"
+        torch.rand(4, 4).to(device) # init torch cuda
         sensor = fiontb.sensor.DatasetSensor(dataset)
-        
-        loop = MainLoop(sensor, SurfelReconstructionStep, resource.filepath, odometry,
-                        max_frames=None, single_process=True, run_mode=RunMode.STEP)
+
+        context = tenviz.Context(dataset[0].depth_image.shape[1],
+                                 dataset[0].depth_image.shape[0])
+
+        surfel_model = SurfelModel(context, 1024*1024*10)
+        fusion_ctx = SurfelFusion(surfel_model)
+        step = ReconstructionStep(fusion_ctx, odometry)
+
+        loop = MainLoop(sensor, surfel_model, step,
+                        max_frames=None, run_mode=RunMode.STEP)
         prof = Profile()
         prof.enable()
         loop.run()
@@ -64,12 +79,14 @@ class SurfelFusion(rflow.Interface):
         prof.dump_stats("surfel_fusion.prof")
 
 
-class SuperDenseFusion(rflow.Interface):
-    def evaluate(self, resource, dataset):
-        sensor = fiontb.data.sensor.DatasetSensor(dataset)
-        fusion = fiontb.fusion.surfel.DensePCLFusion(3, 0.2)
+@rflow.graph()
+def scene1(g):
+    g.dataset = LoadFTB(rflow.FSResource("scenenn-objs/scene1"))
 
-        _main_loop(sensor, fusion, resource.filepath, False)
+    g.fusion = FusionTask(rflow.FSResource("scene1.ply"))
+    with g.fusion as args:
+        args.dataset = g.dataset
+        args.odometry = None
 
 
 @rflow.graph()
@@ -86,31 +103,17 @@ def scene3(g):
         args.dataset = ds_g.to_ftb
         args.odometry = g.frame_to_frame
 
-    g.fusion = SurfelFusion(rflow.FSResource("scene3.ply"))
+    g.fusion = FusionTask(rflow.FSResource("scene3.ply"))
     with g.fusion as args:
         args.dataset = ds_g.to_ftb
         args.odometry = g.frame_to_frame
-
-    g.dense_fusion = SuperDenseFusion(rflow.FSResource("scene3.ply"))
-    with g.dense_fusion as args:
-        args.dataset = ds_g.to_ftb
-
-
-class LoadFTB(rflow.Interface):
-    def evaluate(self, resource):
-        return self.load(resource)
-
-    def load(self, resource):
-        from fiontb.data.ftb import load_ftb
-
-        return load_ftb(resource.filepath)
 
 
 @rflow.graph()
 def chair1(g):
     g.dataset = LoadFTB(rflow.FSResource("chair1"))
 
-    g.fusion = SurfelFusion(rflow.FSResource("chair1.ply"))
+    g.fusion = FusionTask(rflow.FSResource("chair1.ply"))
     with g.fusion as args:
         args.dataset = g.dataset
         args.odometry = None
@@ -130,14 +133,10 @@ def iclnuim(g):
         args.dataset = ds_g.lr0_to_ftb
         args.odometry = g.frame_to_frame
 
-    g.fusion = SurfelFusion(rflow.FSResource("lr0.ply"))
+    g.fusion = FusionTask(rflow.FSResource("lr0.ply"))
     with g.fusion as args:
         args.dataset = ds_g.lr0_to_ftb
         args.odometry = g.frame_to_frame
-
-    g.dense_fusion = SuperDenseFusion(rflow.FSResource("lr0.ply"))
-    with g.dense_fusion as args:
-        args.dataset = ds_g.lr0_to_ftb
 
 
 if __name__ == '__main__':

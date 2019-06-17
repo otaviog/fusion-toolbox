@@ -1,13 +1,25 @@
+"""Surfel fusion. Based on the following papers:
+
+* Keller, Maik, Damien Lefloch, Martin Lambers, Shahram Izadi, Tim
+  Weyrich, and Andreas Kolb. "Real-time 3d reconstruction in dynamic
+  scenes using point-based fusion." In 2013 International Conference
+  on 3D Vision-3DV 2013, pp. 1-8. IEEE, 2013.
+
+* Whelan, Thomas, Stefan Leutenegger, R. Salas-Moreno, Ben Glocker,
+  and Andrew Davison. "ElasticFusion: Dense SLAM without a pose
+  graph." Robotics: Science and Systems, 2015.
+
+Based on the code of ElasticFusion:
+
+* https://github.com/mp3guy/ElasticFusion
+
+"""
 import math
-import time
 
 import torch
-import numpy as np
 import tenviz
 
-from fiontb.pointcloud import PointCloud, stack_pcl
 from fiontb.camera import Homogeneous, normal_transform_matrix
-import fiontb.fiontblib as fiontblib
 
 from .indexmap import IndexMap
 
@@ -22,13 +34,15 @@ def compute_surfel_radii(cam_points, normals, kcam):
     return radii
 
 
-def compute_confidences(frame_points, kcam):
-    camera_center = torch.tensor(kcam.pixel_center())
+def compute_confidences(frame_pcl):
+    img_points = frame_pcl.image_points[:, :, :2].reshape(-1, 2)
+    img_mask = frame_pcl.fg_mask.flatten()
+    img_points = torch.from_numpy(img_points[img_mask])
 
-    xy_coords = frame_points[:, :2]
+    camera_center = torch.tensor(frame_pcl.kcam.pixel_center())
 
     confidences = torch.norm(
-        xy_coords - camera_center, p=2, dim=1)
+        img_points - camera_center, p=2, dim=1)
     confidences = confidences / confidences.max()
 
     confidences = torch.exp(-torch.pow(confidences, 2) /
@@ -37,76 +51,83 @@ def compute_confidences(frame_points, kcam):
     return confidences
 
 
+class _ConfidenceCache:
+    def __init__(self):
+        self.width = -1
+        self.height = -1
+        self.confidences = None
+
+    def get_confidences(self, frame_pcl):
+        fheight, fwidth = frame_pcl.image_points.shape[:2]
+        # It doesn't check kcam
+        if fheight != self.height or fwidth != self.width:
+            self.width = fwidth
+            self.height = fheight
+            self.confidences = compute_confidences(frame_pcl)
+
+        return self.confidences
+
+
 class SurfelCloud:
+    """Compact surfels representation in PyTorch.
+    """
+
     @classmethod
-    def from_frame_pcl(cls, frame_pcl):
+    def from_frame_pcl(cls, frame_pcl, time, device, confs=None):
         cam_pcl = frame_pcl.unordered_point_cloud(world_space=False).torch()
 
-        img_mask = frame_pcl.fg_mask.flatten()
-        img_points = torch.from_numpy(
-            frame_pcl.image_points.reshape(-1, 3)[img_mask])
-        img_mask = frame_pcl.fg_mask.flatten()
-        confs = compute_confidences(img_points, frame_pcl.kcam)
+        if confs is not None:
+            confs = compute_confidences(frame_pcl)
 
         radii = compute_surfel_radii(cam_pcl.points, cam_pcl.normals,
                                      frame_pcl.kcam)
+        times = torch.full((cam_pcl.points.size(0),), time,
+                           dtype=torch.int32).to(device)
+        return cls(cam_pcl.points.to(device), cam_pcl.colors.to(device), cam_pcl.normals.to(device),
+                   radii.to(device), confs.to(device), times, device)
 
-        return cls(cam_pcl.points, cam_pcl.colors, cam_pcl.normals, radii, confs)
-
-    def __init__(self, points, colors, normals, radii, confs):
+    def __init__(self, points, colors, normals, radii, confs, times, device):
         self.points = points
         self.colors = colors
         self.normals = normals
         self.radii = radii
         self.confs = confs
+        self.times = times
+        self.device = device
 
     def index_select(self, index):
         return SurfelCloud(self.points[index],
                            self.colors[index],
                            self.normals[index],
                            self.radii[index],
-                           self.confs[index])
+                           self.confs[index],
+                           self.times[index],
+                           self.device)
 
     def transform(self, matrix):
         if self.points.size(0) == 0:
             return
 
-        self.points = Homogeneous(torch.from_numpy(matrix)) @ self.points
-        normal_matrix = torch.from_numpy(normal_transform_matrix(matrix))
+        self.points = Homogeneous(torch.from_numpy(
+            matrix).to(self.device)) @ self.points
+        normal_matrix = torch.from_numpy(
+            normal_transform_matrix(matrix)).to(self.device)
         self.normals = (
             normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
-
-    def compact(self):
-        active_mask = self.active_mask()
-
-        compact = SurfelData(active_mask.sum(), self.device)
-        compact.points[:] = self.points[active_mask]
-        compact.normals[:] = self.normals[active_mask]
-        compact.colors[:] = self.colors[active_mask]
-        compact.radii = self.radii[active_mask]
-        compact.confs = self.confs[active_mask]
-        compact.timestamps = self.timestamps[active_mask]
-        compact.surfel_mask[:] = 0
-        return compact
-
-    def share_memory(self):
-        self.points = self.points.share_memory_()
-        self.colors = self.colors.share_memory_()
-        self.normals = self.normals.share_memory_()
-        self.radii = self.radii.share_memory_()
-        self.confs = self.confs.share_memory_()
-        self.timestamps = self.timestamps.share_memory_()
-        self.surfel_mask = self.surfel_mask.share_memory_()
 
     @property
     def size(self):
         return self.points.size(0)
 
 
-class SurfelsModel:
-    def __init__(self, context, max_surfels):
+class SurfelModel:
+    """Global surfel model on GL buffers.
+    """
+
+    def __init__(self, context, max_surfels, device="cuda:0"):
         self.context = context
         self.max_surfels = max_surfels
+        self.device = device
 
         with self.context.current():
             self.points = tenviz.buffer_empty(
@@ -121,9 +142,12 @@ class SurfelsModel:
                 max_surfels, 1, tenviz.BType.Float)
             self.confs = tenviz.buffer_empty(
                 max_surfels, 1, tenviz.BType.Float)
-            self.timestamps = tenviz.buffer_empty(
+            self.times = tenviz.buffer_empty(
                 max_surfels, 1, tenviz.BType.Int32)
-            self.surfel_mask = torch.ones((max_surfels, ), dtype=torch.uint8)
+            self.surfel_mask = torch.ones(
+                (max_surfels, ), dtype=torch.uint8).to(device)
+
+        self.max_time = 0
 
     def mark_active(self, indices):
         self.surfel_mask[indices] = 0
@@ -131,27 +155,17 @@ class SurfelsModel:
     def mark_inactive(self, indices):
         self.surfel_mask[indices] = 1
 
-    def num_active_surfels(self):
-        return (self.surfel_mask == 0).sum()
-
     def get_active_indices(self):
         return (self.surfel_mask == 0).nonzero().flatten()
 
     def get_inactive_indices(self, num):
         return self.surfel_mask.nonzero()[:num].flatten()
 
-    def active_points(self):
-        return self.points[self.active_mask()]
-
     def active_mask(self):
         return self.surfel_mask == 0
 
-    def __str__(self):
-        return "SurfelModel with {} active points, {} max. capacity".format(
-            self.num_active_surfels(), self.max_surfels)
-
-    def __repr__(self):
-        return str(self)
+    def num_active_surfels(self):
+        return (self.surfel_mask == 0).sum()
 
     def add_surfels(self, new_surfels):
         new_indices = self.get_inactive_indices(
@@ -164,12 +178,19 @@ class SurfelsModel:
             self.normals[new_indices] = new_surfels.normals
             self.radii[new_indices] = new_surfels.radii
             self.confs[new_indices] = new_surfels.confs
-            # self.surfels.timestamps[new_indices] = timestamp
+            self.times[new_indices] = new_surfels.times
+
+    def __str__(self):
+        return "SurfelModel with {} active points, {} max. capacity".format(
+            self.num_active_surfels(), self.max_surfels)
+
+    def __repr__(self):
+        return str(self)
 
 
 class SurfelFusion:
     def __init__(self, surfels, max_distance=0.05, normal_max_angle=20.0,
-                 stable_conf_thresh=10, max_unstable_time=15):
+                 stable_conf_thresh=10, max_unstable_time=20):
         self.surfels = surfels
         self.indexmap = IndexMap(surfels.context, surfels)
 
@@ -181,14 +202,18 @@ class SurfelFusion:
 
         self._is_first_fusion = True
 
-        self._start_timestamp = 0
+        self._time = 0
         self.merge_min_radio = 0.5
 
-    def fuse(self, frame_pcl, kcam, rt_cam):
-        live_surfels = SurfelCloud.from_frame_pcl(frame_pcl)
+        self._conf_compute_cache = _ConfidenceCache()
 
-        timestamp = self._start_timestamp
-        self._start_timestamp += 1
+    def fuse(self, frame_pcl, kcam, rt_cam):
+        device = "cuda:0"
+
+        frame_confs = self._conf_compute_cache.get_confidences(frame_pcl)
+        live_surfels = SurfelCloud.from_frame_pcl(
+            frame_pcl, self._time, device, confs=frame_confs)        
+
         if self._is_first_fusion:
             live_surfels.transform(rt_cam.cam_to_world)
             self.surfels.add_surfels(live_surfels)
@@ -196,56 +221,62 @@ class SurfelFusion:
             return
 
         height, width = frame_pcl.image_points.shape[:2]
-        self.indexmap.update(rt_cam, kcam, 0.01, 10.0)
+
+        indexmap_scale = 1
+        self.indexmap.update(rt_cam, int(width*indexmap_scale),
+                             int(height*indexmap_scale),
+                             kcam, 0.01, 10.0)
 
         live_idxs, model_idxs, live_unst_idxs = self.indexmap.query(
             live_surfels, width, height, kcam, 0.01, 10.0)
+        model_idxs = model_idxs.to(device)
 
         live_surfels.transform(rt_cam.cam_to_world)
         if live_unst_idxs.size(0) > 0:
             self.surfels.add_surfels(live_surfels.index_select(live_unst_idxs))
 
-        import ipdb; ipdb.set_trace()
         with self.surfels.context.current():
             model_surfels = SurfelCloud(
                 self.surfels.points[model_idxs],
                 self.surfels.colors[model_idxs],
                 self.surfels.normals[model_idxs],
-                self.surfels.radii[model_idxs],
-                self.surfels.confs[model_idxs])
+                self.surfels.radii[model_idxs].squeeze(),
+                self.surfels.confs[model_idxs].squeeze(),
+                self.surfels.times[model_idxs].squeeze(),
+                device)
 
         self._merge_surfels(
             live_surfels.index_select(live_idxs),
-            model_surfels, model_idxs)
+            model_surfels, model_idxs.to(device))
 
-        # self.surfels.timestamps[model_update_idxs] = timestamp
+        visible_model_idxs = self.indexmap.get_visible_model_indices().to(device)
 
-        # self._remove_surfels(active_mask)
+        self._remove_surfels(visible_model_idxs)
+
+        self._time += 1
+        self.surfels.max_time = self._time
 
     def _merge_surfels(self, live, model, model_idxs):
-
-        self.model_surfels.confs = confs_update
-
-        radii_mask = (live.radii < model.radii *
-                      (1.0 + self.merge_min_radio))
+        # radii_mask = (live.radii < model.radii *
+        #              (1.0 + self.merge_min_radio))
         # live_idxs = live_idxs[radii_mask]
         # model_idxs = model_idxs[radii_mask]
 
-        confs = confs[radii_mask].view(-1, 1)
-        confs_update = confs_update[radii_mask].view(-1, 1)
+        # confs = model.confs[radii_mask].view(-1, 1)
+        # confs_update = confs_update[radii_mask].view(-1, 1)
+        # live_radii = live.radii[radii_mask].view(-1, 1)
 
-        live_radii = live_radii[radii_mask].view(-1, 1)
+        confs_update = (model.confs + live.confs).view(-1, 1)
+        model.points = (model.points * model.confs.view(-1, 1) + live.points *
+                        live.confs.view(-1, 1)) / confs_update
+        model.colors = (model.colors.float() * model.confs.view(-1, 1) + live.colors.float() *
+                        live.confs.view(-1, 1)) / confs_update
+        model.colors = model.colors.byte()
 
-        confs_update = model.confs + live.confs.squeeze()
-        model.points = (model.points * confs + live.points *
-                        live.confs) / confs_update
-        model.colors = (model.colors * confs + live.colors *
-                        live.confs) / confs_update
-
-        model.normals = (model.normals * confs +
-                         live.normals*live.confs) / confs_update
+        model.normals = (model.normals * model.confs.view(-1, 1) +
+                         live.normals*live.confs.view(-1, 1)) / confs_update
         model.normals /= model.normals.norm(2, 1).view(-1, 1)
-        model.confs = confs_update
+        model.confs = confs_update.squeeze()
 
         with self.surfels.context.current():
             self.surfels.points[model_idxs] = model.points
@@ -253,65 +284,12 @@ class SurfelFusion:
             self.surfels.normals[model_idxs] = model.normals
             self.surfels.confs[model_idxs] = model.confs
 
-    def _remove_surfels(self, active_mask):
-        # model_remove_idxs = torch.tensor([], dtype=torch.int64)
-        unstable_idxs = (
-            self.surfels.confs[active_mask] < self.stable_conf_thresh).nonzero().squeeze()
+    def _remove_surfels(self, visible_model_idxs):
+        with self.surfels.context.current():
+            confs = self.surfels.confs[visible_model_idxs].squeeze()
+            times = self.surfels.times[visible_model_idxs].squeeze()
 
-        remove_mask = (
-            self.surfels.timestamps[unstable_idxs] >= self.max_unstable_time)
-        remove_idxs = unstable_idxs[remove_mask]
-        self.surfels.mark_inactive(remove_idxs)
+        unstable_idxs = visible_model_idxs[(confs < self.stable_conf_thresh)
+                                            & (self._time - times >= self.max_unstable_time)]
 
-        return remove_idxs
-
-    def _merge_points(self, active_mask):
-        stable_idxs = (
-            self.surfels.confs[active_mask] > self.max_unstable_confs).nonzero().squeeze()
-        nn_search = Search(self.surfels.points[active_mask])
-        dist_mtx, idx_mtx = nn_search.search(self.surfels.points[stable_idxs])
-
-        remove_idxs = set()
-        for stable_idx, (dist, idx) in zip(stable_idxs, dist_mtx, idx_mtx):
-            if dist < 0.01:
-                remove_idxs.add(idx)
-                self.sta
-
-
-class DenseFusion:
-    def __init__(self, keep_frames, sample_size):
-        self.pcls = []
-        self.keep_frames = keep_frames
-        self.sample_size = sample_size
-        self.reduced_set = set()
-
-    def fuse(self, live_pcl):
-        self.pcls.append(live_pcl)
-
-        if len(self.pcls) < self.keep_frames:
-            return
-
-        for i, pcl in enumerate(self.pcls[:-self.keep_frames]):
-            if i in self.reduced_set:
-                continue
-
-            which_points = np.random.choice(
-                pcl.points.shape[0], int(pcl.points.shape[0]*self.sample_size),
-                replace=False)
-
-            pcl.points = pcl.points[which_points, :]
-            pcl.colors = pcl.colors[which_points, :]
-            pcl.normals = pcl.normals[which_points, :]
-
-            self.reduced_set.add(i)
-
-    def get_model(self):
-        if not self.pcls:
-            return PointCloud()
-        return stack_pcl(self.pcls)
-
-    def get_odometry_model(self):
-        if not self.pcls:
-            return PointCloud()
-
-        return stack_pcl(self.pcls[-self.keep_frames:])
+        self.surfels.mark_inactive(unstable_idxs)

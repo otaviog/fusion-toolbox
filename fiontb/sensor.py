@@ -3,6 +3,7 @@
 
 from enum import Enum
 import numpy as np
+
 import onireader
 
 from fiontb.camera import KCamera
@@ -26,7 +27,7 @@ class Sensor:
     """Sensor IO based on OpenNI2.
     """
 
-    def __init__(self, device, device_type=None):
+    def __init__(self, device: onireader.Device, device_type=None):
         self.device = device
         if device_type is None:
             device_type = DeviceType.ASUS_XTION
@@ -73,9 +74,9 @@ class DatasetSensor:
 
         """
         if self.current_idx >= len(self.dataset):
-            return None, False
+            return None
 
         frame = self.dataset[self.current_idx]
         self.current_idx += 1
 
-        return frame, True
+        return frame

@@ -213,7 +213,7 @@ class RTCamera:
 
     @classmethod
     def create_from_pos_quat(cls, x, y, z, qw, qx, qy, qz):
-
+        # TODO
         g_trans = np.array([[1.0, 0.0, 0.0, x],
                             [0.0, 1.0, 0.0, y],
                             [0.0, 0.0, 1.0, z],

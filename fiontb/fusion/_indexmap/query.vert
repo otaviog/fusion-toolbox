@@ -21,15 +21,8 @@ float angleBetween(vec3 a, vec3 b) {
     return acos(dot(a, b) / (length(a) * length(b)));
 }
 
-void main() {
-  uint best = 0U;    
-  int found = 0;
-	    
-  float indexXStep = (1.0f / (ImageWidth * Scale)) * 0.5f;
-  float indexYStep = (1.0f / (ImageHeight * Scale)) * 0.5f;
-	    
-  float bestDist = 1000;
-	    
+void main() {	    	    
+  float bestDist = 1000;	    
   float windowMultiplier = 2;
         
   vec3 ray = vec3(in_point.x, in_point.y, 1);
@@ -37,26 +30,31 @@ void main() {
 
   gl_Position = ProjModelview*in_point;
   float tx = ((gl_Position.x / gl_Position.w) + 1.0)*0.5;
-  float ty = 1.0 - ((gl_Position.y / gl_Position.w) + 1.0)*0.5;
+  float ty = ((gl_Position.y / gl_Position.w) + 1.0)*0.5;
 
-  float some_z = -1000;
-  for(float i = tx - (Scale * indexXStep * windowMultiplier);
-	  i < tx + (Scale * indexXStep * windowMultiplier);
-	  i+=indexXStep) {
-	for(float j = ty - (Scale * indexYStep * windowMultiplier);
-		j < ty + (Scale * indexYStep * windowMultiplier);
-		j+=indexYStep) {
-	  float ii = i*ImageWidth;
-	  float jj = (1.0 - j)*ImageHeight;
-	  int current = int(texture(IndexMapTex, vec2(ii, jj)));
+  int sx = int(tx*ImageWidth*Scale);
+  int sy = int(ty*ImageHeight*Scale);
+
+  int search_size = int(Scale*windowMultiplier);
+  
+  int xstart = max(sx - search_size, 0);
+  int xend = min(sx + search_size, int(ImageWidth*Scale) - 1);
+  
+  int ystart = max(sy - search_size, 0);
+  int yend = min(sy + search_size, int(ImageHeight*Scale) - 1);
+
+  int best = 0;
+  int found = 0;
+
+  for(int i = xstart; i < xend; i++) {
+	for(int j = ystart; j < yend; j++) {
+	  int current = int(texture(IndexMapTex, vec2(i, j)).x);
 	           
 	  if(current > 0) {
-		vec3 vert = texture(IndexMapPointsTex, vec2(ii, jj)).xyz;
-		if (some_z < -999)
-		  some_z = vert.z;
+		vec3 vert = texture(IndexMapPointsTex, vec2(i, j)).xyz;
 		if(abs((vert.z * lambda) - (in_point.z * lambda)) < 0.05) {
 		  float dist = length(cross(ray, vert)) / length(ray);		  
-		  vec3 normal = texture(IndexMapNormalsTex, vec2(ii, jj)).xyz;
+		  vec3 normal = texture(IndexMapNormalsTex, vec2(i, j)).xyz;
                        
 		  if(dist < bestDist
 			 && (abs(normal.z) < 0.75f
@@ -67,22 +65,15 @@ void main() {
 		  }
 		}
 	  }
-	}
-  }
+	} // for j
+  } // for i
 
   frag_frame_index = gl_VertexID;
   if(found == 1) {
-	//frag_map_index = int(best);
-	//frag_map_index = int(texture(IndexMapTex, vec2(125, 250)).x);
-	frag_map_index = int(texture(IndexMapTex, vec2(tx*ImageWidth, (1.0 - in_point.y)*ImageHeight)).x);
-	//frag_map_index = 5;
+	frag_map_index = best;
 	frag_debug = vec3(0, 1, 0);
   } else {	
 	frag_map_index = 0;
 	frag_debug = vec3(1, 0, 0);
   }
-
-  frag_map_index = int(texture(IndexMapTex, vec2(tx*ImageWidth, (1.0 - in_point.y)*ImageHeight)).x);
-
-  //frag_map_index = found;
 }

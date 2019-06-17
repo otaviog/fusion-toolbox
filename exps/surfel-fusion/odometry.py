@@ -22,12 +22,12 @@ class FrameToFrameOdometry(rflow.Interface):
 
         c = 0
         while True:
-            frame, ret = sensor.next_frame()
-            if not ret:
+            frame = sensor.next_frame()
+            if frame is None:
                 break
 
             live_pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
-            # live_pcl.transform(accum_rt_cam.cam_to_world)
+                # live_pcl.transform(accum_rt_cam.cam_to_world)
 
             if last_pcl is not None:
                 relative_rt_cam = fiontb.pose.icp.estimate_icp_geo(

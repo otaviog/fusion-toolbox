@@ -1,8 +1,8 @@
 #version 420
 
+in vec3 frag_debug;
 in flat int frag_map_index;
 in flat int frag_frame_index;
-in vec3 frag_debug;
 
 layout(location = 0) out ivec3 out_map_index;
 layout(location = 1) out vec3 out_debug;

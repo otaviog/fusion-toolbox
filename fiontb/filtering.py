@@ -1,25 +1,60 @@
-import cv2
+"""Common filtering of 3d reconstruction for frames.
+"""
+
 import numpy as np
 import torch
 
-from fiontb.fiontblib import filter_depth_image
+from fiontb._cfiontb import bilateral_filter_depth_image as _bilateral_filter_depth_image
 
-def blur_depth_image1(depth_image, kernel_size, fg_mask):
-    kernel = np.ones((kernel_size, kernel_size))
 
-    sum_image = cv2.filter2D(depth_image, cv2.CV_16U, kernel)
-    count = cv2.filter2D(fg_mask.astype(np.uint8), cv2.CV_16U, kernel)
-    # non_zero = fg_mask > 0
-    non_zero = count == kernel_size*kernel_size
+def bilateral_filter_depth_image(depth, mask, filter_width=6,
+                                 sigma_d=4.50000000225,
+                                 sigma_r=29.9999880000072):
+    return _bilateral_filter_depth_image(torch.from_numpy(depth),
+                                         torch.from_numpy(mask).byte(),
+                                         filter_width, sigma_d, sigma_r).numpy()
 
-    depth_image[non_zero] = sum_image[non_zero] / count[non_zero]
-    return depth_image
 
-def blur_depth_image(depth_image, kernel_size, mask):
-    kernel = torch.ones((kernel_size, kernel_size), dtype=torch.int16)
+def _test():
+    from pathlib import Path
+    import argparse
 
-    depth_image = torch.from_numpy(depth_image.astype(np.int16))
-    mask = torch.from_numpy(mask).byte()
+    import cv2
+    import matplotlib.pyplot as plt
 
-    depth_image = filter_depth_image(depth_image, mask, kernel)
-    return depth_image.numpy()
+    depth = cv2.imread(str(Path(__file__).parent / "_tests/assets" / "frame_depth.png"),
+                       cv2.IMREAD_ANYDEPTH)
+    mask = cv2.imread(str(Path(__file__).parent / "_tests/assets" / "frame_mask.png"),
+                      cv2.IMREAD_ANYDEPTH)
+
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("test", choices=["bilateral"])
+
+    args = arg_parser.parse_args()
+
+    plt.figure()
+    plt.title("input")
+    plt.imshow(depth)
+    if args.test == "bilateral":
+        filter_depth = bilateral_filter_depth_image(
+            depth.astype(np.int32), depth > 0,
+            13, 4.50000000225,
+            29.9999880000072)
+
+    filtered_depth_image = cv2.bilateralFilter(
+        depth.astype(np.float32),
+        13, 4.50000000225,
+        29.9999880000072)
+    plt.figure()
+    plt.title("cv2")
+    plt.imshow(filtered_depth_image)
+
+    plt.figure()
+    plt.title(args.test)
+    plt.imshow(filter_depth)
+
+    plt.show()
+
+
+if __name__ == '__main__':
+    _test()

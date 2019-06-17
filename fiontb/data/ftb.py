@@ -85,7 +85,8 @@ class FTBDataset:
     def __getitem__(self, idx):
         frame_json = self.frames_json[idx]
         depth_image = cv2.imread(
-            str(self.base_path / frame_json['depth_image']), cv2.IMREAD_ANYDEPTH)
+            str(self.base_path / frame_json['depth_image']),
+            cv2.IMREAD_ANYDEPTH).astype(np.int32)
         rgb_image = None
         if 'rgb_image' in frame_json:
             rgb_image = cv2.imread(

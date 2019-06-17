@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 
-import fiontb.fiontblib as fiontblib
+from fiontb._cfiontb import calculate_depth_normals as _calculate_depth_normals
 from .camera import KCamera, RTCamera
 from .pointcloud import PointCloud
 
@@ -87,7 +87,7 @@ class Frame:
         info (:obj:`FrameInfo`): Frame information.
 
         depth_image (:obj:`numpy.ndarray`): Depth image [WxH] float or
-         int16.
+         int32.
 
         rgb_image (:obj:`numpy.ndarray`, optional): RGB image [WxHx3]
          uint8.
@@ -104,8 +104,39 @@ class Frame:
         self.normal_image = normal_image
 
 
+class _DepthImagePointCloud:
+    def __init__(self, depth_image, finfo):
+        self.depth_image = (depth_image.astype(np.float64)*finfo.depth_scale +
+                            finfo.depth_bias).astype(np.float32)
+
+        self.depth_mask = depth_image > 0
+        self.kcam = finfo.kcam
+
+        xs, ys = np.meshgrid(np.arange(depth_image.shape[1]),
+                             np.arange(depth_image.shape[0]))
+        self.image_points = np.dstack(
+            [xs, ys, self.depth_image]).astype(np.float32)
+
+        self._points = None
+
+    @property
+    def points(self):
+        """Points in the camera space property.
+
+        Returns: (:obj:`numpy.ndarray`): [WxHx3] array of points in the camera space.
+        """
+
+        if self._points is None:
+            if self.kcam is None:
+                raise RuntimeError("Frame doesn't have intrinsics camera")
+
+            self._points = self.kcam.backproject(
+                self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
+        return self._points
+
+
 class FramePointCloud:
-    """Pre point cloud data.
+    """A point cloud ordered by image positions.
     """
 
     def __init__(self, frame: Frame):
@@ -153,11 +184,15 @@ class FramePointCloud:
     @property
     def normals(self):
         if self._normals is None:
-            self._normals = fiontblib.calculate_depth_normals(
+            self._normals = _calculate_depth_normals(
                 torch.from_numpy(self.points),
                 torch.from_numpy(self.depth_mask.astype(np.uint8))).numpy()
 
         return self._normals
+
+    @normals.setter
+    def normals(self, normals):
+        self._normals = normals
 
     def unordered_point_cloud(self, world_space=True):
         mask = self.fg_mask.flatten()
@@ -173,3 +208,9 @@ class FramePointCloud:
             pcl.transform(self.rt_cam.cam_to_world)
 
         return pcl
+
+
+def compute_normals(depth_image, frame_info, mask):
+    pcl = _DepthImagePointCloud(depth_image, frame_info)
+    return _calculate_depth_normals(torch.from_numpy(pcl.points),
+                                    torch.from_numpy(mask.astype(np.uint8))).numpy()

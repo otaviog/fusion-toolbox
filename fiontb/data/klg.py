@@ -69,7 +69,7 @@ class KLG:
 
         info = FrameInfo(kcam=self.kcam, rt_cam=rt_cam,
                          depth_scale=self.depth_scale)
-        frame = Frame(info, depth_image=depth_img, rgb_image=rgb_img)
+        frame = Frame(info, depth_image=depth_img.astype(np.int32), rgb_image=rgb_img)
 
         return frame
 
