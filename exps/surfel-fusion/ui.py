@@ -104,12 +104,12 @@ class MainLoop:
         frame_count = 0
         quit_flag = False
         read_next_frame = True
-        use_camera_view = True
+        use_camera_view = False
+
         while not quit_flag:
-            if frame_count == self.max_frames:
-                break
 
             if read_next_frame:
+
                 print("Next frame: {}".format(frame_count))
 
                 frame = self.sensor.next_frame()
@@ -120,7 +120,9 @@ class MainLoop:
                 frame_pcl = FramePointCloud(frame)
 
                 filtered_depth_image = bilateral_filter_depth_image(
-                    frame.depth_image, frame_pcl.depth_mask)
+                    frame.depth_image.astype(np.float32)*0.001, frame_pcl.depth_mask)
+                filtered_depth_image = (
+                    filtered_depth_image*1000.0).astype(np.int32)
                 frame_pcl.normals = compute_normals(filtered_depth_image, frame.info,
                                                     frame_pcl.depth_mask)
 

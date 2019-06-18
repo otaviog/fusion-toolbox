@@ -29,7 +29,7 @@ void main() {
   vec3 u = normalize(vec3(normal.y - normal.z, -normal.x, normal.x));
   vec3 v = vec3(normalize(cross(normal, u)));
 
-  float radius = gs_in[0].radius;
+  float radius = gs_in[0].radius*2;
   //float aspect = 0.75;
   float aspect = 0.5;
   u *= radius*aspect;
