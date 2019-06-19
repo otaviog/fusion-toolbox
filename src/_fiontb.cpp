@@ -10,6 +10,7 @@
 #include "metrics.hpp"
 #include "normals.hpp"
 #include "sparse_volume.hpp"
+#include "surfel_fusion.hpp"
 #include "trigoctree.hpp"
 #include "tsdf_fusion.hpp"
 
@@ -39,4 +40,6 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("fuse_sparse_volume", &FuseSparseVolume);
 
   m.def("query_closest_points", &QueryClosestPoints);
+
+  m.def("surfel_cave_free_space", &CarveSpace);
 }

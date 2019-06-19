@@ -39,6 +39,7 @@ class SurfelRender(tenviz.DrawProgram):
             self['in_radius'] = surfel_model.radii
             self['in_conf'] = surfel_model.confs
             self['in_time'] = surfel_model.times
+            self['in_mask'] = surfel_model.active_mask_gl
             self._max_conf = 0
 
             cmap = get_cmap('plasma', 2048)
@@ -48,14 +49,8 @@ class SurfelRender(tenviz.DrawProgram):
             self['ColorMap'] = tenviz.tex_from_torch(cmap_tensor,
                                                      target=tenviz.GLTexTarget.k2D)
 
-        self.update()
         self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)
-
-    def update(self):
-        active_idxs = self.surfel_model.get_active_indices()
-        with self.surfel_model.context.current():
-            self.indices.from_tensor(active_idxs.int())
 
     def set_render_mode(self, render_mode):
         with self.surfel_model.context.current():
@@ -91,11 +86,13 @@ def _test():
                         (torch.abs(torch.rand(nverts, 3))*255).byte(),
                         normals, torch.rand(
                             nverts, dtype=torch.float32).abs()*0.01,
-                        torch.rand(nverts(0), dtype=torch.float32).abs(),
-                        torch.full(nverts, dtype=torch.int32))
+                        torch.rand(nverts, dtype=torch.float32).abs(),
+                        torch.full((nverts, ), 1, dtype=torch.int32), "cpu")
+    cloud.to("cuda:0")
     ctx = tenviz.Context(640, 480)
     model = SurfelModel(ctx, geo.verts.size(0))
     model.add_surfels(cloud)
+    model.update_active_mask_gl()
     surfel_render = SurfelRender(model)
     surfel_render.set_bounds(geo.verts)
     # surfel_render.set_render_mode(RenderMode.Confs)

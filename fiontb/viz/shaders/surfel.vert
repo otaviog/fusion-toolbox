@@ -6,6 +6,7 @@ layout (location = 2) in vec3 in_normal;
 layout (location = 3) in float in_radius;
 layout (location = 4) in float in_conf;
 layout (location = 5) in int in_time;
+layout (location = 6) in int in_mask;
 
 uniform float StableThresh;
 
@@ -19,17 +20,22 @@ out Surfel {
 } vs_out;
 
 void main() {
+  if (in_mask == 1) {
+	vs_out.time = -1;
+	gl_Position = vec4(-10000, -10000, 10000, 0.0);
+	return ;
+  }
+  
   vs_out.pos = in_pos;
   vs_out.color = in_color;
   vs_out.normal = in_normal;
   vs_out.radius = in_radius*0.5;
   vs_out.conf = in_conf;
   vs_out.time = in_time;
-
+ 
   if (StableThresh > 0) {
 	if (vs_out.conf < StableThresh) {
-	  vs_out.pos = vec4(-1000000, -1000000, 1000000, 0.0);
-	  vs_out.radius = 0.0;
+	  vs_out.time = -1;
 	}
   }
 

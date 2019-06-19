@@ -6,7 +6,8 @@ cuda_add_library(fiontb normals.cpp filtering.cpp
   trigoctree.cpp 
   dense_volume.cpp
   sparse_volume.cpp
-  tsdf_fusion.cpp)
+  tsdf_fusion.cpp
+  surfel_fusion.cu)
 
 target_include_directories(fiontb
   PUBLIC

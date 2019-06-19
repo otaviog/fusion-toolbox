@@ -131,7 +131,7 @@ class MainLoop:
 
                 self.rec_step.step(frame.info.kcam, frame_pcl)
                 self.surfel_model.context.set_clear_color(0.32, 0.34, 0.87, 1)
-                self.surfel_render.update()
+                # self.surfel_render.update()
                 if use_camera_view:
                     self.viewer.set_camera_matrix(
                         frame.info.rt_cam.opengl_view_cam)

@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include <torch/torch.h>
 
 #include "cuda_error.hpp"
