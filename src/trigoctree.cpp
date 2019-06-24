@@ -46,16 +46,6 @@ class LeafTrigOctNode : public ATrigOctNode {
   torch::Tensor faces_;
 };
 
-AABB CreateAABBFromFaces(const torch::Tensor &verts,
-                         const torch::Tensor &faces) {
-  const auto vacc = verts.accessor<float, 2>();
-  const auto facc = faces.accessor<long, 2>();
-
-  for (int face = 0; face < faces.size(0); ++face) {
-  }
-  return AABB();
-}
-
 class TrigOctNode : public ATrigOctNode {
  public:
   TrigOctNode(const torch::Tensor &verts, const torch::Tensor &faces,

@@ -10,8 +10,9 @@ in Surfel {
   vec3 color;
   vec3 normal;
   float radius;
-  flat int time;
   float conf;
+  flat int time;
+  flat int id;
 } gs_in[];
 
 out Frag {
@@ -20,6 +21,7 @@ out Frag {
   vec2 tc;
   float conf;
   flat int time;
+  flat int id;
 } frag;
 
 void main() {
@@ -35,9 +37,9 @@ void main() {
   vec3 u = normalize(vec3(normal.y - normal.z, -normal.x, normal.x));
   vec3 v = vec3(normalize(cross(normal, u)));
 
-  float radius = gs_in[0].radius*0.5;
+  float radius = gs_in[0].radius;
   //float aspect = 0.75;
-  float aspect = 0.5;
+  float aspect = 1.0;
   u *= radius*aspect;
   v *= radius;
 
@@ -45,6 +47,7 @@ void main() {
   frag.normal = abs(normal);
   frag.conf = gs_in[0].conf;
   frag.time = gs_in[0].time;
+  frag.id = gs_in[0].id;
 
   gl_Position = ProjModelview*vec4(pos - u - v, 1.0f);
   frag.tc = vec2(-1, -1);

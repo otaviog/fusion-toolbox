@@ -11,7 +11,7 @@ _GL_HAND_MTX[2, 2] = -1
 
 
 class KCamera:
-    """Intrinsic camera information.
+    """Intrinsic pinhole camera model.
 
     Attributes:
 
@@ -105,7 +105,7 @@ class KCamera:
                    depth_radial_distortion, image_size)
 
     def backproject(self, points):
-        """Project image to camera space.
+        """Project image points to the camera space.
         """
 
         xyz_coords = points.copy()
@@ -136,15 +136,10 @@ class KCamera:
         points[:, :2] /= z.reshape(-1, 1)
         return points
 
-    def project_and_cull(self, points, img_width, img_height):
-        points = self.project(points)
-
-        mask = (points >= 0).all(1)
-        mask = mask & (points[:, 0] < img_width) & (points[:, 1] < img_height)
-
-        return points[mask, :]
-
+    @property
     def pixel_center(self):
+        """Center pixel.        
+        """
         return (self.matrix[0, 2], self.matrix[1, 2])
 
     def __str__(self):
@@ -164,7 +159,7 @@ class KCamera:
 
 
 class Homogeneous:
-    """Helper class to multiply [4x4] matrix by [Nx3x1] points.
+    """Helper class to multiply [Nx3] or [Nx3x1] points by a [4x4] matrix.
     """
 
     def __init__(self, matrix):
@@ -176,8 +171,20 @@ class Homogeneous:
 
         return points.squeeze()
 
+
 def normal_transform_matrix(matrix):
+    """Returns the transposed inverse of transformation matrix. Suitable
+    for transforming normals.
+
+    Args:
+
+        matrix: [4x4] affine transformation matrix.
+
+    Returns: (:obj:`np.ndarray`): Rotation only [3x3] matrix.
+
+    """
     return np.linalg.inv(matrix[:3, :3]).T
+
 
 class RTCamera:
     """Extrinsic camera transformation.
@@ -290,6 +297,7 @@ class RTCamera:
         points = np.delete(points, 3, waxis)
         return points
 
+    @property
     def center(self):
         return self.matrix[:3, 3]
 

@@ -1,14 +1,15 @@
 #include "filtering.hpp"
 
 #include <numeric>
-#include <vector>
 
 namespace fiontb {
+
 template <typename scalar_t>
-torch::Tensor BilateralFilterDepthImageImpl(const torch::Tensor input,
-                                            const torch::Tensor mask,
-                                            int filter_width, float sigma_color,
-                                            float sigma_space) {
+torch::Tensor BilateralFilterDepthImage_cpu_kernel(const torch::Tensor input,
+                                                   const torch::Tensor mask,
+                                                   int filter_width,
+                                                   float sigma_color,
+                                                   float sigma_space) {
   const auto in_acc = input.accessor<scalar_t, 2>();
   const auto mask_acc = mask.accessor<uint8_t, 2>();
 
@@ -23,8 +24,9 @@ torch::Tensor BilateralFilterDepthImageImpl(const torch::Tensor input,
   const float inv_sigma_color_sqr = 1.0 / (sigma_color * sigma_color);
   const float inv_sigma_space_sqr = 1.0 / (sigma_space * sigma_space);
 
-  for (int row = 0; row < input.size(0); ++row) {
-    for (int col = 0; col < input.size(1); ++col) {
+  #pragma omp parallel for
+  for (int row = 0; row < iheight; ++row) {
+    for (int col = 0; col < iwidth; ++col) {
       re_acc[row][col] = 0;
       if (mask_acc[row][col] == 0) continue;
 
@@ -68,14 +70,25 @@ torch::Tensor BilateralFilterDepthImageImpl(const torch::Tensor input,
   return result;
 }
 
+torch::Tensor BilateralFilterDepthImage_gpu(const torch::Tensor input,
+                                            const torch::Tensor mask,
+                                            int filter_width, float sigma_color,
+                                            float sigma_space);
+
 torch::Tensor BilateralFilterDepthImage(torch::Tensor input, torch::Tensor mask,
                                         int filter_width, float sigma_color,
                                         float sigma_space) {
-  return AT_DISPATCH_ALL_TYPES(input.type(), "BilateralFilterDepthImage", ([&] {
-        return BilateralFilterDepthImageImpl<scalar_t>(
-                                     input, mask,
-                                     filter_width, sigma_color, sigma_space);
-                               }));
+  if (input.is_cuda()) {
+    //const torch::OptionalDeviceGuard device_guard(torch::device_of(mask));
+    return BilateralFilterDepthImage_gpu(input, mask, filter_width, sigma_color,
+                                         sigma_space);
+  } else {
+    return AT_DISPATCH_ALL_TYPES(
+        input.type(), "BilateralFilterDepthImage_cpu_kernel", ([&] {
+          return BilateralFilterDepthImage_cpu_kernel<scalar_t>(
+              input, mask, filter_width, sigma_color, sigma_space);
+        }));
+  }
 }
 
 }  // namespace fiontb

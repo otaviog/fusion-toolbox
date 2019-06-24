@@ -15,8 +15,9 @@ out Surfel {
   vec3 color;
   vec3 normal;
   float radius;
-  flat int time;
   float conf;
+  flat int time;
+  flat int id;	
 } vs_out;
 
 void main() {
@@ -32,6 +33,7 @@ void main() {
   vs_out.radius = in_radius*0.5;
   vs_out.conf = in_conf;
   vs_out.time = in_time;
+  vs_out.id = gl_VertexID;
  
   if (StableThresh > 0) {
 	if (vs_out.conf < StableThresh) {

@@ -5,9 +5,9 @@ in ModelPoint {
   flat int index;
 } mpoint;
 
-layout(location = 2) out vec3 out_point;
-layout(location = 1) out vec3 out_normal;
 layout(location = 0) out ivec3 out_index;
+layout(location = 1) out vec3 out_normal;
+layout(location = 2) out vec3 out_point;
 layout(location = 3) out vec3 out_debug;
 
 void main() {
@@ -16,7 +16,7 @@ void main() {
   out_point.z = -mpoint.point.z;
   
   out_normal = mpoint.normal;
-  out_index.x = mpoint.index + 1;
-
+  out_index.x = mpoint.index;
+  out_index.y = 1;
   out_debug = vec3(1, 0, 1);
 }

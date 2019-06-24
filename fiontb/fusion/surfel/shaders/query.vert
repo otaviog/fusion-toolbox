@@ -11,6 +11,7 @@ uniform isampler2DRect IndexMapTex;
 uniform int ImageWidth;
 uniform int ImageHeight;
 uniform float Scale;
+uniform float MaxNormalAngle;
 
 uniform mat4 ProjModelview;
 
@@ -19,7 +20,7 @@ out flat int frag_frame_index;
 out vec3 frag_debug;
 
 float angleBetween(vec3 a, vec3 b) {
-	return acos(dot(a, b) / (length(a) * length(b)));
+  return acos(dot(a, b) / (length(a) * length(b)));
 }
 
 void main() {
@@ -54,9 +55,11 @@ void main() {
 
   for(int i = xstart; i < xend; i++) {
 	for(int j = ystart; j < yend; j++) {
-	  int current = int(texture(IndexMapTex, vec2(i, j)).x);
+	  ivec2 indexmap = texture(IndexMapTex, vec2(i, j)).xy;
 
-	  if(current > 0) {
+	  if(indexmap.y > 0) {
+		int current = indexmap.x;
+		
 		vec3 vert = texture(IndexMapPointsTex, vec2(i, j)).xyz;
 		if(abs((vert.z * lambda) - (in_point.z * lambda)) < 0.05) {
 		  float dist = length(cross(ray, vert)) / length(ray);
@@ -64,7 +67,7 @@ void main() {
 
 		  if(dist < bestDist
 			 && (abs(normal.z) < 0.75f
-				 || abs(angleBetween(normal.xyz, in_normal)) < 0.5f)) {
+				 || abs(angleBetween(normal.xyz, in_normal)) < MaxNormalAngle)) {
 			found = 1;
 			bestDist = dist;
 			best = current;

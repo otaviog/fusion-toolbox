@@ -1,6 +1,8 @@
 include_directories(${PYTHON_INCLUDE_DIR})
 
-cuda_add_library(fiontb normals.cpp filtering.cpp
+cuda_add_library(fiontb
+  normals.cpp
+  filtering.cpp filtering.cu
   aabb.cpp aabb.cu
   sat.cpp metrics.cpp
   trigoctree.cpp 

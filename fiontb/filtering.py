@@ -4,15 +4,16 @@
 import numpy as np
 import torch
 
-from fiontb._cfiontb import bilateral_filter_depth_image as _bilateral_filter_depth_image
-
+from fiontb._cfiontb import (bilateral_filter_depth_image
+                             as _bilateral_filter_depth_image)
+from fiontb._utils import ensure_torch
 
 def bilateral_filter_depth_image(depth, mask, filter_width=6,
                                  sigma_d=4.50000000225,
                                  sigma_r=29.9999880000072):
-    return _bilateral_filter_depth_image(torch.from_numpy(depth),
-                                         torch.from_numpy(mask).byte(),
-                                         filter_width, sigma_d, sigma_r).numpy()
+    return _bilateral_filter_depth_image(ensure_torch(depth),
+                                         ensure_torch(mask, dtype=torch.uint8),
+                                         filter_width, sigma_d, sigma_r)
 
 
 def _test():

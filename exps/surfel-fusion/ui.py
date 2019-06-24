@@ -14,6 +14,8 @@ from fiontb.filtering import (
     bilateral_filter_depth_image)
 from fiontb.viz.surfelrender import SurfelRender, RenderMode
 from fiontb.ui import convert_normals_to_rgb
+from fiontb.metrics import mesh_accuracy, query_closest_points, chamfer_score
+from fiontb.spatial.trigoctree import TrigOctree
 
 
 class RunMode(Enum):
@@ -71,18 +73,30 @@ class SensorFrameUI:
 
 
 class MainLoop:
-    def __init__(self, sensor, surfel_model, rec_step,
-                 max_frames=None, run_mode=RunMode.PLAY):
+    def __init__(self, sensor, surfel_model, rec_step, fusion_ctx,
+                 max_frames=None, run_mode=RunMode.PLAY, gt_mesh=None):
         self.sensor = sensor
         self.rec_step = rec_step
+        self.fusion_ctx = fusion_ctx
 
         self.max_frames = max_frames
         self.run_mode = run_mode
 
         self.surfel_render = SurfelRender(surfel_model)
 
+        scene = [self.surfel_render]
+        if gt_mesh is not None:
+            with surfel_model.context.current():
+                self.gt_mesh_node = tenviz.create_mesh(
+                    gt_mesh.verts, gt_mesh.faces, normals=gt_mesh.normals)
+                scene.append(self.gt_mesh_node)
+
+            self.oct_tree = TrigOctree(
+                gt_mesh.verts, gt_mesh.faces.long(), 256)
+        self.gt_mesh = gt_mesh
+
         self.viewer = surfel_model.context.viewer(
-            [self.surfel_render], cam_manip=tenviz.CameraManipulator.WASD)
+            scene, cam_manip=tenviz.CameraManipulator.WASD)
         self.viewer.reset_view()
         self.surfel_model = surfel_model
 
@@ -100,6 +114,16 @@ class MainLoop:
         except KeyboardInterrupt:
             pass
 
+    def _eval_accuracy(self):
+        if self.gt_mesh is None:
+            return
+
+        rec_verts = self.fusion_ctx.get_stable_points().cpu()
+        gt_closest, _ = self.oct_tree.query_closest_points(rec_verts)
+
+        mesh_acc = mesh_accuracy(rec_verts, gt_closest)
+        print("Current accuracy: {}".format(mesh_acc))
+
     def _run(self):
         frame_count = 0
         quit_flag = False
@@ -107,13 +131,10 @@ class MainLoop:
         use_camera_view = False
 
         while not quit_flag:
-
             if read_next_frame:
-
                 print("Next frame: {}".format(frame_count))
 
                 frame = self.sensor.next_frame()
-
                 if frame is None:
                     continue
 
@@ -122,7 +143,7 @@ class MainLoop:
                 filtered_depth_image = bilateral_filter_depth_image(
                     frame.depth_image.astype(np.float32)*0.001, frame_pcl.depth_mask)
                 filtered_depth_image = (
-                    filtered_depth_image*1000.0).astype(np.int32)
+                    filtered_depth_image*1000.0).numpy().astype(np.int32)
                 frame_pcl.normals = compute_normals(filtered_depth_image, frame.info,
                                                     frame_pcl.depth_mask)
 
@@ -131,7 +152,7 @@ class MainLoop:
 
                 self.rec_step.step(frame.info.kcam, frame_pcl)
                 self.surfel_model.context.set_clear_color(0.32, 0.34, 0.87, 1)
-                # self.surfel_render.update()
+
                 if use_camera_view:
                     self.viewer.set_camera_matrix(
                         frame.info.rt_cam.opengl_view_cam)
@@ -173,10 +194,16 @@ class MainLoop:
                     self.surfel_render.set_stable_threshold(10)
                 elif key == 'l':
                     self.surfel_render.set_stable_threshold(-1)
+                elif key == 't':
+                    self.surfel_render.set_render_mode(RenderMode.Ids)
                 elif key == 'c':
                     use_camera_view = not use_camera_view
+                elif key == 'v':
+                    self._eval_accuracy()
                 elif key == 'b':
                     import ipdb
                     ipdb.set_trace()
 
         cv2.destroyAllWindows()
+
+

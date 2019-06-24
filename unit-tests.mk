@@ -40,5 +40,3 @@ fiontb.spatial.trigoctree:
 fiontb.filtering:
 	python3 -m unittest fiontb._tests.test_filtering
 
-fiontb.fusion.surfel.spacecarving:
-	python3 -m fiontb.fusion.surfel.spacecarving

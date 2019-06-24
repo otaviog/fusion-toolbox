@@ -1,1 +1,1 @@
-from fiontb.fiontblib import TrigOctree
+from fiontb._cfiontb import TrigOctree
