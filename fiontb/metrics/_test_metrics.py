@@ -5,28 +5,37 @@ import unittest
 from pathlib import Path
 import argparse
 
+import torch
 import numpy as np
 
-import shapelab
-import shapelab.io
+import tenviz
+import tenviz.io
 
 import fiontb.metrics
 
-_BUNNY_ROOT = Path(__file__).parent.parent.parent / 'test-data/bunny'
+_BUNNY_ROOT = Path(__file__).parent.absolute(
+).parent.parent / 'test-data/bunny'
 
 
-def _view_pcl_mesh(points, verts, trigs):
-    context = shapelab.RenderContext(640, 480)
+def _view_pcl_mesh(rand_pts, points, verts, trigs):
+    context = tenviz.Context(640, 480)
 
-    mesh = context.add_mesh(verts, trigs)
-    mesh.set_polygon_mode(shapelab.PolygonMode.WIREFRAME)
+    with context.current():
+        mesh = tenviz.create_mesh(torch.from_numpy(
+            verts).float(), torch.from_numpy(trigs))
+        mesh.style.polygon_mode = tenviz.PolygonMode.Wireframe
 
-    pcl = context.add_point_cloud(points)
-    pcl.point_size = 2
+        colors = (torch.rand(rand_pts.shape).abs()*255).byte()
 
-    view = context.viewer()
+        rands_pcl = tenviz.create_point_cloud(torch.from_numpy(rand_pts).float(), colors)
+        rands_pcl.style.point_size = 4
+
+        close_pcl = tenviz.create_point_cloud(points, colors)
+        close_pcl.style.point_size = 4
+
+    view = context.viewer([mesh, rands_pcl, close_pcl])
     while True:
-        key = view.wait_key()
+        key = view.wait_key(1)
         if key < 0:
             break
 
@@ -72,13 +81,14 @@ def _main():
 
     args = parser.parse_args()
 
-    verts, trigs = shapelab.io.read_3dobject(
+    verts, trigs = tenviz.io.read_3dobject(
         _BUNNY_ROOT / 'bun_zipper_res4.ply')
 
     if args.view == "closest_points":
+        rand_pts = verts + np.random.rand(*verts.shape)*0.01
         closest = fiontb.metrics.closest_points(
-            verts + np.random.rand(verts.shape)*0.01, verts, trigs)
-        _view_pcl_mesh(closest, verts, trigs)
+            rand_pts, verts, trigs)
+        _view_pcl_mesh(rand_pts, closest, verts, trigs)
     elif args.view == "sample_points":
         sample_points = fiontb.metrics.sample_points(verts, trigs, 50)
         _view_pcl_mesh(sample_points, verts, trigs)

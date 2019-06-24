@@ -2,11 +2,13 @@
 """
 
 import numpy as np
-import sklearn.neighbors
+from scipy.spatial.ckdtree import cKDTree
 
-from .mesh import closest_points, mesh_accuracy, sample_points
+from .mesh import query_closest_points, mesh_accuracy, sample_points
 
 def chamfer_score(source_points, gt_points):
-    src_kdtree = sklearn.neighbors.KDTree(source_points)
-    dists, _ = src_kdtree.query(gt_points, k=1, dualtree=True)
+    src_kdtree = cKDTree(source_points, leafsize=128)
+    #dists, _ = src_kdtree.query(gt_points, k=1)
+    dists, _ = src_kdtree.query_ball_point(gt_points, r=1.0)
+    import ipdb; ipdb.set_trace()
     return np.mean(dists)

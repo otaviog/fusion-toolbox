@@ -1,24 +1,17 @@
 """Dataset viewer
 """
-import argparse
+
 from collections import deque
 
 import cv2
 import numpy as np
+import torch
 from matplotlib.pyplot import get_cmap
 
-import shapelab
-import shapelab.io
+import tenviz
 
-
-class _Viewer:
-    def __init__(self, width, height):
-        self.ctx = shapelab.RenderContext(width, height)
-        self.view = self.ctx.viewer()
-
-
-_CAM_HAND_MATRIX = np.eye(4)
-_CAM_HAND_MATRIX[2, 2] = -1
+from fiontb.frame import FramePointCloud
+from fiontb.camera import Homogeneous
 
 
 class DatasetViewer:
@@ -33,81 +26,111 @@ class DatasetViewer:
         self.show_mask = False
         self.last_proc_data = {'idx': -1}
 
-        self.viewer_cam = _Viewer(640, 480)
-        self.viewer_cam.view.set_title("{}: camera space".format(title))
+        self.context = tenviz.Context(640, 480)
 
-        self.viewer_world = _Viewer(640, 480)
-        self.viewer_world.view.set_title("{}: world space".format(title))
-        self.viewer_world.ctx.add_axis_grid(-10, 10, 1)
-        self.visited_idxs = set()
+        with self.context.current():
+            axis = tenviz.create_axis_grid(-1, 1, 10)
 
+        self.cam_viewer = self.context.viewer(
+            [axis], tenviz.CameraManipulator.TrackBall)
+        self.cam_viewer.set_title("{}: camera space".format(title))
+        self.tv_camera_pcl = None
+
+        self.wcontext = tenviz.Context(640, 480)
+        with self.wcontext.current():
+            pass
+
+        self.world_viewer = self.wcontext.viewer(
+            [], tenviz.CameraManipulator.WASD)
+        self.world_viewer.set_title("{}: world space".format(title))
         self.pcl_deque = deque()
+
         self.visited_idxs = set()
 
-    def _update_world(self, idx, snap, cam_space, cam_proj):
+    def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
         if idx in self.visited_idxs:
             return
 
-        rt_cam = snap.rt_cam.matrix
-        world_space = np.matmul(rt_cam, cam_space)
-        pcl = self.viewer_world.ctx.add_point_cloud(
-            world_space[:, 0:3], snap.colors)
-
-        cam = self.viewer_world.ctx.add_camera(
-            cam_proj, np.matmul(rt_cam, _CAM_HAND_MATRIX))
-
-        self.pcl_deque.append((pcl, cam))
         self.visited_idxs.add(idx)
 
-        self.viewer_world.view.reset_view()
+        world_space = Homogeneous(rt_cam.cam_to_world) @ cam_space
+
+        with self.wcontext.current():
+            pcl = tenviz.create_point_cloud(torch.from_numpy(world_space).float(),
+                                            torch.from_numpy(colors).byte())
+            self.world_viewer.get_scene().add(pcl)
+            vcam = tenviz.create_virtual_camera(
+                cam_proj,
+                np.linalg.inv(rt_cam.opengl_view_cam))
+            self.world_viewer.get_scene().add(vcam)
+
+            self.pcl_deque.append((pcl, vcam))
+
+        if not self.visited_idxs:
+            self.world_viewer.reset_view()
+
         if len(self.pcl_deque) > 50:
-            oldest_pcl, oldest_cam = self.pcl_deque.popleft()
-            self.viewer_world.ctx.erase(oldest_pcl)
-            self.viewer_world.ctx.erase(oldest_cam)
-            oldest_pcl = oldest_cam = None
+            with self.wcontext.current():
+                oldest_pcl, oldest_cam = self.pcl_deque.popleft()
+                self.world_viewer.get_scene().erase(oldest_pcl)
+                self.world_viewer.get_scene().erase(oldest_cam)
+                oldest_pcl = oldest_cam = None
+
+        self.wcontext.collect_garbage()
+
+    def _set_model(self, frame, idx):
+        finfo = frame.info
+        cmap = get_cmap('viridis', finfo.depth_max)
+
+        depth_img = (frame.depth_image / finfo.depth_max)
+        depth_img = cmap(depth_img)
+        depth_img = depth_img[:, :, 0:3]
+        depth_img = (depth_img*255).astype(np.uint8)
+
+        rgb_img = cv2.cvtColor(
+            frame.rgb_image, cv2.COLOR_RGB2BGR)
+
+        self.last_proc_data = {
+            'idx': idx,
+            'depth_img': depth_img,
+            'rgb_img': rgb_img,
+            'fg_mask': frame.fg_mask
+        }
+
+        with self.context.current():
+            self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
+
+        pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
+        cam_space = pcl.points
+
+        hand_matrix = np.eye(4)
+        hand_matrix[2, 2] = -1
+        hand_matrix[1, 1] = -1
+
+        with self.context.current():
+            self.tv_camera_pcl = tenviz.create_point_cloud(
+                torch.from_numpy(Homogeneous(hand_matrix)
+                                 @ cam_space).float(),
+                torch.from_numpy(pcl.colors))
+        self.cam_viewer.get_scene().add(self.tv_camera_pcl)
+
+        cam_proj = tenviz.projection_from_kcam(
+            finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
+
+        self.cam_viewer.reset_view()
+
+        if finfo.rt_cam is not None:
+            self._update_world(idx, finfo.rt_cam, cam_space,
+                               pcl.colors, cam_proj)
+
+        self.context.collect_garbage()
 
     def _update_canvas(self, _):
         idx = cv2.getTrackbarPos("pos", self.title)
 
         if self.last_proc_data['idx'] != idx:
-            snap = self.dataset[idx]
-            cmap = get_cmap('viridis', snap.depth_max)
-
-            depth_img = (snap.depth_image / snap.depth_max)
-            depth_img = cmap(depth_img)
-            depth_img = depth_img[:, :, 0:3]
-            depth_img = (depth_img*255).astype(np.uint8)
-
-            rgb_img = cv2.cvtColor(
-                snap.rgb_image, cv2.COLOR_RGB2BGR)
-
-            self.last_proc_data = {
-                'idx': idx,
-                'depth_img': depth_img,
-                'rgb_img': rgb_img,
-                'fg_mask': snap.fg_mask
-            }
-
-            self.viewer_cam.ctx.clear_scene()
-
-            cam_space = snap.get_cam_points()
-            cam_space = np.insert(cam_space, 3, 1.0, axis=1)
-
-            _cam_matrix_inv_y = _CAM_HAND_MATRIX.copy()
-            _cam_matrix_inv_y[1, 1] *= -1
-
-            self.viewer_cam.ctx.add_point_cloud(
-                np.matmul(_cam_matrix_inv_y, cam_space)[:, 0:3],
-                snap.colors)
-
-            cam_proj = shapelab.projection_from_kcam(
-                snap.kcam.matrix, 0.5, cam_space[:, 2].max())
-
-            self.viewer_cam.view.reset_view()
-            self.viewer_cam.view.set_view(0, 0)
-
-            if snap.rt_cam is not None:
-                self._update_world(idx, snap, cam_space, cam_proj)
+            frame = self.dataset[idx]
+            self._set_model(frame, idx)
 
         proc_data = self.last_proc_data
         alpha = cv2.getTrackbarPos("oppacity", self.title) / 100.0
@@ -134,41 +157,28 @@ class DatasetViewer:
 
         while True:
             self._update_canvas(None)
-            key = cv2.waitKey(1)
-            self.viewer_cam.view.draw(0)
-            self.viewer_world.view.draw(0)
+            cv_key = cv2.waitKey(1)
 
-            if key == 27:
+            if cv_key == 27:
                 break
 
-            key = chr(key & 0xff).lower()
+            if cv_key < 0:
+                cv_key = 0
 
-            if key == 'q':
+            quit = False
+            for key in [cv_key, self.cam_viewer.wait_key(0),
+                        self.world_viewer.wait_key(0)]:
+
+                if key < 0:
+                    quit = True
+                
+                key = chr(key & 0xff).lower()
+
+                if key == 'q':
+                    quit = True
+                elif key == 'm':
+                    self.show_mask = not self.show_mask
+
+            if quit:
                 break
-            elif key == 'm':
-                self.show_mask = not self.show_mask
-
         cv2.destroyWindow(self.title)
-
-
-def _main():
-    from fiontb.data.klg import KLG
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("dataset_type", metavar='dataset-type',
-                        choices=['klg'], help="Input klg file")
-    parser.add_argument(
-        "inputs", nargs='+',
-        help="Input list, like base path and trajectory files, dependes on the dataset type.")
-
-    args = parser.parse_args()
-
-    if args.dataset_type == "klg":
-        dataset = KLG(args.inputs[0])
-
-    viewer = DatasetViewer(dataset)
-    viewer.run()
-
-
-if __name__ == '__main__':
-    _main()

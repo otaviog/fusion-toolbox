@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from fiontb.camera import KCamera
 
-from .datatype import Snapshot
+from fiontb.frame import FrameInfo, Frame
 
 
 def _read_frame_header(stream):
@@ -67,18 +67,61 @@ class KLG:
             else:
                 rt_cam = self.trajectory[-1]
 
-        snap = Snapshot(depth_image=depth_img, rgb_image=rgb_img,
-                        kcam=self.kcam,
-                        rt_cam=rt_cam,
-                        depth_scale=self.depth_scale)
+        info = FrameInfo(kcam=self.kcam, rt_cam=rt_cam,
+                         depth_scale=self.depth_scale)
+        frame = Frame(info, depth_image=depth_img.astype(np.int32), rgb_image=rgb_img)
 
-        return snap
+        return frame
 
     def __len__(self):
         return len(self.frame_ptrs)
 
 
-def write_klg(dataset, stream, format_depth_scale, max_frames=None):
+class KLGWriter:
+    def __init__(self, stream, format_depth_scale=None):
+        self.stream = stream
+        self.format_depth_scale = format_depth_scale
+        self.count = 0
+        stream.write(struct.pack('i', 0))
+
+    def write_frame(self, frame):
+        depth_image = frame.depth_image
+        depth_image = depth_image*frame.info.depth_scale
+
+        if self.format_depth_scale is not None:
+            depth_image = depth_image*self.format_depth_scale
+
+        depth_image = depth_image.astype(np.uint16)
+        compress_depth = zlib.compress(depth_image)
+        _, jpg_rgb = cv2.imencode('.jpg', frame.rgb_image)
+
+        if frame.info.timestamp is not None:
+            if isinstance(frame.info.timestamp, float):
+                timestamp = int(frame.info.timestamp*10000000)
+            else:
+                timestamp = frame.info.timestamp
+        else:
+            timestamp = self.count + 1
+
+        timestamp = self.count + 1 # REMOVE
+        #print(timestamp)
+        self.stream.write(struct.pack('q', timestamp))
+        self.stream.write(struct.pack('i', len(compress_depth)))
+        self.stream.write(struct.pack('i', len(jpg_rgb)))
+
+        self.stream.write(compress_depth)
+        self.stream.write(jpg_rgb)
+
+        self.count += 1
+
+        return timestamp
+
+    def finish(self):
+        self.stream.seek(0, 0)
+        self.stream.write(struct.pack('i', self.count))
+
+
+def write_klg(dataset, stream, format_depth_scale=None, max_frames=None):
     """Writes a :obj:`fiontb.Snapshot` dataset to .klg file format.
 
     Args:
@@ -99,38 +142,16 @@ def write_klg(dataset, stream, format_depth_scale, max_frames=None):
     else:
         max_frames = len(dataset)
 
-    stream.write(struct.pack('i', max_frames))
+    writer = KLGWriter(stream, format_depth_scale)
 
     rt_cams = []
     for i in tqdm(range(max_frames), desc="Writing KLG file"):
-        snap = dataset[i]
+        frame = dataset[i]
 
-        depth_image = snap.depth_image
-        depth_image = depth_image*snap.depth_scale
-        depth_image = depth_image*format_depth_scale
-
-        depth_image = depth_image.astype(np.uint16)
-        compress_depth = zlib.compress(depth_image)
-        _, jpg_rgb = cv2.imencode('.jpg', snap.rgb_image)
-
-        if snap.timestamp is not None:
-            if isinstance(snap.timestamp, float):
-                timestamp = int(snap.timestamp*10000000)
-            else:
-                timestamp = snap.timestamp
-        else:
-            timestamp = i + 1
-
-        stream.write(struct.pack('q', timestamp))
-        stream.write(struct.pack('i', len(compress_depth)))
-        stream.write(struct.pack('i', len(jpg_rgb)))
-
-        stream.write(compress_depth)
-        stream.write(jpg_rgb)
-
-        if snap.rt_cam is not None:
-            rt_cam = snap.rt_cam
-
+        timestamp = writer.write_frame(frame)
+        if frame.info.rt_cam is not None:
+            rt_cam = frame.info.rt_cam
             rt_cams.append((timestamp, rt_cam))
 
-    return rt_cams
+    writer.finish()
+    return dict(rt_cams)
