@@ -1,2 +1,4 @@
 autopep8
 ipdb
+pylint
+jedi

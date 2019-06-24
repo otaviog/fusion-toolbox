@@ -127,7 +127,7 @@ def write_trajectory(filepath, rt_cams):
     """
 
     with open(filepath, 'w') as gt_txt:
-        for timestamp, rt_cam in rt_cams:
+        for timestamp, rt_cam in rt_cams.items():
             pos = rt_cam.matrix[0:3, 3]
             rot = rt_cam.matrix[0:3, 0:3]
 

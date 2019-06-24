@@ -4,69 +4,37 @@
 from multiprocessing import Pool
 
 import numpy as np
-
-from CGAL.CGAL_AABB_tree import AABB_tree_Triangle_3_soup
-from CGAL.CGAL_Kernel import Point_3, Triangle_3
+import torch
 from tqdm import tqdm
 
-
-_TREE = None
-
-
-def _process(point):
-    point = Point_3(float(point[0]), float(point[1]), float(point[2]))
-    closest = _TREE.closest_point(point)
-    return closest.x(), closest.y(), closest.z()
+from fiontb._cfiontb import query_closest_points as _query_closest_points
 
 
-def closest_points(source_points, verts, trigs, processes=2):
+def query_closest_points(source_points, verts, trigs):
     """Returns the closest points on a mesh's surface from a given set of
     points.
 
     Args:
 
-        source_points (:obj:`numpy.ndarray`): Source points, [Nx3] shape
+        source_points (:obj:`torch.Tensor`): Source points, [Nx3] shape
 
-        verts (:obj:`numpy.ndarray`): The mesh vertices, [Vx3] shape.
+        verts (:obj:`torch.Tensor`): The mesh vertices, [Vx3] shape.
 
-        faces (:obj:`numpy.ndarray`): The mesh face indices, [Fx3] shape.
+        faces (:obj:`torch.Tensor`): The mesh face indices, [Fx3] shape.
 
-    Returns: (:obj:`numpy.ndarray`): The closest points, [Nx3] shape.
+    Returns: (:obj:`torch.Tensor`): The closest points, [Nx3] shape.
 
     """
 
-    cgal_trigs = []
-
-    for i0, i1, i2 in tqdm(trigs, total=trigs.shape[0], desc="Loading CGAL trigs"):
-        v0 = Point_3(*verts[i0].tolist())
-        v1 = Point_3(*verts[i1].tolist())
-        v2 = Point_3(*verts[i2].tolist())
-
-        cgal_trigs.append(Triangle_3(v0, v1, v2))
-
-    # pylint: disable=global-statement
-    global _TREE
-    _TREE = AABB_tree_Triangle_3_soup(cgal_trigs)
-
-    result = np.empty_like(source_points)
-
-    for i, point in tqdm(enumerate(source_points),
-                         total=len(source_points)):
-        x, y, z = _process(point)
-        result[i, 0] = x
-        result[i, 1] = y
-        result[i, 2] = z
-
-    return result
+    return _query_closest_points(source_points.float(), verts.float(), trigs.long())
 
 
 def mesh_accuracy(source_points, closest_pts, thresh_distance=0.01):
-    distances = np.linalg.norm(source_points - closest_pts, 2, axis=1)
+    distances = torch.norm(source_points - closest_pts, 2, dim=1)
+    return torch.mean((distances < thresh_distance).float()).item()
 
-    return np.mean(distances < thresh_distance)
 
-
-def sample_points(verts, faces, point_density):
+def sample_points(verts, faces, point_density, normals=None):
     """Converts a mesh into a point-cloud.
 
     Args:
@@ -78,6 +46,7 @@ def sample_points(verts, faces, point_density):
         point_density (float): Ratio of points per face area.
     """
 
+    # pylint: disable=invalid-name
     areas = np.empty((faces.shape[0], ))
     for i, (idx0, idx1, idx2) in enumerate(faces):
         p0, p1, p2 = verts[idx0], verts[idx1], verts[idx2]
@@ -90,8 +59,13 @@ def sample_points(verts, faces, point_density):
     total_area = areas.sum()
 
     points = []
+    point_normals = []
+
     for i, (idx0, idx1, idx2) in enumerate(faces):
         p0, p1, p2 = verts[idx0], verts[idx1], verts[idx2]
+        if normals is not None:
+            n0, n1, n2 = normals[idx0], normals[idx1], normals[idx2]
+
         trig_area = areas[i]
 
         num_points = int((trig_area / total_area)*point_density)
@@ -102,5 +76,8 @@ def sample_points(verts, faces, point_density):
 
             rand_pt = p0*(1 - s0) + p1*(1 - rand1)*s0 + p2*rand1*s0
             points.append(rand_pt)
+            if normals is not None:
+                rand_norm = n0*(1 - s0) + n1*(1 - rand1)*s0 + n2*rand1*s0
+                point_normals.append(rand_norm)
 
-    return np.array(points)
+    return np.array(points), np.array(point_normals)

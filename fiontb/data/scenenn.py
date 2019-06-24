@@ -5,7 +5,7 @@ import numpy as np
 import onireader
 
 from fiontb.camera import KCamera, RTCamera
-from .datatype import Snapshot
+from fiontb.frame import Frame, FrameInfo
 
 
 KINECT2_KCAM = KCamera(np.array([[356.769928, 0.0, 251.563446],
@@ -24,12 +24,12 @@ class SceneNN:
 
     """
 
-    def __init__(self, oni_filepath, trajectory, k_cam, ground_truth_model_path):
+    def __init__(self, oni_filepath, trajectory, kcam, ground_truth_model_path):
         self._oni_filepath = oni_filepath
         self.rewind()
 
         self.trajectory = trajectory
-        self.k_cam = k_cam
+        self.kcam = kcam
 
         self.first_frame_id = None
         self.last_idx = None
@@ -72,9 +72,9 @@ class SceneNN:
 
         rt_mtx = self.trajectory[idx]
 
-        return Snapshot(depth_img, kcam=self.k_cam, rgb_image=rgb_img,
-                        rt_cam=RTCamera(rt_mtx), depth_scale=0.001,
-                        timestamp=depth_ts)
+        info = FrameInfo(self.kcam, depth_scale=0.001,
+                         timestamp=depth_ts, rt_cam=RTCamera(rt_mtx))
+        return Frame(info, depth_img, rgb_image=rgb_img)
 
     def __len__(self):
         return len(self.trajectory)

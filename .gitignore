@@ -3,3 +3,13 @@ __pycache__
 .workflow.lmdb
 venv
 .envrc
+cmake_install.cmake
+CMakeFiles
+Makefile
+_fiontb.so
+detect_cuda_compute_capabilities.cpp
+detect_cuda_version.cc
+compile_commands.json
+CMakeCache.txt
+*.out
+*.link
