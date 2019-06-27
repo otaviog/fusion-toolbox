@@ -48,4 +48,4 @@ class FrameUI:
 
 def convert_normals_to_rgb(normal_image):
     normal_image = (normal_image + 1)*0.5*255
-    return normal_image.astype(np.uint8)
+    return normal_image.cpu().numpy().astype(np.uint8)

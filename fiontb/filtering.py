@@ -10,10 +10,11 @@ from fiontb._utils import ensure_torch
 
 def bilateral_filter_depth_image(depth, mask, filter_width=6,
                                  sigma_d=4.50000000225,
-                                 sigma_r=29.9999880000072):
+                                 sigma_r=29.9999880000072,
+                                 depth_scale=1.0):
     return _bilateral_filter_depth_image(ensure_torch(depth),
                                          ensure_torch(mask, dtype=torch.uint8),
-                                         filter_width, sigma_d, sigma_r)
+                                         filter_width, sigma_d, sigma_r, depth_scale)
 
 
 def _test():

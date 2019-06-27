@@ -3,10 +3,11 @@
 
 import numpy as np
 import quaternion
-
 import torch
 
-_GL_HAND_MTX = np.eye(4)
+from fiontb._utils import ensure_torch
+
+_GL_HAND_MTX = torch.eye(4)
 _GL_HAND_MTX[2, 2] = -1
 
 
@@ -15,7 +16,7 @@ class KCamera:
 
     Attributes:
 
-        matrix (:obj:`np.ndarray`): A 3x3 intrinsic camera
+        matrix (:obj:`torch.Tensor`): A 3x3 intrinsic camera
          transformation. Converts from image's column and row
          (0..img.width and 0..img.height) to u and v in camera space.
 
@@ -31,7 +32,7 @@ class KCamera:
     """
 
     def __init__(self, matrix, undist_coeff=None, depth_radial_distortion=False, image_size=None):
-        self.matrix = matrix
+        self.matrix = ensure_torch(matrix)
 
         if undist_coeff is not None:
             self.undist_coeff = undist_coeff
@@ -45,7 +46,7 @@ class KCamera:
     def from_json(cls, json):
         """Loads from json representaion.
         """
-        return cls(np.array(json['matrix'], np.float32),
+        return cls(torch.tensor(json['matrix'], dtype=torch.float),
                    undist_coeff=json.get('undist_coeff', None),
                    depth_radial_distortion=json['is_radial_depth'],
                    image_size=json.get('image_size', None))
@@ -95,20 +96,20 @@ class KCamera:
 
         """
         center_x, center_y = center_point
-        k_trans = np.array([[1.0, 0.0, center_x],
-                            [0.0, 1.0, center_y],
-                            [0.0, 0.0, 1.0]])
-        k_scale = np.array([[flen_x, 0.0, 0.0],
-                            [0.0, flen_y, 0.0],
-                            [0.0, 0.0, 1.0]])
-        return cls(np.matmul(k_trans, k_scale), undist_coeff,
+        k_trans = torch.tensor([[1.0, 0.0, center_x],
+                                [0.0, 1.0, center_y],
+                                [0.0, 0.0, 1.0]])
+        k_scale = torch.tensor([[flen_x, 0.0, 0.0],
+                                [0.0, flen_y, 0.0],
+                                [0.0, 0.0, 1.0]])
+        return cls(k_trans @ k_scale, undist_coeff,
                    depth_radial_distortion, image_size)
 
     def backproject(self, points):
         """Project image points to the camera space.
         """
 
-        xyz_coords = points.copy()
+        xyz_coords = points.clone()
         fx = self.matrix[0, 0]
         fy = self.matrix[1, 1]
         cx = self.matrix[0, 2]
@@ -124,12 +125,7 @@ class KCamera:
         """Project camera to image space.
         """
 
-        matrix = self.matrix
-        if isinstance(points, torch.Tensor):
-            matrix = torch.from_numpy(self.matrix).float()
-
-        points = matrix @ points.reshape(-1, 3, 1)
-        points = points.reshape(-1, 3)
+        points = (self.matrix @ points.reshape(-1, 3, 1)).reshape(-1, 3)
 
         z = points[:, 2]
 
@@ -138,7 +134,7 @@ class KCamera:
 
     @property
     def pixel_center(self):
-        """Center pixel.        
+        """Center pixel.     
         """
         return (self.matrix[0, 2], self.matrix[1, 2])
 
@@ -152,7 +148,7 @@ class KCamera:
         if not isinstance(other, KCamera):
             return False
 
-        return (np.all(self.matrix == other.matrix)
+        return (torch.all(self.matrix == other.matrix)
                 and (self.undist_coeff == other.undist_coeff)
                 and (self.depth_radial_distortion == other.depth_radial_distortion)
                 and (self.image_size == other.image_size))
@@ -180,10 +176,10 @@ def normal_transform_matrix(matrix):
 
         matrix: [4x4] affine transformation matrix.
 
-    Returns: (:obj:`np.ndarray`): Rotation only [3x3] matrix.
+    Returns: (:obj:`torch.Tensor`): Rotation only [3x3] matrix.
 
     """
-    return np.linalg.inv(matrix[:3, :3]).T
+    return torch.inverse(matrix[:3, :3]).transpose(1, 0)
 
 
 class RTCamera:
@@ -193,13 +189,13 @@ class RTCamera:
 
     Attributes:
 
-        matrix (np.array): A 4x4 matrix representing the camera space to world
+        matrix (:obj:`torch.Tensor`): A 4x4 matrix representing the camera space to world
          space transformation.
 
     """
 
     def __init__(self, matrix):
-        self.matrix = matrix
+        self.matrix = ensure_torch(matrix)
 
     @classmethod
     def create_from_pos_rot(cls, position, rotation_matrix):
@@ -210,29 +206,29 @@ class RTCamera:
             Those vectors should convert from camera space to world space.
         """
         posx, posy, posz = position
-        g_trans = np.array([[1.0, 0.0, 0.0, posx],
-                            [0.0, 1.0, 0.0, posy],
-                            [0.0, 0.0, 1.0, posz],
-                            [0.0, 0.0, 0.0, 1.0]])
-        g_rot = np.eye(4, 4)
+        g_trans = torch.tensor([[1.0, 0.0, 0.0, posx],
+                                [0.0, 1.0, 0.0, posy],
+                                [0.0, 0.0, 1.0, posz],
+                                [0.0, 0.0, 0.0, 1.0]])
+        g_rot = torch.eye(4)
         g_rot[0:3, 0:3] = rotation_matrix
         return cls(g_trans @ g_rot)
 
     @classmethod
     def create_from_pos_quat(cls, x, y, z, qw, qx, qy, qz):
         # TODO
-        g_trans = np.array([[1.0, 0.0, 0.0, x],
-                            [0.0, 1.0, 0.0, y],
-                            [0.0, 0.0, 1.0, z],
-                            [0.0, 0.0, 0.0, 1.0]])
-        g_rot = np.eye(4, 4)
-        g_rot[0:3, 0:3] = quaternion.as_rotation_matrix(
-            np.quaternion(qw, qx, qy, qz))
+        g_trans = torch.tensor([[1.0, 0.0, 0.0, x],
+                                [0.0, 1.0, 0.0, y],
+                                [0.0, 0.0, 1.0, z],
+                                [0.0, 0.0, 0.0, 1.0]])
+        g_rot = torch.eye(4)
+        g_rot[0:3, 0:3] = torch.from_numpy(quaternion.as_rotation_matrix(
+            np.quaternion(qw, qx, qy, qz)))
 
         # return cls(g_trans @ g_rot)
 
-        rot_mtx = quaternion.as_rotation_matrix(
-            np.quaternion(qw, qx, qy, qz))
+        rot_mtx = torch.from_numpy(quaternion.as_rotation_matrix(
+            np.quaternion(qw, qx, qy, qz)))
 
         cam_mtx = np.eye(4)
         cam_mtx[0:3, 0:3] = rot_mtx
@@ -242,7 +238,7 @@ class RTCamera:
 
     @classmethod
     def from_json(cls, json):
-        return cls(np.array(json['matrix'], np.float32))
+        return cls(torch.tensor(json['matrix'], dtype=torch.float))
 
     def to_json(self):
         return {'matrix': self.matrix.tolist()}
@@ -257,7 +253,7 @@ class RTCamera:
     def world_to_cam(self):
         """Matrix with world to camera transformation
         """
-        return np.linalg.inv(self.matrix)
+        return torch.inverse(self.matrix)
 
     @property
     def opengl_view_cam(self):
@@ -267,35 +263,10 @@ class RTCamera:
         self.matrix = rt_cam.matrix @ self.matrix
 
     def translate(self, tx, ty, tz):
-        return RTCamera(self.matrix @ np.array([[1, 0, 0, tx],
-                                                [0, 1, 0, ty],
-                                                [0, 0, 1, tz],
-                                                [0, 0, 0, 1]]))
-
-    def transform_world_to_cam_dep(self, points):
-        """Transform points from world to camera space.
-
-        Args:
-
-            points (:obj:`numpy.ndarray`): Array of shape [N, 3], [N,
-             3, 1] or [3] with 1 or more points in world space.
-
-        Returns:
-
-            (:obj:`numpy.ndarray`): Transformed points into camera
-             space. Shape is the same as input.
-
-        """
-        waxis = 1
-        if len(points.shape) == 1:
-            waxis = 0
-        elif len(points.shape) == 2:
-            points = points[..., np.newaxis]
-
-        points = np.insert(points, 3, 1, axis=waxis)
-        points = np.matmul(self.world_to_cam, points)
-        points = np.delete(points, 3, waxis)
-        return points
+        return RTCamera(self.matrix @ torch.tensor([[1, 0, 0, tx],
+                                                    [0, 1, 0, ty],
+                                                    [0, 0, 1, tz],
+                                                    [0, 0, 0, 1]]))
 
     @property
     def center(self):
