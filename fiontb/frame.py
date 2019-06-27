@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from fiontb._cfiontb import calculate_depth_normals as _calculate_depth_normals
+from fiontb._utils import ensure_torch
 from .camera import KCamera, RTCamera
 from .pointcloud import PointCloud
 
@@ -106,16 +107,17 @@ class Frame:
 
 class _DepthImagePointCloud:
     def __init__(self, depth_image, finfo):
-        self.depth_image = (depth_image.astype(np.float64)*finfo.depth_scale +
-                            finfo.depth_bias).astype(np.float32)
+        depth_image = ensure_torch(depth_image)
+        self.depth_image = (depth_image.float()*finfo.depth_scale +
+                            finfo.depth_bias)
 
         self.depth_mask = depth_image > 0
         self.kcam = finfo.kcam
 
-        xs, ys = np.meshgrid(np.arange(depth_image.shape[1]),
-                             np.arange(depth_image.shape[0]))
-        self.image_points = np.dstack(
-            [xs, ys, self.depth_image]).astype(np.float32)
+        xs, ys = torch.meshgrid(torch.arange(depth_image.size(0), dtype=torch.float),
+                                torch.arange(depth_image.size(1), dtype=torch.float))
+        self.image_points = torch.stack(
+            [xs, ys, self.depth_image], 2)
 
         self._points = None
 
@@ -142,21 +144,21 @@ class FramePointCloud:
     def __init__(self, frame: Frame):
         info = frame.info
 
-        self.depth_image = (frame.depth_image.astype(np.float64)*info.depth_scale +
-                            info.depth_bias).astype(np.float32)
+        self.depth_image = (torch.from_numpy(frame.depth_image).float()*info.depth_scale +
+                            info.depth_bias)
 
-        self.depth_mask = frame.depth_image > 0
+        self.depth_mask = torch.from_numpy(frame.depth_image > 0).byte()
         self.fg_mask = self.depth_mask
         if frame.fg_mask is not None:
-            self.fg_mask = np.logical_and(frame.fg_mask, self.depth_mask)
+            self.fg_mask = torch.logical_and(torch.from_numpy(frame.fg_mask).byte(), self.depth_mask)
 
-        xs, ys = np.meshgrid(np.arange(frame.depth_image.shape[1]),
-                             np.arange(frame.depth_image.shape[0]))
-        self.image_points = np.dstack(
-            [xs, ys, self.depth_image]).astype(np.float32)
+        xs, ys = torch.meshgrid(torch.arange(self.depth_image.size(0), dtype=torch.float),
+                                torch.arange(self.depth_image.size(1), dtype=torch.float))
+        self.image_points = torch.stack(
+            [xs, ys, self.depth_image], 2)
 
         if frame.rgb_image is not None:
-            self.colors = frame.rgb_image
+            self.colors = torch.from_numpy(frame.rgb_image)
 
         self.kcam = info.kcam
         self.rt_cam = info.rt_cam
@@ -178,15 +180,15 @@ class FramePointCloud:
                 raise RuntimeError("Frame doesn't have intrinsics camera")
 
             self._points = self.kcam.backproject(
-                self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
+                self.image_points.reshape(-1, 3)).reshape(self.image_points.size())
         return self._points
 
     @property
     def normals(self):
         if self._normals is None:
             self._normals = _calculate_depth_normals(
-                torch.from_numpy(self.points),
-                torch.from_numpy(self.depth_mask.astype(np.uint8))).numpy()
+                self.points,
+                self.depth_mask.astype(np.uint8))
 
         return self._normals
 
@@ -212,5 +214,5 @@ class FramePointCloud:
 
 def compute_normals(depth_image, frame_info, mask):
     pcl = _DepthImagePointCloud(depth_image, frame_info)
-    return _calculate_depth_normals(torch.from_numpy(pcl.points),
-                                    torch.from_numpy(mask.astype(np.uint8))).numpy()
+    return _calculate_depth_normals(ensure_torch(pcl.points),
+                                    ensure_torch(mask, dtype=torch.uint8))

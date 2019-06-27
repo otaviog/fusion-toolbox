@@ -27,4 +27,4 @@ class TestFiltering(unittest.TestCase):
             13, 4.50000000225,
             29.9999880000072)
 
-        torch.testing.assert_allclose(filter_depth_cpu, filter_depth_gpu.cpu())
+        torch.testing.assert_allclose(filter_depth_cpu, filter_depth_gpu.cpu(), 1.0, 0.0)

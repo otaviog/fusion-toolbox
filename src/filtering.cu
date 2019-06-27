@@ -14,7 +14,8 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
         mask,
     torch::PackedTensorAccessor<scalar_t, 2, torch::RestrictPtrTraits, size_t>
         result,
-    int half_width, float inv_sigma_color_sqr, float inv_sigma_space_sqr) {
+    int half_width, float inv_sigma_color_sqr, float inv_sigma_space_sqr,
+	float depth_scale) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -27,11 +28,12 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
   result[row][col] = 0;
   if (mask[row][col] == 0) return;
 
-  const scalar_t depth = input[row][col];
+  const float depth = input[row][col] * depth_scale;
 
   float color_sum = 0.0f;
   float weight_sum = 0.0f;
-
+  const float inv_depth_scale = 1.0 / depth_scale;
+  
   for (int y = -half_width; y <= half_width; ++y) {
     const int crow = row + y;
     if (crow < 0 || crow >= height) continue;
@@ -42,7 +44,7 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
 
       if (mask[crow][ccol] == 0) continue;
 
-      const scalar_t curr_depth = input[crow][ccol];
+      const float curr_depth = input[crow][ccol]*depth_scale;
 
       const float dx = col - ccol;
       const float dy = row - crow;
@@ -59,7 +61,7 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
   }
 
   if (weight_sum > 0.0f) {
-    result[row][col] = scalar_t(color_sum / weight_sum);
+    result[row][col] = scalar_t((color_sum / weight_sum)*inv_depth_scale);
   }
 }
 
@@ -67,7 +69,8 @@ torch::Tensor BilateralFilterDepthImage_gpu(const torch::Tensor input,
                                             const torch::Tensor mask,
                                             int filter_width,
                                             float sigma_color,
-                                            float sigma_space) {
+                                            float sigma_space,
+											float depth_scale) {
   const int width = input.size(1);
   const int height = input.size(0);
 
@@ -91,7 +94,7 @@ torch::Tensor BilateralFilterDepthImage_gpu(const torch::Tensor input,
                                  size_t>(),
             result.packed_accessor<scalar_t, 2, torch::RestrictPtrTraits,
             size_t>(),
-            half_width, inv_sigma_color_sqr, inv_sigma_space_sqr);
+            half_width, inv_sigma_color_sqr, inv_sigma_space_sqr, depth_scale);
       }));
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());

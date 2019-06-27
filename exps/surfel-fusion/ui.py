@@ -141,9 +141,9 @@ class MainLoop:
                 frame_pcl = FramePointCloud(frame)
 
                 filtered_depth_image = bilateral_filter_depth_image(
-                    frame.depth_image.astype(np.float32)*0.001, frame_pcl.depth_mask)
-                filtered_depth_image = (
-                    filtered_depth_image*1000.0).numpy().astype(np.int32)
+                    frame.depth_image, frame_pcl.depth_mask, depth_scale=0.001)
+                # filtered_depth_image = (
+                #    filtered_depth_image*1000.0).numpy().astype(np.int32)
                 frame_pcl.normals = compute_normals(filtered_depth_image, frame.info,
                                                     frame_pcl.depth_mask)
 

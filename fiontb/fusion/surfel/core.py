@@ -43,8 +43,6 @@ def _compute_confidences(frame_pcl, no_mask=False):
     if not no_mask:
         img_points = img_points[img_mask]
 
-    img_points = torch.from_numpy(img_points)
-
     camera_center = torch.tensor(frame_pcl.kcam.pixel_center)
 
     confidences = torch.norm(
@@ -71,7 +69,7 @@ class _ConfidenceCache:
             self.height = fheight
             self.confidences = _compute_confidences(frame_pcl, no_mask=True)
 
-        return self.confidences[torch.from_numpy(frame_pcl.fg_mask.flatten())]
+        return self.confidences[frame_pcl.fg_mask.flatten()]
 
 
 class SurfelCloud:
@@ -80,7 +78,7 @@ class SurfelCloud:
 
     @classmethod
     def from_frame_pcl(cls, frame_pcl, time, device, confs=None, features=None):
-        cam_pcl = frame_pcl.unordered_point_cloud(world_space=False).torch()
+        cam_pcl = frame_pcl.unordered_point_cloud(world_space=False)
 
         if confs is None:
             confs = _compute_confidences(frame_pcl)
@@ -135,10 +133,9 @@ class SurfelCloud:
         if self.points.size(0) == 0:
             return
 
-        self.points = Homogeneous(torch.from_numpy(
-            matrix).to(self.device)) @ self.points
-        normal_matrix = torch.from_numpy(
-            normal_transform_matrix(matrix)).to(self.device)
+        self.points = Homogeneous(
+            matrix.to(self.device)) @ self.points
+        normal_matrix = normal_transform_matrix(matrix).to(self.device)
         self.normals = (
             normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
 
