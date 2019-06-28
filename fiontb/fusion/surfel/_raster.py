@@ -120,7 +120,7 @@ class GlobalSurfelRaster:
 
         context.set_clear_color(0, 0, 0, 0)
         context.render(proj_matrix,
-                       torch.from_numpy(rt_cam.opengl_view_cam).float(),
+                       rt_cam.opengl_view_cam,
                        self.framebuffer,
                        [self.render_surfels_prg], width, height)
 

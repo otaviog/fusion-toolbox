@@ -134,7 +134,7 @@ class KCamera:
 
     @property
     def pixel_center(self):
-        """Center pixel.     
+        """Center pixel.
         """
         return (self.matrix[0, 2], self.matrix[1, 2])
 

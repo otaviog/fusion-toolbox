@@ -2,19 +2,20 @@
 """
 
 import numpy as np
+import torch
 import onireader
 
 from fiontb.camera import KCamera, RTCamera
 from fiontb.frame import Frame, FrameInfo
 
 
-KINECT2_KCAM = KCamera(np.array([[356.769928, 0.0, 251.563446],
-                                 [0.0, 430.816498, 237.563446],
-                                 [0.0, 0.0, 1.0]]))
+KINECT2_KCAM = KCamera(torch.tensor([[356.769928, 0.0, 251.563446],
+                                     [0.0, 430.816498, 237.563446],
+                                     [0.0, 0.0, 1.0]], dtype=torch.float))
 
-ASUS_KCAM = KCamera(np.array([[544.47329, 0.0, 320],
-                              [0.0, 544.47329, 240],
-                              [0.0, 0.0, 1.0]]))
+ASUS_KCAM = KCamera(torch.tensor([[544.47329, 0.0, 320],
+                                  [0.0, 544.47329, 240],
+                                  [0.0, 0.0, 1.0]], dtype=torch.float))
 
 
 class SceneNN:
@@ -44,6 +45,7 @@ class SceneNN:
         self.ni_dev = None
         self.ni_dev = onireader.Device()
         self.ni_dev.open(str(self._oni_filepath))
+        self.ni_dev.start()
 
     def _getnext_pair(self):
         depth_img, depth_ts, _ = self.ni_dev.readDepth()
@@ -60,7 +62,7 @@ class SceneNN:
 
             diff = abs(rgb_ts - depth_ts)
             print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
-        return depth_img, rgb_img, depth_ts
+        return depth_img.astype(np.int32), rgb_img, depth_ts
 
     def __getitem__(self, idx):
         # pylint: disable=unused-variable
@@ -91,7 +93,8 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_mod
             for _ in range(4):
                 line = file.readline()
                 curr_entry.append([float(elem) for elem in line.split()])
-            rt_mtx = np.array(curr_entry)  # cam space to world space
+            # cam space to world space
+            rt_mtx = torch.tensor(curr_entry, dtype=torch.float)
 
             assert rt_mtx.shape == (4, 4)
             trajectory.append(rt_mtx)

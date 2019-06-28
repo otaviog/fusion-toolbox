@@ -114,8 +114,9 @@ class _DepthImagePointCloud:
         self.depth_mask = depth_image > 0
         self.kcam = finfo.kcam
 
-        xs, ys = torch.meshgrid(torch.arange(depth_image.size(0), dtype=torch.float),
-                                torch.arange(depth_image.size(1), dtype=torch.float))
+        ys, xs = torch.meshgrid(torch.arange(self.depth_image.size(0), dtype=torch.float),
+                                torch.arange(self.depth_image.size(1), dtype=torch.float))
+
         self.image_points = torch.stack(
             [xs, ys, self.depth_image], 2)
 
@@ -137,58 +138,32 @@ class _DepthImagePointCloud:
         return self._points
 
 
-class FramePointCloud:
+class FramePointCloud(_DepthImagePointCloud):
     """A point cloud ordered by image positions.
     """
 
     def __init__(self, frame: Frame):
-        info = frame.info
+        super(FramePointCloud, self).__init__(frame.depth_image, frame.info)
 
-        self.depth_image = (torch.from_numpy(frame.depth_image).float()*info.depth_scale +
-                            info.depth_bias)
-
-        self.depth_mask = torch.from_numpy(frame.depth_image > 0).byte()
         self.fg_mask = self.depth_mask
         if frame.fg_mask is not None:
-            self.fg_mask = torch.logical_and(torch.from_numpy(frame.fg_mask).byte(), self.depth_mask)
-
-        xs, ys = torch.meshgrid(torch.arange(self.depth_image.size(0), dtype=torch.float),
-                                torch.arange(self.depth_image.size(1), dtype=torch.float))
-        self.image_points = torch.stack(
-            [xs, ys, self.depth_image], 2)
+            self.fg_mask = torch.logical_and(
+                torch.from_numpy(frame.fg_mask).byte(), self.depth_mask)
 
         if frame.rgb_image is not None:
             self.colors = torch.from_numpy(frame.rgb_image)
 
-        self.kcam = info.kcam
-        self.rt_cam = info.rt_cam
-        self._points = None
-        self._normals = None
+        self.rt_cam = frame.info.rt_cam
 
+        self._normals = None
         if frame.normal_image is not None:
             self._normals = frame.normal_image
-
-    @property
-    def points(self):
-        """Points in the camera space property.
-
-        Returns: (:obj:`numpy.ndarray`): [Nx3x1] array of points in the camera space.
-        """
-
-        if self._points is None:
-            if self.kcam is None:
-                raise RuntimeError("Frame doesn't have intrinsics camera")
-
-            self._points = self.kcam.backproject(
-                self.image_points.reshape(-1, 3)).reshape(self.image_points.size())
-        return self._points
 
     @property
     def normals(self):
         if self._normals is None:
             self._normals = _calculate_depth_normals(
-                self.points,
-                self.depth_mask.astype(np.uint8))
+                self.points, self.depth_mask)
 
         return self._normals
 

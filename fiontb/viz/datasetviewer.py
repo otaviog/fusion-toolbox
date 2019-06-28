@@ -56,8 +56,7 @@ class DatasetViewer:
         world_space = Homogeneous(rt_cam.cam_to_world) @ cam_space
 
         with self.wcontext.current():
-            pcl = tenviz.create_point_cloud(torch.from_numpy(world_space).float(),
-                                            torch.from_numpy(colors).byte())
+            pcl = tenviz.create_point_cloud(world_space, colors)
             self.world_viewer.get_scene().add(pcl)
             vcam = tenviz.create_virtual_camera(
                 cam_proj,
@@ -103,15 +102,14 @@ class DatasetViewer:
         pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
         cam_space = pcl.points
 
-        hand_matrix = np.eye(4)
+        hand_matrix = torch.eye(4)
         hand_matrix[2, 2] = -1
         hand_matrix[1, 1] = -1
 
         with self.context.current():
             self.tv_camera_pcl = tenviz.create_point_cloud(
-                torch.from_numpy(Homogeneous(hand_matrix)
-                                 @ cam_space).float(),
-                torch.from_numpy(pcl.colors))
+                Homogeneous(hand_matrix) @ cam_space,
+                pcl.colors)
         self.cam_viewer.get_scene().add(self.tv_camera_pcl)
 
         cam_proj = tenviz.projection_from_kcam(
@@ -171,7 +169,7 @@ class DatasetViewer:
 
                 if key < 0:
                     quit = True
-                
+
                 key = chr(key & 0xff).lower()
 
                 if key == 'q':
