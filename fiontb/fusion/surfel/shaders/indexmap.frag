@@ -1,22 +1,21 @@
 #version 420
 
-in ModelPoint {
-  vec3 point, normal;
+in Surfel {
+  vec3 pos;
+  vec4 normal_rad;
   flat int index;
-} mpoint;
+} surfel;
 
-layout(location = 0) out ivec3 out_index;
-layout(location = 1) out vec3 out_normal;
-layout(location = 2) out vec3 out_point;
-layout(location = 3) out vec3 out_debug;
+layout(location = 0) out vec3 out_point;
+layout(location = 1) out vec4 out_normal_rad;
+layout(location = 2) out ivec3 out_index;
 
 void main() {
+  out_point.xy = surfel.pos.xy;
+  out_point.z = -surfel.pos.z;
 
-  out_point.xy = mpoint.point.xy;
-  out_point.z = -mpoint.point.z;
-  
-  out_normal = mpoint.normal;
-  out_index.x = mpoint.index;
+  out_normal_rad = surfel.normal_rad;
+
+  out_index.x = surfel.index;
   out_index.y = 1;
-  out_debug = vec3(1, 0, 1);
 }

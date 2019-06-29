@@ -79,12 +79,11 @@ torch::Tensor BilateralFilterDepthImage(torch::Tensor input, torch::Tensor mask,
                                         int filter_width, float sigma_color,
                                         float sigma_space, float depth_scale) {
   if (input.is_cuda()) {
-    // const torch::OptionalDeviceGuard device_guard(torch::device_of(mask));
     return BilateralFilterDepthImage_gpu(input, mask, filter_width, sigma_color,
                                          sigma_space, depth_scale);
   } else {
     return AT_DISPATCH_ALL_TYPES(
-        input.type(), "BilateralFilterDepthImage_cpu_kernel", ([&] {
+        input.scalar_type(), "BilateralFilterDepthImage_cpu_kernel", ([&] {
           return BilateralFilterDepthImage_cpu_kernel<scalar_t>(
               input, mask, filter_width, sigma_color, sigma_space, depth_scale);
         }));

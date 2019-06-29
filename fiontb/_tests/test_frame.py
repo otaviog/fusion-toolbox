@@ -9,7 +9,7 @@ import cv2
 import torch
 
 from fiontb.camera import KCamera
-from fiontb.frame import FrameInfo, compute_normals
+from fiontb.frame import FrameInfo, estimate_normals, EstimateNormalsMethod
 from fiontb.ui import convert_normals_to_rgb
 import tenviz
 
@@ -20,17 +20,17 @@ class TestFrame(unittest.TestCase):
 
     def test_compute_normals(self):
 
-        depth_image = cv2.imread(str(Path(__file__).parent / "assets" / "frame_depth.png"),
-                                 cv2.IMREAD_ANYDEPTH)
+        depth_image = torch.from_numpy(
+            cv2.imread(str(Path(__file__).parent / "assets" / "frame_depth.png"),
+                       cv2.IMREAD_ANYDEPTH).astype(np.int32))
+        mask = depth_image > 0
+        info = FrameInfo(KCamera(np.array([[544.47327, 0., 320.],
+                                           [0., 544.47327, 240.],
+                                           [0., 0., 1.]])), 0.001, 0.0)
 
-        kcam = KCamera(np.array([[544.47327, 0., 320.],
-                                 [0., 544.47327, 240.],
-                                 [0., 0., 1.]]))
+        normals_cpu = estimate_normals(depth_image, info, mask)
+        normals_gpu = estimate_normals(
+            depth_image.to("cuda:0"), info, mask.to("cuda:0"))
 
-        info = FrameInfo(kcam, 0.001, 0.0)
-
-        normals = compute_normals(depth_image, info, depth_image > 0)
-        normals = convert_normals_to_rgb(normals)
-        normals = cv2.cvtColor(normals, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(str(Path(__file__).parent /
-                        "out-frame-normals.png"), normals)
+        torch.testing.assert_allclose(normals_gpu.cpu(), normals_cpu,
+                                      1.0, 0.0)

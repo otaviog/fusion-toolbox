@@ -1,21 +1,14 @@
 #include "filtering.hpp"
 
-#include "cuda_error.hpp"
+#include "cuda_utils.hpp"
 
 namespace fiontb {
 
 template <typename scalar_t>
 __global__ void BilateralFilterDepthImage_gpu_kernel(
-    const torch::PackedTensorAccessor<scalar_t, 2, torch::RestrictPtrTraits,
-                                      size_t>
-        input,
-    const torch::PackedTensorAccessor<uint8_t, 2, torch::RestrictPtrTraits,
-                                      size_t>
-        mask,
-    torch::PackedTensorAccessor<scalar_t, 2, torch::RestrictPtrTraits, size_t>
-        result,
-    int half_width, float inv_sigma_color_sqr, float inv_sigma_space_sqr,
-	float depth_scale) {
+    const PackedAccessor<scalar_t, 2> input, const PackedAccessor<uint8_t, 2> mask,
+    PackedAccessor<scalar_t, 2> result, int half_width, float inv_sigma_color_sqr,
+    float inv_sigma_space_sqr, float depth_scale) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -33,7 +26,7 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
   float color_sum = 0.0f;
   float weight_sum = 0.0f;
   const float inv_depth_scale = 1.0 / depth_scale;
-  
+
   for (int y = -half_width; y <= half_width; ++y) {
     const int crow = row + y;
     if (crow < 0 || crow >= height) continue;
@@ -44,7 +37,7 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
 
       if (mask[crow][ccol] == 0) continue;
 
-      const float curr_depth = input[crow][ccol]*depth_scale;
+      const float curr_depth = input[crow][ccol] * depth_scale;
 
       const float dx = col - ccol;
       const float dy = row - crow;
@@ -61,39 +54,37 @@ __global__ void BilateralFilterDepthImage_gpu_kernel(
   }
 
   if (weight_sum > 0.0f) {
-    result[row][col] = scalar_t((color_sum / weight_sum)*inv_depth_scale);
+    result[row][col] = scalar_t((color_sum / weight_sum) * inv_depth_scale);
   }
 }
 
 torch::Tensor BilateralFilterDepthImage_gpu(const torch::Tensor input,
                                             const torch::Tensor mask,
-                                            int filter_width,
-                                            float sigma_color,
+                                            int filter_width, float sigma_color,
                                             float sigma_space,
-											float depth_scale) {
+                                            float depth_scale) {
   const int width = input.size(1);
   const int height = input.size(0);
 
-  dim3 block_dim = dim3(16, 16);
-
-  dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
   torch::Tensor result =
       torch::empty({height, width}, torch::TensorOptions()
-                   .dtype(input.scalar_type())
-                   .device(torch::kCUDA, 0));
+                                        .dtype(input.scalar_type())
+                                        .device(torch::kCUDA, 0));
+
   const int half_width = filter_width / 2;
   const float inv_sigma_color_sqr = 1.0 / (sigma_color * sigma_color);
   const float inv_sigma_space_sqr = 1.0 / (sigma_space * sigma_space);
 
+  const CudaKernelDims kern_lc = Get2DKernelDims(width, height);
   AT_DISPATCH_ALL_TYPES(
       input.scalar_type(), "BilateralFilterDepthImage_gpu", ([&] {
-        BilateralFilterDepthImage_gpu_kernel<<<grid_size, block_dim>>>(
+        BilateralFilterDepthImage_gpu_kernel<<<kern_lc.grid, kern_lc.block>>>(
             input.packed_accessor<scalar_t, 2, torch::RestrictPtrTraits,
                                   size_t>(),
             mask.packed_accessor<uint8_t, 2, torch::RestrictPtrTraits,
                                  size_t>(),
             result.packed_accessor<scalar_t, 2, torch::RestrictPtrTraits,
-            size_t>(),
+                                   size_t>(),
             half_width, inv_sigma_color_sqr, inv_sigma_space_sqr, depth_scale);
       }));
   CudaCheck();

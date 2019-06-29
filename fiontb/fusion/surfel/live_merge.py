@@ -1,18 +1,21 @@
+"""Auxiliary module for finding mergeable surfels.
+"""
+
 from pathlib import Path
 
 import torch
 import matplotlib.pyplot as plt
 
-from ._raster import LiveSurfelRaster, GlobalSurfelRaster
+from .indexmap import LiveIndexMap, ModelIndexMap
 from ._ckernels import surfel_find_live_to_model_merges
 
 _SHADER_DIR = Path(__file__).parent / "shaders"
 
 
-class IndexMap:
+class LiveToModelMergeMap:
     def __init__(self, surfel_model):
-        self.live_raster = LiveSurfelRaster(surfel_model.context)
-        self.model_raster = GlobalSurfelRaster(surfel_model)
+        self.live_raster = LiveIndexMap(surfel_model.context)
+        self.model_raster = ModelIndexMap(surfel_model)
 
     def find_mergeable(self, surfel_cloud, proj_matrix, rt_cam,
                        width, height, debug=False):
@@ -35,11 +38,11 @@ class IndexMap:
 
         _SENTINEL_TENSOR = torch.tensor([])
         live_features = model_features = _SENTINEL_TENSOR
-        
+
         if surfel_cloud.features is not None:
             live_features = surfel_cloud.features
             model_features = self.model_raster.surfel_model.features
-        
+
         merge_map = surfel_find_live_to_model_merges(
             live_pos, live_normals, live_idxs, live_features,
             model_pos, model_normals, model_idxs, model_features,
@@ -60,18 +63,21 @@ class IndexMap:
         frame_fuse_idxs = frame_idxs[fuse_mask].long()
         frame_unstable_idxs = frame_idxs[model_merge_idxs == -1].long()
 
-        visible_model_idxs = model_idxs[model_idxs[:, :, 1].byte()][:, 0].long()
+        visible_model_idxs = model_idxs[model_idxs[:,
+                                                   :, 1].byte()][:, 0].long()
 
         return (frame_fuse_idxs, model_fuse_idxs, frame_unstable_idxs,
                 visible_model_idxs)
 
+
 def _test():
+    import numpy as np
     import cv2
     import tenviz.io
 
     from fiontb.camera import KCamera, RTCamera
-    from fiontb.fusion.surfel import SurfelModel, SurfelCloud
     from fiontb.frame import Frame, FrameInfo, FramePointCloud
+    from .model import SurfelModel, SurfelCloud
 
     test_data = Path(__file__).parent / "_test"
     model = tenviz.io.read_3dobject(test_data / "chair-model.ply").torch()
@@ -105,10 +111,10 @@ def _test():
     surfel_model.active_mask[idxs] = torch.zeros(
         (model_size,), dtype=torch.uint8, device="cuda:0")
     surfel_model.update_active_mask_gl()
-    indexmap = IndexMap(surfel_model)
+    merge_map = LiveToModelMergeMap(surfel_model)
 
     frame_depth = cv2.imread(
-        str(test_data / "chair-next-depth.png"), cv2.IMREAD_ANYDEPTH)
+        str(test_data / "chair-next-depth.png"), cv2.IMREAD_ANYDEPTH).astype(np.int32)
     frame_color = cv2.cvtColor(cv2.imread(
         str(test_data / "chair-next-rgb.png")), cv2.COLOR_BGR2RGB)
 
@@ -117,8 +123,8 @@ def _test():
     frame_pcl = FramePointCloud(frame)
     surfel_cloud = SurfelCloud.from_frame_pcl(frame_pcl, 0, device="cuda:0")
 
-    indexmap.find_mergeable(surfel_cloud, proj_matrix,
-                            rt_cam, 640, 480, debug=True)
+    merge_map.find_mergeable(surfel_cloud, proj_matrix,
+                             rt_cam, 640, 480, debug=True)
 
 
 if __name__ == '__main__':

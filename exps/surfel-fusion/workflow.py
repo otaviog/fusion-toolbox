@@ -75,7 +75,7 @@ class FusionTask(rflow.Interface):
         context = tenviz.Context(dataset[0].depth_image.shape[1],
                                  dataset[0].depth_image.shape[0])
 
-        surfel_model = SurfelModel(context, 1024*1024*10)
+        surfel_model = SurfelModel(context, 1024*1024*50)
         fusion_ctx = SurfelFusion(surfel_model)
         step = ReconstructionStep(fusion_ctx, odometry)
 

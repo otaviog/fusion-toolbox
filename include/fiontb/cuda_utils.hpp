@@ -1,9 +1,10 @@
 #pragma once
 
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 
 #include <cuda_runtime.h>
+#include <torch/torch.h>
 
 // Taken from:
 // https://codeyarns.com/2011/03/02/how-to-do-error-checking-in-cuda/
@@ -12,6 +13,14 @@
 #define CudaCheck() fiontb::_CudaCheck(__FILE__, __LINE__)
 
 namespace fiontb {
+
+#ifdef __CUDACC__
+template <typename scalar_t, int dims>
+using PackedAccessor =
+    torch::PackedTensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
+                                size_t>;
+#endif
+
 inline void _CudaSafeCall(cudaError err, const char *file, const int line) {
   if (err != cudaSuccess) {
     std::stringstream msg;
@@ -29,4 +38,15 @@ inline void _CudaCheck(const char *file, const int line) {
     throw std::runtime_error(msg.str());
   }
 }
+
+struct CudaKernelDims {
+  CudaKernelDims(dim3 grid_dims, dim3 block_dims)
+      : grid(grid_dims), block(block_dims) {}
+
+  dim3 grid;
+  dim3 block;
+};
+
+CudaKernelDims Get2DKernelDims(int width, int height);
+
 }  // namespace fiontb

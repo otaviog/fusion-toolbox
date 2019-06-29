@@ -2,43 +2,29 @@
 #include <cuda_runtime.h>
 #include <torch/torch.h>
 
-#include "cuda_error.hpp"
+#include "cuda_utils.hpp"
 #include "helper_math.h"
 
 namespace fiontb {
-
-typedef torch::PackedTensorAccessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>
-PackedUInt8Accessor1D;
-
-typedef torch::PackedTensorAccessor<float, 2, torch::RestrictPtrTraits,
-  size_t> PackedFloatAccessor2D;
-typedef torch::PackedTensorAccessor<float, 3, torch::RestrictPtrTraits,
-  size_t> PackedFloatAccessor3D;
-
-typedef torch::PackedTensorAccessor<int, 2, torch::RestrictPtrTraits,
-  size_t> PackedInt32Accessor2D;
-typedef torch::PackedTensorAccessor<int, 3, torch::RestrictPtrTraits,
-  size_t> PackedInt32Accessor3D;
-
 
 inline __device__ float AngleBetweenNormals(float3 norm1, float3 norm2) {
   return acos(dot(norm1, norm2) / (length(norm1) * length(norm2)));
 }
 
-inline __device__ float3 to_float3(
-    const PackedFloatAccessor3D acc, int row, int col) {
+inline __device__ float3 to_float3(const PackedAccessor<float, 3> acc, int row,
+                                   int col) {
   return make_float3(acc[row][col][0], acc[row][col][1], acc[row][col][2]);
 }
 
 __global__ void FindLiveToModelMerges_gpu_kernel(
-    const PackedFloatAccessor3D live_pos_fb,
-    const PackedFloatAccessor3D live_normal_fb,
-    const PackedInt32Accessor3D live_idx_fb,
-    const PackedFloatAccessor3D model_pos_fb,
-    const PackedFloatAccessor3D model_normal_fb,
-    const PackedInt32Accessor3D model_idx_fb,
-    PackedInt32Accessor3D merge_map_fb, int scale,
-    int search_size, float max_normal_angle) {
+    const PackedAccessor<float, 3> live_pos_fb,
+    const PackedAccessor<float, 3> live_normal_fb,
+    const PackedAccessor<int32_t, 3> live_idx_fb,
+    const PackedAccessor<float, 3> model_pos_fb,
+    const PackedAccessor<float, 3> model_normal_fb,
+    const PackedAccessor<int32_t, 3> model_idx_fb,
+    PackedAccessor<int32_t, 3> merge_map_fb, int scale, int search_size,
+    float max_normal_angle) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -56,37 +42,38 @@ __global__ void FindLiveToModelMerges_gpu_kernel(
   merge_map_fb[row][col][2] = live_idx_fb[row][col][0];
 
   const float3 ray = to_float3(live_pos_fb, row, col);
-  const float lambda = sqrt(ray.x*ray.x + ray.y*ray.y + 1);
+  const float lambda = sqrt(ray.x * ray.x + ray.y * ray.y + 1);
 
   const float3 view_normal = to_float3(live_normal_fb, row, col);
 
-  const int xstart = max(col*scale - search_size, 0);
-  const int xend = min(col*scale + search_size, int(model_pos_fb.size(1)) - 1);
+  const int xstart = max(col * scale - search_size, 0);
+  const int xend =
+      min(col * scale + search_size, int(model_pos_fb.size(1)) - 1);
 
-  const int ystart = max(row*scale - search_size, 0);
-  const int yend = min(row*scale + search_size, int(model_pos_fb.size(0)) - 1);
+  const int ystart = max(row * scale - search_size, 0);
+  const int yend =
+      min(row * scale + search_size, int(model_pos_fb.size(0)) - 1);
 
   float best_dist = 10000;
   int best_model = -1;
 
-  for(int krow = ystart; krow <= yend; krow++) {
-    for(int kcol = xstart; kcol <= xend; kcol++) {
+  for (int krow = ystart; krow <= yend; krow++) {
+    for (int kcol = xstart; kcol <= xend; kcol++) {
       if (model_idx_fb[krow][kcol][1] == 0) continue;
 
       const int current = model_idx_fb[krow][kcol][0];
 
       const float3 vert = to_float3(model_pos_fb, krow, kcol);
-      if(abs((vert.z * lambda) - (ray.z * lambda)) >= 0.05)
-        continue;
+      if (abs((vert.z * lambda) - (ray.z * lambda)) >= 0.05) continue;
 
       const float dist = length(cross(ray, vert)) / length(ray);
       const float3 normal = to_float3(model_normal_fb, krow, kcol);
 
-      if(dist < best_dist
-         && (abs(normal.z) < 0.75f
-             || abs(AngleBetweenNormals(normal, view_normal)) < max_normal_angle)) {
-          best_dist = dist;
-          best_model = current;
+      if (dist < best_dist &&
+          (abs(normal.z) < 0.75f ||
+           abs(AngleBetweenNormals(normal, view_normal)) < max_normal_angle)) {
+        best_dist = dist;
+        best_model = current;
       }
     }
   }
@@ -95,16 +82,16 @@ __global__ void FindLiveToModelMerges_gpu_kernel(
 }
 
 __global__ void FindFeatLiveToModelMerges_gpu_kernel(
-    const PackedFloatAccessor3D live_pos_fb,
-    const PackedFloatAccessor3D live_normal_fb,
-    const PackedInt32Accessor3D live_idx_fb,
-    const PackedFloatAccessor2D live_feats,
-    const PackedFloatAccessor3D model_pos_fb,
-    const PackedFloatAccessor3D model_normal_fb,
-    const PackedInt32Accessor3D model_idx_fb,
-    const PackedFloatAccessor2D model_feats,
-    PackedInt32Accessor3D merge_map_fb, int scale,
-    int search_size, float max_normal_angle) {
+    const PackedAccessor<float, 3> live_pos_fb,
+    const PackedAccessor<float, 3> live_normal_fb,
+    const PackedAccessor<int32_t, 3> live_idx_fb,
+    const PackedAccessor<float, 2> live_feats,
+    const PackedAccessor<float, 3> model_pos_fb,
+    const PackedAccessor<float, 3> model_normal_fb,
+    const PackedAccessor<int32_t, 3> model_idx_fb,
+    const PackedAccessor<float, 2> model_feats,
+    PackedAccessor<int32_t, 3> merge_map_fb, int scale, int search_size,
+    float max_normal_angle) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -122,48 +109,49 @@ __global__ void FindFeatLiveToModelMerges_gpu_kernel(
   merge_map_fb[row][col][2] = live_idx;
 
   const float3 ray = to_float3(live_pos_fb, row, col);
-  const float lambda = sqrt(ray.x*ray.x + ray.y*ray.y + 1);
+  const float lambda = sqrt(ray.x * ray.x + ray.y * ray.y + 1);
 
   const float3 view_normal = to_float3(live_normal_fb, row, col);
 
-  const int xstart = max(col*scale - search_size, 0);
-  const int xend = min(col*scale + search_size, int(model_pos_fb.size(1)) - 1);
+  const int xstart = max(col * scale - search_size, 0);
+  const int xend =
+      min(col * scale + search_size, int(model_pos_fb.size(1)) - 1);
 
-  const int ystart = max(row*scale - search_size, 0);
-  const int yend = min(row*scale + search_size, int(model_pos_fb.size(0)) - 1);
+  const int ystart = max(row * scale - search_size, 0);
+  const int yend =
+      min(row * scale + search_size, int(model_pos_fb.size(0)) - 1);
 
   float best_dist = 10000;
   int best_model = -1;
 
-  for(int krow = ystart; krow <= yend; krow++) {
-    for(int kcol = xstart; kcol <= xend; kcol++) {
+  for (int krow = ystart; krow <= yend; krow++) {
+    for (int kcol = xstart; kcol <= xend; kcol++) {
       if (model_idx_fb[krow][kcol][1] == 0) continue;
 
       const int current = model_idx_fb[krow][kcol][0];
 
       float sqr_feat_dist = 0.0f;
-      for (size_t i=0; i<model_feats.size(1); ++i) {        
+      for (size_t i = 0; i < model_feats.size(1); ++i) {
         const float diff = model_feats[current][i] - live_feats[live_idx][i];
-        sqr_feat_dist += diff*diff;
+        sqr_feat_dist += diff * diff;
       }
 
       if (sqr_feat_dist < 3.0f) continue;
-      
-      const float3 vert = to_float3(model_pos_fb, krow, kcol);
-      if(abs((vert.z * lambda) - (ray.z * lambda)) >= 0.05)
-        continue;
 
-      //const float dist = length(cross(ray, vert)) / length(ray);
+      const float3 vert = to_float3(model_pos_fb, krow, kcol);
+      if (abs((vert.z * lambda) - (ray.z * lambda)) >= 0.05) continue;
+
+      // const float dist = length(cross(ray, vert)) / length(ray);
       const float dist = sqr_feat_dist;
-      if(dist >= best_dist) continue;
-      
+      if (dist >= best_dist) continue;
+
       const float3 normal = to_float3(model_normal_fb, krow, kcol);
-      //if (abs(normal.z) < 0.75f
+      // if (abs(normal.z) < 0.75f
       //|| abs(AngleBetweenNormals(normal, view_normal)) <
-      //max_normal_angle) {
+      // max_normal_angle) {
       if (true) {
-          best_dist = dist;
-          best_model = current;
+        best_dist = dist;
+        best_model = current;
       }
     }
   }
@@ -172,71 +160,72 @@ __global__ void FindFeatLiveToModelMerges_gpu_kernel(
 }
 
 torch::Tensor FindLiveToModelMerges(
-    const torch::Tensor &live_pos_fb,
-    const torch::Tensor &live_normal_fb,
-    const torch::Tensor &live_idx_fb,
-    const torch::Tensor &live_feats,
-    const torch::Tensor &model_pos_fb,
-    const torch::Tensor &model_normal_fb,
-    const torch::Tensor &model_idx_fb,
-    const torch::Tensor &model_feats,
+    const torch::Tensor &live_pos_fb, const torch::Tensor &live_normal_fb,
+    const torch::Tensor &live_idx_fb, const torch::Tensor &live_feats,
+    const torch::Tensor &model_pos_fb, const torch::Tensor &model_normal_fb,
+    const torch::Tensor &model_idx_fb, const torch::Tensor &model_feats,
     float max_normal_angle, bool use_feats) {
   const int width = live_pos_fb.size(1);
   const int height = live_pos_fb.size(0);
 
-  torch::Tensor merge_map =
-      torch::empty({height, width, 3},
-                   torch::TensorOptions(torch::kInt32).device(live_pos_fb.device()));
+  torch::Tensor merge_map = torch::empty(
+      {height, width, 3},
+      torch::TensorOptions(torch::kInt32).device(live_pos_fb.device()));
 
-  const float scale = model_pos_fb.size(0)/height;
+  const float scale = model_pos_fb.size(0) / height;
   const float window_multiplier = 2;
-  const int search_size = int(scale*window_multiplier);
+  const int search_size = int(scale * window_multiplier);
 
   dim3 block_dim = dim3(16, 16);
   dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
   if (!use_feats) {
     FindLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
-        live_pos_fb.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+        live_pos_fb
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
         live_normal_fb
-        .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
         live_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
         model_pos_fb
-        .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
         model_normal_fb
-        .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        model_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+        model_idx_fb
+            .packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
         merge_map.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
         int(scale), search_size, max_normal_angle);
   } else {
-     FindFeatLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
-        live_pos_fb.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+    FindFeatLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
+        live_pos_fb
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
         live_normal_fb
-        .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
         live_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        live_feats.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
+        live_feats
+            .packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
         model_pos_fb
-        .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
         model_normal_fb
-        .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        model_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        model_feats.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
+            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+        model_idx_fb
+            .packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+        model_feats
+            .packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
         merge_map.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
         int(scale), search_size, max_normal_angle);
   }
-  
+
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());
 
   return merge_map;
-
 }
 
-__global__ void CarveSpace_gpu_kernel(const PackedFloatAccessor3D stable_pos_fb,
-                                      const PackedInt32Accessor3D stable_idx_fb,
-                                      const PackedFloatAccessor3D view_pos_fb,
-                                      const PackedInt32Accessor3D view_idx_fb,
-                                      PackedUInt8Accessor1D free_mask,
-                                      int neighbor_size) {
+__global__ void CarveSpace_gpu_kernel(
+    const PackedAccessor<float, 3> stable_pos_fb,
+    const PackedAccessor<int32_t, 3> stable_idx_fb,
+    const PackedAccessor<float, 3> view_pos_fb,
+    const PackedAccessor<int32_t, 3> view_idx_fb,
+    PackedAccessor<uint8_t, 1> free_mask, int neighbor_size) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -286,7 +275,7 @@ void CarveSpace(const torch::Tensor stable_pos_fb,
 
   CarveSpace_gpu_kernel<<<grid_size, block_dim>>>(
       stable_pos_fb
-      .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
       stable_idx_fb
           .packed_accessor<int32_t, 3, torch::RestrictPtrTraits, size_t>(),
       view_pos_fb.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
@@ -298,10 +287,11 @@ void CarveSpace(const torch::Tensor stable_pos_fb,
 }
 
 __global__ void FindMergeable_gpu_kernel(
-    const PackedFloatAccessor3D pos_fb,
-    const PackedFloatAccessor3D normal_rad_fb,
-    const PackedInt32Accessor3D idx_fb, PackedInt32Accessor2D merge_map,
-    float max_dist, float max_angle, int neighbor_size) {
+    const PackedAccessor<float, 3> pos_fb,
+    const PackedAccessor<float, 3> normal_rad_fb,
+    const PackedAccessor<int32_t, 3> idx_fb,
+    PackedAccessor<int32_t, 2> merge_map, float max_dist, float max_angle,
+    int neighbor_size) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -358,15 +348,9 @@ void PreventDoubleMerge(torch::TensorAccessor<int32_t, 1> merge_map) {
   }
 }
 
-__global__ void Merge_gpu_kernel(
-    const torch::PackedTensorAccessor<int32_t, 1, torch::RestrictPtrTraits,
-                                      size_t>
-        merge_map,
-    const torch::PackedTensorAccessor<int32_t, 3, torch::RestrictPtrTraits,
-                                      size_t>
-        idx_fb,
-    torch::PackedTensorAccessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>
-        free_mask) {
+__global__ void Merge_gpu_kernel(const PackedAccessor<int32_t, 1> merge_map,
+                                 const PackedAccessor<int32_t, 3> idx_fb,
+                                 PackedAccessor<uint8_t, 1> free_mask) {
   int tensor_idx = blockDim.x * blockIdx.x + threadIdx.x;
   if (tensor_idx < merge_map.size(0)) {
     const int merge_local_idx = merge_map[tensor_idx];

@@ -1,10 +1,12 @@
-"""Frame data types.
+c"""Frame data types.
 """
 
 import numpy as np
 import torch
 
-from fiontb._cfiontb import calculate_depth_normals as _calculate_depth_normals
+from fiontb._cfiontb import estimate_normals as _estimate_normals
+from fiontb._cfiontb import EstimateNormalsMethod
+
 from fiontb._utils import ensure_torch
 from .camera import KCamera, RTCamera
 from .pointcloud import PointCloud
@@ -112,13 +114,15 @@ class _DepthImagePointCloud:
                             finfo.depth_bias)
 
         self.depth_mask = depth_image > 0
+        device = self.depth_image.device
+    
         self.kcam = finfo.kcam
 
         ys, xs = torch.meshgrid(torch.arange(self.depth_image.size(0), dtype=torch.float),
                                 torch.arange(self.depth_image.size(1), dtype=torch.float))
 
         self.image_points = torch.stack(
-            [xs, ys, self.depth_image], 2)
+            [xs.to(device), ys.to(device), self.depth_image], 2)
 
         self._points = None
 
@@ -187,7 +191,17 @@ class FramePointCloud(_DepthImagePointCloud):
         return pcl
 
 
-def compute_normals(depth_image, frame_info, mask):
+def estimate_normals(depth_image, frame_info, mask,
+                     method=EstimateNormalsMethod.CentralDifferences,
+                     out_tensor=None):
     pcl = _DepthImagePointCloud(depth_image, frame_info)
-    return _calculate_depth_normals(ensure_torch(pcl.points),
-                                    ensure_torch(mask, dtype=torch.uint8))
+    xyz_img = pcl.points
+
+    if out_tensor is None:
+        out_tensor = torch.empty(xyz_img.size(0), xyz_img.size(1), 3, dtype=xyz_img.dtype,
+                                 device=xyz_img.device)
+
+    _estimate_normals(xyz_img, ensure_torch(mask, dtype=torch.uint8),
+                      out_tensor, method)
+
+    return out_tensor

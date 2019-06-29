@@ -20,19 +20,7 @@ class AABB {
 
   bool IsInside(const Eigen::Vector3f &point, float radius) const;
 
-  torch::Tensor IsInside(const torch::Tensor &indices,
-                         const torch::Tensor &points) const;
-
-  torch::Tensor IsInside(const torch::Tensor &points) const;
-
-  torch::Tensor IsInside(const torch::Tensor &points, float radius) const;
-
-  torch::Tensor IsInside(const torch::Tensor &indices,
-                         const torch::Tensor &points, float radius) const;
-
   Eigen::Vector3f GetClosestPoint(const Eigen::Vector3f &point) const;
-
-  torch::Tensor GetClosestPoint(const torch::Tensor &points);
 
   bool Intersects(const Eigen::Vector3f &p0, const Eigen::Vector3f &p1,
                   const Eigen::Vector3f &p2) const;

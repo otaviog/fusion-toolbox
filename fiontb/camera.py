@@ -7,7 +7,7 @@ import torch
 
 from fiontb._utils import ensure_torch
 
-_GL_HAND_MTX = torch.eye(4)
+_GL_HAND_MTX = torch.eye(4, dtype=torch.float)
 _GL_HAND_MTX[2, 2] = -1
 
 
@@ -32,7 +32,7 @@ class KCamera:
     """
 
     def __init__(self, matrix, undist_coeff=None, depth_radial_distortion=False, image_size=None):
-        self.matrix = ensure_torch(matrix)
+        self.matrix = ensure_torch(matrix).float()
 
         if undist_coeff is not None:
             self.undist_coeff = undist_coeff
@@ -195,7 +195,7 @@ class RTCamera:
     """
 
     def __init__(self, matrix):
-        self.matrix = ensure_torch(matrix)
+        self.matrix = ensure_torch(matrix).float()
 
     @classmethod
     def create_from_pos_rot(cls, position, rotation_matrix):

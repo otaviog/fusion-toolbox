@@ -1,14 +1,23 @@
+"""Surfel merging. More info on: Keller,
+Maik, Damien Lefloch, Martin Lambers, Shahram Izadi, Tim Weyrich, and
+Andreas Kolb. "Real-time 3d reconstruction in dynamic scenes using
+point-based fusion." In 2013 International Conference on 3D Vision-3DV
+2013, pp. 1-8. IEEE, 2013.
+"""
+
 from pathlib import Path
 
 import torch
 
-from ._raster import GlobalSurfelRaster
+from .indexmap import ModelIndexMap
 from ._ckernels import surfel_merge_redundant
 
 
-class MergingContext(GlobalSurfelRaster):
+class IntraModelMergeMap(ModelIndexMap):
+    """Finds and merge surfel that are too close.
+    """
     def __init__(self, surfel_model):
-        super(MergingContext, self).__init__(surfel_model)
+        super(IntraModelMergeMap, self).__init__(surfel_model)
 
     def merge_close_surfels(self, proj_matrix, rt_cam, width, height,
                             stable_conf_thresh):
@@ -30,8 +39,8 @@ def _test():
     import tenviz.io
 
     from fiontb.camera import KCamera, RTCamera
-    from fiontb.fusion.surfel import SurfelModel, SurfelCloud
     from fiontb.viz.surfelrender import show_surfels
+    from .model import SurfelModel, SurfelCloud
 
     test_data = Path(__file__).parent / "_test"
 
@@ -54,7 +63,7 @@ def _test():
     times = torch.full((model_size, ), 5, dtype=torch.int32)
 
     model_cloud = SurfelCloud(model.verts, model.colors, model.normals,
-                              radii, confs, times, "cpu")
+                              radii, confs, times, None, "cpu")
     model_cloud.to("cuda:0")
 
     surfel_model = SurfelModel(ctx, model_size*2)
@@ -62,8 +71,8 @@ def _test():
     surfel_model.update_active_mask_gl()
 
     before = surfel_model.compact()
-    
-    merge_ctx = MergingContext(surfel_model)
+
+    merge_ctx = IntraModelMergeMap(surfel_model)
     merge_ctx.merge_close_surfels(proj_matrix, rt_cam, 640, 480,
                                   15)
     surfel_model.update_active_mask_gl()

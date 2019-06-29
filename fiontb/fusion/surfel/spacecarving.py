@@ -1,24 +1,47 @@
+"""Surfel space carving for removing outliers. More info on: Keller,
+Maik, Damien Lefloch, Martin Lambers, Shahram Izadi, Tim Weyrich, and
+Andreas Kolb. "Real-time 3d reconstruction in dynamic scenes using
+point-based fusion." In 2013 International Conference on 3D Vision-3DV
+2013, pp. 1-8. IEEE, 2013.
+"""
+
 from pathlib import Path
 
 import torch
 
-from ._raster import GlobalSurfelRaster
+from .indexmap import ModelIndexMap
 from ._ckernels import surfel_cave_free_space
 
 
-class SpaceCarvingContext(GlobalSurfelRaster):
+class SpaceCarving(ModelIndexMap):
+    """Remove unstable surfels in front of recently updated stable
+    surfels.
+
+    """
+
     def __init__(self, surfel_model):
-        super(SpaceCarvingContext, self).__init__(surfel_model)
+        """
+        Args:
+            surfel_model
+             (:obj:`fiontb.fusion.surfel.model.SurfelModel`): Surfel model.
+        """
+
+        super(SpaceCarving, self).__init__(surfel_model)
 
     def carve(self, proj_matrix, rt_cam, width, height,
               stable_conf_thresh, time, window_size, debug=False):
+        """
+        Args:
+
+            proj_matrix (:obj:`torch.Tensor`):
+
+        """
         self.raster(proj_matrix, rt_cam, width, height,
                     stable_conf_thresh, time)
         context = self.surfel_model.context
 
         with context.current():
             stable_positions = self.pos_tex.to_tensor()
-            stable_normals = self.normal_rad_tex.to_tensor()
             stable_idxs = self.idx_tex.to_tensor()
 
         self.show_debug("Stable", debug)
@@ -27,7 +50,6 @@ class SpaceCarvingContext(GlobalSurfelRaster):
 
         with context.current():
             view_positions = self.pos_tex.to_tensor()
-            view_normals = self.normal_rad_tex.to_tensor()
             view_idxs = self.idx_tex.to_tensor()
 
         self.show_debug("All", debug)
@@ -66,7 +88,7 @@ def _test():
     times = torch.full((model_size, ), 5, dtype=torch.int32)
 
     model_cloud = SurfelCloud(model.verts, model.colors, model.normals,
-                              radii, confs, times, "cpu")
+                              radii, confs, times, None, "cpu")
     model_cloud.to("cuda:0")
 
     surfel_model.add_surfels(model_cloud)
@@ -74,8 +96,7 @@ def _test():
     np.random.seed(10)
     space_vl_sample = np.random.choice(model.verts.size(0), 100)
     verts = (model.verts[space_vl_sample]
-             + (torch.from_numpy(rt_cam.center()).float() -
-                model.verts[space_vl_sample])
+             + (rt_cam.center - model.verts[space_vl_sample])
              * torch.rand(100, 1))
     space_vl_cloud = SurfelCloud(verts,
                                  model_cloud.colors[space_vl_sample],
@@ -83,14 +104,14 @@ def _test():
                                  radii[space_vl_sample],
                                  confs[space_vl_sample],
                                  torch.full((100, ), 3, dtype=torch.int32),
-                                 "cpu")
+                                 None, "cpu")
     space_vl_cloud.to("cuda:0")
     surfel_model.add_surfels(space_vl_cloud)
     surfel_model.update_active_mask_gl()
     before = surfel_model.clone()
 
-    carving_ctx = SpaceCarvingContext(surfel_model)
-    carving_ctx.carve(proj_matrix, rt_cam, 640, 480, 10, 5, 4)
+    carving = SpaceCarving(surfel_model)
+    carving.carve(proj_matrix, rt_cam, 640, 480, 10, 5, 4)
     surfel_model.update_active_mask_gl()
 
     show_surfels(ctx, [before, surfel_model])

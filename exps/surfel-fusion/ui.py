@@ -6,10 +6,11 @@ from enum import Enum
 import numpy as np
 from matplotlib.pyplot import get_cmap
 import cv2
+import torch
 
 import tenviz
 
-from fiontb.frame import FramePointCloud, compute_normals
+from fiontb.frame import FramePointCloud, estimate_normals
 from fiontb.filtering import (
     bilateral_filter_depth_image)
 from fiontb.viz.surfelrender import SurfelRender, RenderMode
@@ -68,7 +69,7 @@ class SensorFrameUI:
     def update(self, frame):
         self.frame = frame
         if frame.normal_image is not None:
-            self.normal_image = convert_normals_to_rgb(frame.normal_image)
+            self.normal_image = convert_normals_to_rgb(frame.normal_image.cpu())
         self._update(0)
 
 
@@ -140,11 +141,15 @@ class MainLoop:
 
                 frame_pcl = FramePointCloud(frame)
 
+                device = "cuda:0"
+                mask = frame_pcl.depth_mask.to(device)
+
                 filtered_depth_image = bilateral_filter_depth_image(
-                    frame.depth_image, frame_pcl.depth_mask, depth_scale=0.001)
+                    torch.from_numpy(frame.depth_image).to(device),
+                    mask, depth_scale=frame.info.depth_scale)
                 
-                frame_pcl.normals = compute_normals(filtered_depth_image, frame.info,
-                                                    frame_pcl.depth_mask)
+                frame_pcl.normals = estimate_normals(filtered_depth_image, frame.info,
+                                                     mask).cpu()
 
                 frame.normal_image = frame_pcl.normals
                 self.sensor_ui.update(frame)

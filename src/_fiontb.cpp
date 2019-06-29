@@ -20,8 +20,13 @@ namespace py = pybind11;
 PYBIND11_MODULE(_cfiontb, m) {
   using namespace fiontb;
 
-  m.def("calculate_depth_normals", &CalculateFrameNormals);
+  m.def("estimate_normals", &EstimateNormals);
+  py::enum_<EstimateNormalsMethod>(m, "EstimateNormalsMethod")
+      .value("CentralDifferences", EstimateNormalsMethod::kCentralDifferences)
+      .value("Average8", EstimateNormalsMethod::kAverage8);
+
   m.def("bilateral_filter_depth_image", &BilateralFilterDepthImage);
+
   py::class_<TrigOctree>(m, "TrigOctree")
       .def(py::init<torch::Tensor, torch::Tensor, int>())
       .def("query_closest_points", &TrigOctree::QueryClosest);
