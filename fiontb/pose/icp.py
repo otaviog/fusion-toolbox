@@ -1,5 +1,5 @@
 from open3d import (registration_colored_icp, ICPConvergenceCriteria,
-                    voxel_down_sample, registration_icp,
+                    registration_icp,
                     TransformationEstimationPointToPlane)
 
 import numpy as np

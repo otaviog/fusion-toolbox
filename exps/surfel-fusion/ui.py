@@ -11,11 +11,10 @@ import torch
 import tenviz
 
 from fiontb.frame import FramePointCloud, estimate_normals
-from fiontb.filtering import (
-    bilateral_filter_depth_image)
+from fiontb.filtering import bilateral_filter_depth_image
 from fiontb.viz.surfelrender import SurfelRender, RenderMode
 from fiontb.ui import convert_normals_to_rgb
-from fiontb.metrics import mesh_accuracy, query_closest_points, chamfer_score
+from fiontb.metrics import mesh_accuracy
 from fiontb.spatial.trigoctree import TrigOctree
 
 

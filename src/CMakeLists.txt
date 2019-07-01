@@ -10,7 +10,10 @@ cuda_add_library(fiontb
   dense_volume.cpp
   sparse_volume.cpp
   tsdf_fusion.cpp
-  surfel_fusion.cu)
+  kernel_surfel_intra_merge.cu
+  kernel_surfel_live_merge.cu
+  kernel_surfel_space_carving.cu
+  kernel_indexmap.cu)
 
 target_include_directories(fiontb
   PUBLIC

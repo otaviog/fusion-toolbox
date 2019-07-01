@@ -15,3 +15,6 @@ fiontb.viz.surfelrender:
 
 fiontb.filtering:
 	python3 -m fiontb.filtering
+
+fiontb.spatial.indexmap:
+	python3 -m fiontb.spatial.indexmap

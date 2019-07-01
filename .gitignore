@@ -12,7 +12,11 @@ compile_commands.json
 CMakeCache.txt
 
 _cfiontb.so
+_cfiontb.dll
 libfiontb.a
+libfiontb.lib
+test_fiontb
+*.exe
 
 *.out
 *.link

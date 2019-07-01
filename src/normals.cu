@@ -1,21 +1,18 @@
-#include "normals.hpp"
-
 #include <cuda_runtime.h>
 
-#include "eigen_common.hpp"
-
 #include "cuda_utils.hpp"
+#include "eigen_common.hpp"
+#include "math.hpp"
 
 // TODO: keep the code from Bad-SLAM?
 
 namespace fiontb {
 
 namespace {
-template <typename scalar_t>
 __global__ void ComputeCentralDifferences_gpu_kernel(
-    const PackedAccessor<scalar_t, 3> xyz_acc,
+    const PackedAccessor<float, 3> xyz_acc,
     const PackedAccessor<uint8_t, 2> mask_acc,
-    PackedAccessor<scalar_t, 3> normal_acc) {
+    PackedAccessor<float, 3> normal_acc) {
   const int iwidth = xyz_acc.size(1);
   const int iheight = xyz_acc.size(0);
 
@@ -29,31 +26,26 @@ __global__ void ComputeCentralDifferences_gpu_kernel(
 
   if (mask_acc[row][col] == 0) return;
 
-  Eigen::Vector3f center(xyz_acc[row][col][0], xyz_acc[row][col][1],
-                         xyz_acc[row][col][2]);
+  const Eigen::Vector3f center(to_vec3<float>(xyz_acc[row][col]));
 
   Eigen::Vector3f left = Eigen::Vector3f::Zero();
   if (col > 0 && mask_acc[row][col - 1] == 1) {
-    left = Eigen::Vector3f(xyz_acc[row][col - 1][0], xyz_acc[row][col - 1][1],
-                           xyz_acc[row][col - 1][2]);
+    left = Eigen::Vector3f(to_vec3<float>(xyz_acc[row][col - 1]));
   }
 
   Eigen::Vector3f right = Eigen::Vector3f::Zero();
   if (col < iwidth - 1 && mask_acc[row][col + 1] == 1) {
-    right = Eigen::Vector3f(xyz_acc[row][col + 1][0], xyz_acc[row][col + 1][1],
-                            xyz_acc[row][col + 1][2]);
+    right = Eigen::Vector3f(to_vec3<float>(xyz_acc[row][col + 1]));
   }
 
   Eigen::Vector3f top = Eigen::Vector3f::Zero();
   if (row > 0 && mask_acc[row - 1][col] == 1) {
-    top = Eigen::Vector3f(xyz_acc[row - 1][col][0], xyz_acc[row - 1][col][1],
-                          xyz_acc[row - 1][col][2]);
+    top = Eigen::Vector3f(to_vec3<float>(xyz_acc[row - 1][col]));
   }
 
   Eigen::Vector3f bottom = Eigen::Vector3f::Zero();
   if (row < iheight - 1 && mask_acc[row + 1][col] == 1) {
-    bottom = Eigen::Vector3f(xyz_acc[row + 1][col][0], xyz_acc[row + 1][col][1],
-                             xyz_acc[row + 1][col][2]);
+    bottom = Eigen::Vector3f(to_vec3<float>(xyz_acc[row + 1][col]));
   }
   constexpr float kRatioThreshold = 2.f;
   constexpr float kRatioThresholdSquared = kRatioThreshold * kRatioThreshold;
@@ -109,17 +101,11 @@ void ComputeCentralDifferences_gpu(const torch::Tensor xyz_image,
   const CudaKernelDims kern_dims =
       Get2DKernelDims(xyz_image.size(1), xyz_image.size(0));
 
-  AT_DISPATCH_ALL_TYPES(
-      xyz_image.scalar_type(), "ComputeCentralDifferences_gpu", ([&] {
-        ComputeCentralDifferences_gpu_kernel<<<kern_dims.grid,
-                                               kern_dims.block>>>(
-            xyz_image.packed_accessor<scalar_t, 3, torch::RestrictPtrTraits,
-                                      size_t>(),
-            mask_image.packed_accessor<uint8_t, 2, torch::RestrictPtrTraits,
-                                       size_t>(),
-            normals.packed_accessor<scalar_t, 3, torch::RestrictPtrTraits,
-                                    size_t>());
-      }));
+  ComputeCentralDifferences_gpu_kernel<<<kern_dims.grid, kern_dims.block>>>(
+      xyz_image.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      mask_image
+          .packed_accessor<uint8_t, 2, torch::RestrictPtrTraits, size_t>(),
+      normals.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>());
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());
 }

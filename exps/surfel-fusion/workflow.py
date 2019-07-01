@@ -23,16 +23,6 @@ class LoadFTB(rflow.Interface):
         return load_ftb(resource.filepath)
 
 
-class LoadMesh(rflow.Interface):
-    def evaluate(self, resource):
-        return self.load(resource)
-
-    def load(self, resource):
-        from tenviz.io import read_3dobject
-
-        return read_3dobject(resource.filepath)
-
-
 class ReconstructionStep:
     def __init__(self, fusion_ctx, odometry):
         self.fusion_ctx = fusion_ctx
@@ -55,7 +45,7 @@ class ReconstructionStep:
                 self.curr_rt_cam = frame_points.rt_cam
 
         self.fusion_ctx.fuse(
-            frame_points, kcam, self.curr_rt_cam)
+            frame_points, self.curr_rt_cam)
 
         self.count += 1
 
@@ -63,8 +53,11 @@ class ReconstructionStep:
 class FusionTask(rflow.Interface):
     def evaluate(self, resource, dataset, odometry, gt_mesh):
         from cProfile import Profile
+
         import torch
+
         import tenviz
+        from tenviz.io import write_3dobject
 
         from fiontb.fusion.surfel import SurfelModel, SurfelFusion
 
@@ -88,16 +81,25 @@ class FusionTask(rflow.Interface):
         loop.run()
         prof.disable()
         prof.dump_stats("surfel_fusion.prof")
+        final_model = surfel_model.to_surfel_cloud()
+        final_model.to("cpu")
+        write_3dobject(resource.filepath, final_model.points,
+                       normals=final_model.normals,
+                       colors=final_model.colors)
+
+    def load(self, resource):
+        pass
 
 
 class FusionDebug(rflow.Interface):
     def evaluate(self, dataset, odometry, gt_mesh):
         import torch
-        import tenviz
         import torchvision
         import torchvision.transforms as transforms
 
-        from fiontb.frame import FramePointCloud, compute_normals
+        import tenviz
+
+        from fiontb.frame import FramePointCloud, estimate_normals
         from fiontb.filtering import bilateral_filter_depth_image
         from fiontb.fusion.surfel import SurfelModel, SurfelFusion
         from fiontb.viz.surfelrender import show_surfels
@@ -136,22 +138,22 @@ class FusionDebug(rflow.Interface):
         fusion_ctx = SurfelFusion(surfel_model)
 
         stats = fusion_ctx.fuse(
-            frames[0], frames[0].kcam, frames[0].rt_cam, feats[0])
+            frames[0], frames[0].rt_cam, feats[0])
         f0_res = surfel_model.compact()
         print(stats)
 
         stats = fusion_ctx.fuse(
-            frames[1], frames[1].kcam, frames[1].rt_cam, feats[1])
+            frames[1], frames[1].rt_cam, feats[1])
         f1_res = surfel_model.compact()
         print(stats)
 
         stats = fusion_ctx.fuse(
-            frames[2], frames[2].kcam, frames[2].rt_cam, feats[2])
+            frames[2], frames[2].rt_cam, feats[2])
         f2_res = surfel_model.compact()
         print(stats)
 
         stats = fusion_ctx.fuse(
-            frames[3], frames[3].kcam, frames[3].rt_cam, feats[3])
+            frames[3], frames[3].rt_cam, feats[3])
         f3_res = surfel_model.compact()
         print(stats)
 
@@ -162,17 +164,17 @@ class FusionDebug(rflow.Interface):
                                f3_res], max_conf=max_conf.item(), max_time=4)
 
 
-class FeatureFusion(rflow.Interface):
-    def evaluate(self, dataset):
-        import ipdb
-        ipdb.set_trace()
-        return None
-
-
 @rflow.graph()
 def scene1(g):
+    import torch
+
+    from fiontb.nodes.processing import (LoadMesh, MeshToPCL)
+    from fiontb.nodes.evaluation import evaluation_graph
+
     g.dataset = LoadFTB(rflow.FSResource("scenenn-objs/scene1"))
+    g.dataset.show = False
     g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1.ply"))
+    g.gt_mesh.show = False
 
     g.fusion = FusionTask(rflow.FSResource("scene1.ply"))
     with g.fusion as args:
@@ -186,9 +188,11 @@ def scene1(g):
         args.odometry = None
         args.gt_mesh = g.gt_mesh
 
-    g.feat_fusion = FeatureFusion()
-    with g.feat_fusion as args:
-        args.dataset = g.dataset
+    g.gt_pcl = MeshToPCL()
+    g.gt_pcl.args.mesh_geo = g.gt_mesh
+    g.gt_pcl.show = False
+
+    evaluation_graph(g, g.fusion, g.gt_mesh, g.gt_pcl, init_mtx=torch.eye(4))
 
 
 @rflow.graph()

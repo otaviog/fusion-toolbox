@@ -70,7 +70,7 @@ class SurfelFusion:
 
         self._conf_compute_cache = _ConfidenceCache()
 
-    def fuse(self, frame_pcl, kcam, rt_cam, features=None):
+    def fuse(self, frame_pcl, rt_cam, features=None):
         device = "cuda:0"
 
         frame_confs = self._conf_compute_cache.get_confidences(frame_pcl)
@@ -85,14 +85,12 @@ class SurfelFusion:
             return FusionStats(live_surfels.size, 0, 0)
 
         proj = tenviz.projection_from_kcam(
-            kcam.matrix, 0.01, 10.0)
+            frame_pcl.kcam.matrix, 0.01, 10.0)
         proj_matrix = torch.from_numpy(proj.to_matrix()).float()
         height, width = frame_pcl.image_points.shape[:2]
 
-        debug = self._time == 90
-
         live_query = self.live_merge_map.find_mergeable(
-            live_surfels, proj_matrix, rt_cam, width, height, debug)
+            live_surfels, proj_matrix, rt_cam, width, height)
         live_idxs, model_idxs, live_unst_idxs, visible_model_idxs = live_query
 
         # model_idxs = model_idxs.to(device)

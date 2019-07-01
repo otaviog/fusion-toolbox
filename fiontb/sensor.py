@@ -4,7 +4,7 @@
 from enum import Enum
 import numpy as np
 
-import onireader
+# import onireader
 
 from fiontb.camera import KCamera
 from fiontb.frame import Frame, FrameInfo
@@ -27,7 +27,7 @@ class Sensor:
     """Sensor IO based on OpenNI2.
     """
 
-    def __init__(self, device: onireader.Device, device_type=None):
+    def __init__(self, device, device_type=None):
         self.device = device
         if device_type is None:
             device_type = DeviceType.ASUS_XTION

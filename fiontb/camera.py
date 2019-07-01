@@ -132,6 +132,9 @@ class KCamera:
         points[:, :2] /= z.reshape(-1, 1)
         return points
 
+    def to(self, device):
+        return KCamera(self.matrix.to(device))
+    
     @property
     def pixel_center(self):
         """Center pixel.

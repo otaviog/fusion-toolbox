@@ -7,6 +7,7 @@
 
 #include "dense_volume.hpp"
 #include "filtering.hpp"
+#include "indexmap.hpp"
 #include "metrics.hpp"
 #include "normals.hpp"
 #include "sparse_volume.hpp"
@@ -49,4 +50,6 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("surfel_cave_free_space", &CarveSpace);
   m.def("surfel_merge_redundant", &MergeRedundant);
   m.def("surfel_find_live_to_model_merges", &FindLiveToModelMerges);
+
+  m.def("raster_indexmap", &RasterIndexmap);
 }

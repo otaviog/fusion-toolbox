@@ -44,7 +44,7 @@ class PointCloud:
         self.points = Homogeneous(matrix) @ self.points
         normal_matrix = normal_transform_matrix(matrix)
 
-        if self.normals.size > 0:
+        if self.normals.numel() > 0:
             self.normals = (
                 normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
 
@@ -76,7 +76,7 @@ class PointCloud:
         pcl.points = Vector3dVector(self.points.squeeze())
         pcl.colors = Vector3dVector(self.colors.squeeze())
 
-        if self.normals.size > 0:
+        if self.normals.numel() > 0:
             pcl.normals = Vector3dVector(self.normals)
         elif compute_normals:
             estimate_normals(pcl, search_param=KDTreeSearchParamHybrid(

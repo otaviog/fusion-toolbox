@@ -1,7 +1,6 @@
-c"""Frame data types.
+"""Frame data types.
 """
 
-import numpy as np
 import torch
 
 from fiontb._cfiontb import estimate_normals as _estimate_normals
@@ -99,7 +98,8 @@ class Frame:
          bool or uint8.
     """
 
-    def __init__(self, info: FrameInfo, depth_image, rgb_image=None, fg_mask=None, normal_image=None):
+    def __init__(self, info: FrameInfo, depth_image, rgb_image=None,
+                 fg_mask=None, normal_image=None):
         self.info = info
         self.depth_image = depth_image
         self.rgb_image = rgb_image
@@ -115,7 +115,7 @@ class _DepthImagePointCloud:
 
         self.depth_mask = depth_image > 0
         device = self.depth_image.device
-    
+
         self.kcam = finfo.kcam
 
         ys, xs = torch.meshgrid(torch.arange(self.depth_image.size(0), dtype=torch.float),
@@ -166,8 +166,11 @@ class FramePointCloud(_DepthImagePointCloud):
     @property
     def normals(self):
         if self._normals is None:
-            self._normals = _calculate_depth_normals(
-                self.points, self.depth_mask)
+            self._normals = torch.empty(self.points.size(0), self.points.size(1), 3,
+                                        dtype=self.points.dtype, device=self.points.device)
+            _estimate_normals(
+                self.points, self.depth_mask, self._normals,
+                EstimateNormalsMethod.CentralDifferences)
 
         return self._normals
 

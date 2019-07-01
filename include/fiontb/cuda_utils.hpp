@@ -14,13 +14,6 @@
 
 namespace fiontb {
 
-#ifdef __CUDACC__
-template <typename scalar_t, int dims>
-using PackedAccessor =
-    torch::PackedTensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
-                                size_t>;
-#endif
-
 inline void _CudaSafeCall(cudaError err, const char *file, const int line) {
   if (err != cudaSuccess) {
     std::stringstream msg;
@@ -47,6 +40,15 @@ struct CudaKernelDims {
   dim3 block;
 };
 
+CudaKernelDims Get1DKernelDims(int size);
+  
 CudaKernelDims Get2DKernelDims(int width, int height);
+
+#ifdef __CUDACC__
+template <typename scalar_t, unsigned long dims>
+using PackedAccessor =
+    torch::PackedTensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
+                                size_t>;
+#endif
 
 }  // namespace fiontb

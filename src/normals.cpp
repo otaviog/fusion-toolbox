@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "eigen_common.hpp"
+#include "math.hpp"
 
 namespace fiontb {
 
@@ -38,9 +39,9 @@ void ComputeAverage8(const torch::Tensor xyz_image,
       n_acc[row][col][0] = n_acc[row][col][1] = n_acc[row][col][2] = 0.0f;
 
       if (mask_a[row][col] == 0) continue;
+      auto a = xyz_a[row][col];
 
-      Eigen::Vector3f center(xyz_a[row][col][0], xyz_a[row][col][1],
-                             xyz_a[row][col][2]);
+      Eigen::Vector3f center(to_vec3<float>(xyz_a[row][col]));
       Eigen::Vector3f norm(0, 0, 0);
       int count = 0;
 
@@ -62,11 +63,8 @@ void ComputeAverage8(const torch::Tensor xyz_image,
 
         if (mask_a[r2][c2] == 0) continue;
 
-        norm += GetNormal(center,
-                          Eigen::Vector3f(xyz_a[r2][c2][0], xyz_a[r2][c2][1],
-                                          xyz_a[r2][c2][2]),
-                          Eigen::Vector3f(xyz_a[r1][c1][0], xyz_a[r1][c1][1],
-                                          xyz_a[r1][c1][2]));
+        norm += GetNormal(center, to_vec3<float>(xyz_a[r2][c2]),
+                          to_vec3<float>(xyz_a[r1][c1]));
         ++count;
       }
       if (count > 0) {
@@ -80,13 +78,11 @@ void ComputeAverage8(const torch::Tensor xyz_image,
   }
 }
 
-template <typename scalar_t>
 void ComputeCentralDifferences_cpu_kernel(const torch::Tensor xyz_image,
                                           const torch::Tensor mask_image,
                                           torch::Tensor out_normals) {
-  auto n_acc = out_normals.accessor<scalar_t, 3>();
-
-  const auto xyz_acc = xyz_image.accessor<scalar_t, 3>();
+  auto n_acc = out_normals.accessor<float, 3>();
+  const auto xyz_acc = xyz_image.accessor<float, 3>();
   const auto mask_acc = mask_image.accessor<uint8_t, 2>();
 
   const int iwidth = xyz_image.size(1);
@@ -98,35 +94,30 @@ void ComputeCentralDifferences_cpu_kernel(const torch::Tensor xyz_image,
 
       if (mask_acc[row][col] == 0) continue;
 
-      const Eigen::Vector3f center(xyz_acc[row][col][0], xyz_acc[row][col][1],
-                                   xyz_acc[row][col][2]);
+      const Eigen::Vector3f center(to_vec3<float>(xyz_acc[row][col]));
 
       Eigen::Vector3f left = Eigen::Vector3f::Zero();
       if (col > 0 && mask_acc[row][col - 1] == 1) {
         left =
-            Eigen::Vector3f(xyz_acc[row][col - 1][0], xyz_acc[row][col - 1][1],
-                            xyz_acc[row][col - 1][2]);
+            Eigen::Vector3f(to_vec3<float>(xyz_acc[row][col - 1]));
       }
 
       Eigen::Vector3f right = Eigen::Vector3f::Zero();
       if (col < iwidth - 1 && mask_acc[row][col + 1] == 1) {
         right =
-            Eigen::Vector3f(xyz_acc[row][col + 1][0], xyz_acc[row][col + 1][1],
-                            xyz_acc[row][col + 1][2]);
+            Eigen::Vector3f(to_vec3<float>(xyz_acc[row][col + 1]));
       }
 
       Eigen::Vector3f top = Eigen::Vector3f::Zero();
       if (row > 0 && mask_acc[row - 1][col] == 1) {
         top =
-            Eigen::Vector3f(xyz_acc[row - 1][col][0], xyz_acc[row - 1][col][1],
-                            xyz_acc[row - 1][col][2]);
+            Eigen::Vector3f(to_vec3<float>(xyz_acc[row - 1][col]));
       }
 
       Eigen::Vector3f bottom = Eigen::Vector3f::Zero();
       if (row < iheight - 1 && mask_acc[row + 1][col] == 1) {
         bottom =
-            Eigen::Vector3f(xyz_acc[row + 1][col][0], xyz_acc[row + 1][col][1],
-                            xyz_acc[row + 1][col][2]);
+            Eigen::Vector3f(to_vec3<float>(xyz_acc[row + 1][col]));
       }
 
       constexpr float kRatioThreshold = 2.f;
@@ -187,11 +178,7 @@ void ComputeCentralDifferences(const torch::Tensor xyz_image,
   if (xyz_image.is_cuda()) {
     ComputeCentralDifferences_gpu(xyz_image, mask_image, out_normals);
   } else {
-    return AT_DISPATCH_ALL_TYPES(
-        xyz_image.scalar_type(), "CompNormalsCentralDiff_cpu_kernel", ([&] {
-          ComputeCentralDifferences_cpu_kernel<scalar_t>(xyz_image, mask_image,
-                                                         out_normals);
-        }));
+    ComputeCentralDifferences_cpu_kernel(xyz_image, mask_image, out_normals);
   }
 }
 }  // namespace

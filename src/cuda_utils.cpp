@@ -6,4 +6,11 @@ CudaKernelDims Get2DKernelDims(int width, int height) {
   dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
   return CudaKernelDims(grid_size, block_dim);
 }
+
+CudaKernelDims Get1DKernelDims(int size) {
+  const int block_size = 128;
+  const int num_blocks = size / block_size + 1;
+
+  return CudaKernelDims(dim3(num_blocks), dim3(block_size));
+}
 }  // namespace fiontb
