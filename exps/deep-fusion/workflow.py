@@ -244,11 +244,13 @@ class ConvResidual(rflow.Interface):
             feat_img0 = model(
                 vgg_norm(frame0.rgb_image).unsqueeze(0))
             feat_img0 = upsample(feat_img0, scale_factor=scale)
+
             feat_img0 = feat_img0.squeeze().transpose(0, 2).transpose(0, 1)
             feats0 = feat_img0.squeeze().reshape(-1, 64)
 
             feat_img1 = model(
                 vgg_norm(frame1.rgb_image).unsqueeze(0))
+
             feat_img1 = upsample(feat_img1, scale_factor=scale)
             feat_img1 = feat_img1.squeeze().transpose(0, 2).transpose(0, 1)
             feats1 = feat_img1.squeeze().reshape(-1, 64)
@@ -422,6 +424,11 @@ class PointNetResidual(rflow.Interface):
         plt.figure()
         plt.title("PointNet Residual frames {} - {}".format(frame_num0, frame_num1))
         plt.imshow(residual)
+
+        plt.figure()
+        plt.title("Geom Residual")
+        plt.imshow(geom_residual)
+
         plt.show()
 
 
