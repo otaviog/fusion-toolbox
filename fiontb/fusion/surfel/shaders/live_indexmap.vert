@@ -12,6 +12,7 @@ uniform mat3 NormalModelview;
 out Surfel {
   vec3 pos;
   vec4 normal_rad;
+  vec3 color;
   flat int index;
 } surfel;
 

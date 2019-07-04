@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 
 import tenviz
 
+from fiontb.frame import Frame
+
 _SHADER_DIR = Path(__file__).parent / "shaders"
 
 
@@ -156,6 +158,7 @@ class ModelIndexMap:
 
             self.render_surfels_prg['in_point'] = surfel_model.points
             self.render_surfels_prg['in_normal'] = surfel_model.normals
+            self.render_surfels_prg['in_color'] = surfel_model.colors
             self.render_surfels_prg['in_conf'] = surfel_model.confs
             self.render_surfels_prg['in_radius'] = surfel_model.radii
             self.render_surfels_prg['in_time'] = surfel_model.times
@@ -168,10 +171,12 @@ class ModelIndexMap:
             self.framebuffer = tenviz.create_framebuffer({
                 0: tenviz.FramebufferTarget.RGBFloat,  # pos
                 1: tenviz.FramebufferTarget.RGBAFloat,  # normal + radius
-                2: tenviz.FramebufferTarget.RGBInt32  # indexes + existence
+                2: tenviz.FramebufferTarget.RGBInt32,  # indexes + existence
+                3: tenviz.FramebufferTarget.RGBUint8
             })
 
         self.surfel_model = surfel_model
+        self.is_rasterized = False
 
     def raster(self, proj_matrix, rt_cam, width, height,
                stable_conf_thresh, time):
@@ -197,10 +202,10 @@ class ModelIndexMap:
             self.render_surfels_prg['Time'] = int(time)
 
         context.set_clear_color(0, 0, 0, 0)
-        context.render(proj_matrix,
-                       rt_cam.opengl_view_cam,
+        context.render(proj_matrix, rt_cam.opengl_view_cam,
                        self.framebuffer,
                        [self.render_surfels_prg], width, height)
+        self.is_rasterized = True
 
     @property
     def pos_tex(self):
@@ -233,6 +238,21 @@ class ModelIndexMap:
 
         return self.framebuffer[2]
 
+    @property
+    def color_tex(self):
+        return self.framebuffer[3]
+
+    def to_frame(self, frame_info):
+        with self.surfel_model.context.current():
+            depth = self.pos_tex.to_tensor()[:, :, 2]
+            color = self.color_tex.to_tensor()
+
+        depth = (depth*(1.0 / frame_info.depth_scale)
+                 + frame_info.depth_bias).round().int().cpu().numpy()
+        color = color.cpu().numpy()
+
+        return Frame(frame_info, depth, color)
+        
     def show_debug(self, title, debug=True):
         """Helper function for quickly display the framebuffers in pyplot.
 

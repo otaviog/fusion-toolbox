@@ -158,6 +158,24 @@ class ChamferMetric(rflow.Interface):
         self.save_measurement(result)
         print(result)
 
+class NearestPoints(rflow.Interface):
+    def evaluate(self, resource, rec_geo, gt_mesh):
+        import torch
+        
+        from fiontb.metrics.mesh import mesh_accuracy
+        from fiontb.spatial.trigoctree import TrigOctree
+
+        tree = TrigOctree(gt_mesh.verts,
+                          gt_mesh.faces.long(), 1024)
+        gt_points, _ = tree.query_closest_points(rec_geo.verts)
+
+        torch.save(gt_points, resource.filepath)
+        return gt_points
+    
+    def load(self, resource):
+        import torch
+        return torch.load(resource.filepath)
+        
 
 class AccuracyMetric(rflow.Interface):
     def evaluate(self, rec_geo, gt_mesh, thresh_dist):
@@ -173,7 +191,29 @@ class AccuracyMetric(rflow.Interface):
         self.save_measurement(result)
         print(result)
 
+class HeatMapMesh(rflow.Interface):
+    def evaluate(self, resource, nearest_points, rec_geo):
+        from matplotlib.pyplot import get_cmap
+        import numpy as np
+        import tenviz.io
+        
+        distances = (rec_geo.verts - nearest_points).norm(dim=1)
 
+        distances /= distances.max()
+        distances *= 256
+        
+        cmap = get_cmap('inferno')        
+        colors = cmap(distances, 256)
+        
+        colors = (colors[:, :3]*255).astype(np.uint8)
+
+        tenviz.io.write_3dobject(resource.filepath, rec_geo.verts, normals=rec_geo.normals,
+                                 colors=colors)
+        
+        
+    def load(self, resource):
+        pass
+        
 def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
     import torch
     from .processing import LoadMesh
@@ -246,3 +286,15 @@ def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
         args.gt_mesh = gt_cad_mesh
         args.rec_geo = sub.local_reg[0]
         args.thresh_dist = 0.05
+
+    sub.nearest_points = NearestPoints(rflow.FSResource(
+        result_model_filepath.with_suffix('.nearest.ply')))
+    with sub.nearest_points as args:
+        args.rec_geo = sub.local_reg[0]
+        args.gt_mesh = gt_cad_mesh
+
+    sub.heat_map = HeatMapMesh(rflow.FSResource(
+        result_model_filepath.with_suffix('.hmap.ply')))
+    with sub.heat_map as args:
+        args.nearest_points = sub.nearest_points
+        args.rec_geo = sub.local_reg[0]

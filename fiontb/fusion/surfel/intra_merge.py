@@ -16,6 +16,7 @@ from ._ckernels import surfel_merge_redundant
 class IntraModelMergeMap(ModelIndexMap):
     """Finds and merge surfel that are too close.
     """
+
     def __init__(self, surfel_model):
         super(IntraModelMergeMap, self).__init__(surfel_model)
 

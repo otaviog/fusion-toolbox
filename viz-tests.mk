@@ -18,3 +18,6 @@ fiontb.filtering:
 
 fiontb.spatial.indexmap:
 	python3 -m fiontb.spatial.indexmap
+
+fiontb.pose.open3d:
+	python3 -m fiontb.pose.open3d

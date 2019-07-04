@@ -193,7 +193,6 @@ class FramePointCloud(_DepthImagePointCloud):
 
         return pcl
 
-
 def estimate_normals(depth_image, frame_info, mask,
                      method=EstimateNormalsMethod.CentralDifferences,
                      out_tensor=None):

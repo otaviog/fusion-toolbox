@@ -68,8 +68,7 @@ class SurfelCloud:
                            dtype=torch.int32).to(device)
 
         if features is not None:
-            features = features[torch.from_numpy(
-                frame_pcl.fg_mask.flatten())].to(device)
+            features = features[frame_pcl.fg_mask.flatten()].to(device)
 
         return cls(cam_pcl.points.to(device),
                    cam_pcl.colors.to(device),

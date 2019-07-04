@@ -24,7 +24,7 @@ class IndexMap:
         self.indexmap[:] = -1
         self.depth_buffer[:] = -1
         raster_indexmap(points, proj_matrix, self.indexmap, self.depth_buffer)
-
+        return self.indexmap
 
 def _test():
     from pathlib import Path

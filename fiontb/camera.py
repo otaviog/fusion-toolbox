@@ -262,8 +262,8 @@ class RTCamera:
     def opengl_view_cam(self):
         return _GL_HAND_MTX @ self.world_to_cam
 
-    def integrate(self, rt_cam):
-        self.matrix = rt_cam.matrix @ self.matrix
+    def integrate(self, matrix):
+        return RTCamera(matrix @ self.matrix)
 
     def translate(self, tx, ty, tz):
         return RTCamera(self.matrix @ torch.tensor([[1, 0, 0, tx],

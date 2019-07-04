@@ -5,9 +5,20 @@ import json
 
 import cv2
 from tqdm import tqdm
+import torch
 import numpy as np
 
 from fiontb.frame import Frame, FrameInfo
+from fiontb.camera import RTCamera
+
+
+def load_trajectory(json_file):
+    with open(str(json_file), 'r') as file:
+        json_dict = json.load(file)
+
+    trajectory = [RTCamera(torch.tensor(traj['rt_cam'])) for traj in json_dict]
+
+    return trajectory
 
 
 def write_ftb(base_path, dataset, prefix="frame_", max_frames=None, start_frame=0):

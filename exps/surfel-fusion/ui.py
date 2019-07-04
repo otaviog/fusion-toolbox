@@ -68,7 +68,8 @@ class SensorFrameUI:
     def update(self, frame):
         self.frame = frame
         if frame.normal_image is not None:
-            self.normal_image = convert_normals_to_rgb(frame.normal_image.cpu())
+            self.normal_image = convert_normals_to_rgb(
+                frame.normal_image.cpu())
         self._update(0)
 
 
@@ -100,9 +101,10 @@ class MainLoop:
         self.viewer.reset_view()
         self.surfel_model = surfel_model
 
-        # inv_y = np.eye(4, dtype=np.float32)
-        # inv_y[1, 1] *= -1
-        # surfel_render.set_transform(torch.from_numpy(inv_y))
+        inv_y = torch.eye(4, dtype=torch.float32)
+        inv_y[1, 1] = -1
+        inv_y[0, 0] = -1
+        # self.surfel_render.set_transform(inv_y)
 
         self.sensor_ui = SensorFrameUI("Sensor View")
         print("M - toggle play/step modes")
@@ -146,14 +148,14 @@ class MainLoop:
                 filtered_depth_image = bilateral_filter_depth_image(
                     torch.from_numpy(frame.depth_image).to(device),
                     mask, depth_scale=frame.info.depth_scale)
-                
+
                 frame_pcl.normals = estimate_normals(filtered_depth_image, frame.info,
                                                      mask).cpu()
 
                 frame.normal_image = frame_pcl.normals
                 self.sensor_ui.update(frame)
 
-                self.rec_step.step(frame.info.kcam, frame_pcl)
+                self.rec_step.step(frame, frame_pcl)
                 self.surfel_model.context.set_clear_color(0.32, 0.34, 0.87, 1)
 
                 if use_camera_view:
@@ -208,5 +210,3 @@ class MainLoop:
                     ipdb.set_trace()
 
         cv2.destroyAllWindows()
-
-
