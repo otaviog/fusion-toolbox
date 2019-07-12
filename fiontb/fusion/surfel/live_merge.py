@@ -7,7 +7,7 @@ import torch
 import matplotlib.pyplot as plt
 
 from .indexmap import LiveIndexMap, ModelIndexMap
-from ._ckernels import surfel_find_live_to_model_merges
+from ._ckernels import surfel_find_live_to_model_merges, surfel_find_feat_live_to_model_merges
 
 _SHADER_DIR = Path(__file__).parent / "shaders"
 
@@ -43,10 +43,15 @@ class LiveToModelMergeMap:
             live_features = surfel_cloud.features
             model_features = self.model_raster.surfel_model.features
 
-        merge_map = surfel_find_live_to_model_merges(
-            live_pos, live_normals, live_idxs, live_features,
-            model_pos, model_normals, model_idxs, model_features,
-            0.5, False)
+        if surfel_cloud.features is None:
+            merge_map = surfel_find_live_to_model_merges(
+                live_pos, live_normals, live_idxs,
+                model_pos, model_normals, model_idxs, 0.5)
+        else:
+            merge_map = surfel_find_feat_live_to_model_merges(
+                live_pos, live_normals, live_idxs, live_features,
+                model_pos, model_normals, model_idxs, model_features,
+                0.5)
 
         if debug:
             plt.figure("Merge map")

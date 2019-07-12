@@ -216,8 +216,7 @@ class ConvResidual(rflow.Interface):
 
     def evaluate(self, dataset, frame_num0, frame_num1, net, odo='gt'):
         from torch.nn.functional import upsample
-        import torchvision
-        import torchvision.transforms as transforms
+        import torchvision as tv
 
         from fiontb.frame import FramePointCloud
         from fiontb.spatial.indexmap import IndexMap
@@ -227,9 +226,9 @@ class ConvResidual(rflow.Interface):
         frame1 = dataset[frame_num1]
 
         net_map = {
-            'vgg16': (torchvision.models.vgg16, 4, 1.0),
-            'resnet152': (torchvision.models.resnet152, 1, 1.0),
-            'densenet201': (torchvision.models.densenet201, 3, 2.0)
+            'vgg16': (tv.models.vgg16, 4, 1.0),
+            'resnet152': (tv.models.resnet152, 1, 1.0),
+            'densenet201': (tv.models.densenet201, 3, 2.0)
         }
         model_factory, layer, scale = net_map[net]
 
@@ -237,9 +236,9 @@ class ConvResidual(rflow.Interface):
 
         model = model.eval()
         model = model.features[:layer]
-        vgg_norm = transforms.Compose([transforms.ToTensor(),
-                                       transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                            std=[0.229, 0.224, 0.225])])
+        vgg_norm = tv.transforms.Compose([tv.ToTensor(),
+                                          tv.Normalize(mean=[0.485, 0.456, 0.406],
+                                                       std=[0.229, 0.224, 0.225])])
 
         with torch.no_grad():
             feat_img0 = model(
@@ -273,7 +272,8 @@ class ConvResidual(rflow.Interface):
         residual = _get_feat_residual(feats0, idxmap0, feats1, idxmap1)
 
         plt.figure()
-        plt.title("{} Residual {} {} - {}".format(net, odo, frame_num0, frame_num1))
+        plt.title("{} Residual {} {} - {}".format(net,
+                                                  odo, frame_num0, frame_num1))
         plt.imshow(residual)
         plt.show()
 

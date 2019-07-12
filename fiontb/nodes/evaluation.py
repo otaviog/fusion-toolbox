@@ -4,6 +4,7 @@ from pathlib import Path
 
 import rflow
 
+
 class InitialAlign(rflow.Interface):
     def evaluate(self, resource, fixed_pcl, mov_geo,
                  initial_matrix):
@@ -158,10 +159,11 @@ class ChamferMetric(rflow.Interface):
         self.save_measurement(result)
         print(result)
 
+
 class NearestPoints(rflow.Interface):
     def evaluate(self, resource, rec_geo, gt_mesh):
         import torch
-        
+
         from fiontb.metrics.mesh import mesh_accuracy
         from fiontb.spatial.trigoctree import TrigOctree
 
@@ -171,11 +173,11 @@ class NearestPoints(rflow.Interface):
 
         torch.save(gt_points, resource.filepath)
         return gt_points
-    
+
     def load(self, resource):
         import torch
         return torch.load(resource.filepath)
-        
+
 
 class AccuracyMetric(rflow.Interface):
     def evaluate(self, rec_geo, gt_mesh, thresh_dist):
@@ -191,29 +193,34 @@ class AccuracyMetric(rflow.Interface):
         self.save_measurement(result)
         print(result)
 
+
 class HeatMapMesh(rflow.Interface):
     def evaluate(self, resource, nearest_points, rec_geo):
         from matplotlib.pyplot import get_cmap
+        from matplotlib.colors import Normalize
         import numpy as np
+
         import tenviz.io
-        
+
         distances = (rec_geo.verts - nearest_points).norm(dim=1)
+        distances = np.array(Normalize()(distances.numpy()))
 
-        distances /= distances.max()
-        distances *= 256
-        
-        cmap = get_cmap('inferno')        
-        colors = cmap(distances, 256)
-        
+        cmap = get_cmap('plasma', distances.size)
+        colors = cmap(distances)
+
         colors = (colors[:, :3]*255).astype(np.uint8)
-
+        rec_geo.colors = colors
         tenviz.io.write_3dobject(resource.filepath, rec_geo.verts, normals=rec_geo.normals,
                                  colors=colors)
-        
-        
+
+        return rec_geo.torch()
+
     def load(self, resource):
-        pass
-        
+        import tenviz.io
+
+        return tenviz.io.read_3dobject(resource.filepath).torch()
+
+
 def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
     import torch
     from .processing import LoadMesh
@@ -237,7 +244,7 @@ def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
             init_mtx[0, 0] = -1
             init_mtx[1, 1] = -1
             init_mtx[2, 2] = 1
-            
+
         args.initial_matrix = init_mtx.tolist()
 
     sub.init_align_view = ViewAlignment()
@@ -298,3 +305,8 @@ def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
     with sub.heat_map as args:
         args.nearest_points = sub.nearest_points
         args.rec_geo = sub.local_reg[0]
+
+    sub.view_heat_map = ViewAlignment()
+    with sub.view_heat_map as args:
+        args.fixed_geo = gt_pcl
+        args.mov_geo = sub.heat_map

@@ -4,19 +4,12 @@
 # pylint: disable=missing-docstring
 
 import torch
-import numpy as np
-
-import torchvision
-import torchvision.transforms as transforms
 
 import rflow
 
 from fiontb.camera import RTCamera
 import fiontb.fusion
 import fiontb.pose.open3d
-
-from odometry import FrameToFrameOdometry, ViewOdometry
-from ui import MainLoop, RunMode
 
 
 class LoadFTB(rflow.Interface):
@@ -29,100 +22,114 @@ class LoadFTB(rflow.Interface):
         return load_ftb(resource.filepath)
 
 
-class ReconstructionStep:
-    def __init__(self, fusion_ctx, odometry):
-        self.fusion_ctx = fusion_ctx
-        self.odometry = odometry
-        self.count = 0
-        self.curr_rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
-        self.use_gt = True
+class _Odometry:
+    def __init__(self, mode, fusion_ctx):
+        self.use_gt = False
         self.prev_frame = None
+        self.mode = mode
+        self.fusion_ctx = fusion_ctx
 
-        model = torchvision.models.vgg16(pretrained=True)
-        model = model.eval()
-        self.model = model.features[:4]
-        self.vgg_norm = transforms.Compose([transforms.ToTensor(),
-                                            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                                 std=[0.229, 0.224, 0.225])])
+    def estimate(self, frame):
+        if self.mode == "frame-to-frame":
+            if self.prev_frame is not None:
+                relative_cam = fiontb.pose.open3d.estimate_odometry(
+                    self.prev_frame, frame)
+            else:
+                relative_cam = torch.eye(4, dtype=torch.float32)
 
-
-    def step(self, frame, frame_points):
-        if self.odometry is not None:
-            self.curr_rt_cam = RTCamera(
-                torch.tensor(self.odometry[self.count]['rt_cam'], dtype=np.float32))
-        elif self.use_gt:
-            self.curr_rt_cam = frame_points.rt_cam
-        elif False:
+            self.prev_frame = frame
+            return relative_cam
+        elif self.mode == "frame-to-model":
             if self.fusion_ctx.pose_indexmap.is_rasterized:
                 source_frame = self.fusion_ctx.pose_indexmap.to_frame(
                     frame.info)
 
-                if False:
-                    import matplotlib.pyplot as plt
-                    plt.figure()
-                    plt.imshow(source_frame.depth_image)
+            if False:
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.imshow(source_frame.depth_image)
 
-                    plt.figure()
-                    plt.imshow(source_frame.rgb_image)
+                plt.figure()
+                plt.imshow(source_frame.rgb_image)
 
-                    plt.show()
+                plt.show()
 
-                relative_cam = fiontb.pose.open3d.estimate_odometry(
-                    source_frame, frame)
-                self.curr_rt_cam = self.curr_rt_cam.integrate(relative_cam)
-        elif True:
+            return fiontb.pose.open3d.estimate_odometry(
+                source_frame, frame)
+        elif self.mode == "ground-truth":
             if self.prev_frame is not None:
-                relative_cam = fiontb.pose.open3d.estimate_odometry(
-                    self.prev_frame, frame)
-                self.curr_rt_cam = self.curr_rt_cam.integrate(relative_cam)
+                relative_cam = (frame.info.rt_cam.cam_to_world
+                                @ self.prev_frame.info.rt_cam.world_to_cam)
 
-        self.prev_frame = frame
+            else:
+                relative_cam = frame.info.rt_cam.cam_to_world
 
-        # with torch.no_grad():
-        if False:
-            feat = self.model(self.vgg_norm(frame.rgb_image).unsqueeze(0))
-            feat = feat.squeeze().transpose(0, 2).transpose(0, 1)
-            feat = feat.squeeze().reshape(-1, 64)
-
-        self.fusion_ctx.fuse(
-            frame_points, self.curr_rt_cam,
-            # features=feat.to("cuda:0")
-        )
-
-        self.count += 1
+            self.prev_frame = frame
+            return relative_cam
 
 
 class FusionTask(rflow.Interface):
-    def evaluate(self, resource, dataset, odometry, gt_mesh):
+    def evaluate(self, resource, dataset, gt_mesh):
         from cProfile import Profile
 
         import tenviz
         from tenviz.io import write_3dobject
 
+        from fiontb.frame import FramePointCloud, estimate_normals
+        from fiontb.filtering import bilateral_filter_depth_image
         from fiontb.fusion.surfel import SurfelModel, SurfelFusion
+        from fiontb.sensor import DatasetSensor
+        from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
 
         device = "cuda:0"
         torch.rand(4, 4).to(device)  # init torch cuda
-        sensor = fiontb.sensor.DatasetSensor(dataset)
+
+        sensor = DatasetSensor(dataset)
 
         context = tenviz.Context(dataset[0].depth_image.shape[1],
                                  dataset[0].depth_image.shape[0])
 
-        surfel_model = SurfelModel(context, 1024*1024*5, "cuda:0", 64)
+        surfel_model = SurfelModel(context, 1024*1024*5, "cuda:0")
         fusion_ctx = SurfelFusion(surfel_model)
-        step = ReconstructionStep(fusion_ctx, odometry)
 
-        loop = MainLoop(sensor, surfel_model, step, fusion_ctx,
-                        max_frames=None, run_mode=RunMode.STEP,
-                        # gt_mesh=gt_mesh.torch()
-                        )
+        sensor_ui = FrameUI("Frame Control")
+        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP)
+
+        device = "cuda:0"
+        rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
+        odometry = _Odometry("ground-truth", fusion_ctx)
+
         prof = Profile()
         prof.enable()
-        loop.run()
+        for _ in rec_ui:
+            frame = sensor.next_frame()
+            if frame is None:
+                continue
+
+            live_fpcl = FramePointCloud(frame)
+            mask = live_fpcl.depth_mask.to(device)
+
+            filtered_depth_image = bilateral_filter_depth_image(
+                torch.from_numpy(frame.depth_image).to(device),
+                mask, depth_scale=frame.info.depth_scale)
+
+            live_fpcl.normals = estimate_normals(filtered_depth_image, frame.info,
+                                                 mask).cpu()
+
+            frame.normal_image = live_fpcl.normals
+
+            sensor_ui.update(frame)
+
+            relative_cam = odometry.estimate(frame)
+
+            rt_cam = rt_cam.integrate(relative_cam)
+
+            fusion_ctx.fuse(live_fpcl, rt_cam)
+
         prof.disable()
         prof.dump_stats("surfel_fusion.prof")
+
         final_model = surfel_model.to_surfel_cloud()
-        final_model.to("cpu")
         write_3dobject(resource.filepath, final_model.points,
                        normals=final_model.normals,
                        colors=final_model.colors)
@@ -143,9 +150,10 @@ class FusionDebug(rflow.Interface):
         model = torchvision.models.vgg16(pretrained=True)
         model = model.eval()
         model = model.features[:4]
-        vgg_norm = transforms.Compose([transforms.ToTensor(),
-                                       transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                            std=[0.229, 0.224, 0.225])])
+        vgg_norm = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                             std=[0.229, 0.224, 0.225])])
 
         device = "cuda:0"
         torch.rand(4, 4).to(device)  # init torch cuda
@@ -203,6 +211,89 @@ class FusionDebug(rflow.Interface):
                                f3_res], max_conf=max_conf.item(), max_time=4)
 
 
+class DeepFusionTask(rflow.Interface):
+    def evaluate(self, resource, dataset, gt_mesh):
+        from cProfile import Profile
+
+        import torchvision
+
+        import tenviz
+        from tenviz.io import write_3dobject
+
+        from fiontb.frame import FramePointCloud, estimate_normals
+        from fiontb.filtering import bilateral_filter_depth_image
+        from fiontb.fusion.surfel import SurfelModel, SurfelFusion
+        from fiontb.sensor import DatasetSensor
+        from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
+
+        device = "cuda:0"
+        torch.rand(4, 4).to(device)  # init torch cuda
+
+        sensor = DatasetSensor(dataset)
+
+        context = tenviz.Context(dataset[0].depth_image.shape[1],
+                                 dataset[0].depth_image.shape[0])
+
+        surfel_model = SurfelModel(context, 1024*1024*2, "cuda:0", 64)
+        fusion_ctx = SurfelFusion(surfel_model)
+
+        sensor_ui = FrameUI("Frame Control")
+        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP)
+
+        device = "cuda:0"
+        rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
+        odometry = _Odometry("ground-truth", fusion_ctx)
+
+        model = torchvision.models.vgg16(pretrained=True)
+        model = model.eval().features[:4]
+        vgg_norm = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                             std=[0.229, 0.224, 0.225])])
+
+        prof = Profile()
+        prof.enable()
+        for _ in rec_ui:
+            frame = sensor.next_frame()
+            if frame is None:
+                continue
+
+            live_fpcl = FramePointCloud(frame)
+            mask = live_fpcl.depth_mask.to(device)
+
+            filtered_depth_image = bilateral_filter_depth_image(
+                torch.from_numpy(frame.depth_image).to(device),
+                mask, depth_scale=frame.info.depth_scale)
+
+            live_fpcl.normals = estimate_normals(filtered_depth_image, frame.info,
+                                                 mask).cpu()
+
+            frame.normal_image = live_fpcl.normals
+
+            sensor_ui.update(frame)
+
+            relative_cam = odometry.estimate(frame)
+            rt_cam = rt_cam.integrate(relative_cam)
+
+            with torch.no_grad():
+                feats = model(
+                    vgg_norm(frame.rgb_image).unsqueeze(0)).squeeze()
+                feats = feats.transpose(0, 2).transpose(0, 1).reshape(-1, 64)
+
+            fusion_ctx.fuse(live_fpcl, rt_cam, feats)
+
+        prof.disable()
+        prof.dump_stats("surfel_fusion.prof")
+
+        final_model = surfel_model.to_surfel_cloud()
+        write_3dobject(resource.filepath, final_model.points,
+                       normals=final_model.normals,
+                       colors=final_model.colors)
+
+    def load(self, resource):
+        pass
+
+
 @rflow.graph()
 def scene1(g):
     from fiontb.nodes.processing import (LoadMesh, MeshToPCL)
@@ -210,56 +301,49 @@ def scene1(g):
 
     g.dataset = LoadFTB(rflow.FSResource("scenenn-objs/scene1"))
     g.dataset.show = False
+
     g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1.ply"))
     g.gt_mesh.show = False
-
-    g.fusion = FusionTask(rflow.FSResource("scene1.ply"))
-    with g.fusion as args:
-        args.dataset = g.dataset
-        args.odometry = None
-        args.gt_mesh = g.gt_mesh
-
-    g.debug = FusionDebug()
-    with g.debug as args:
-        args.dataset = g.dataset
-        args.odometry = None
-        args.gt_mesh = g.gt_mesh
 
     g.gt_pcl = MeshToPCL()
     g.gt_pcl.args.mesh_geo = g.gt_mesh
     g.gt_pcl.show = False
 
+    g.debug = FusionDebug()
+    with g.debug as args:
+        args.dataset = g.dataset
+        args.gt_mesh = g.gt_mesh
+
+    g.fusion = FusionTask(rflow.FSResource("scene1.ply"))
+    with g.fusion as args:
+        args.dataset = g.dataset
+        args.gt_mesh = g.gt_mesh
+
     evaluation_graph(g, g.fusion, g.gt_mesh, g.gt_pcl, init_mtx=torch.eye(4))
 
 
 @rflow.graph()
-def chair1(g):
-    g.dataset = LoadFTB(rflow.FSResource("chair1"))
+def scene1_deep(g):
+    from fiontb.nodes.processing import (LoadMesh, MeshToPCL)
+    from fiontb.nodes.evaluation import evaluation_graph
 
-    g.fusion = FusionTask(rflow.FSResource("chair1.ply"))
+    g.dataset = LoadFTB(rflow.FSResource("scenenn-objs/scene1"))
+    g.dataset.show = False
+
+    g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1.ply"))
+    g.gt_mesh.show = False
+
+    g.gt_pcl = MeshToPCL()
+    g.gt_pcl.args.mesh_geo = g.gt_mesh
+    g.gt_pcl.show = False
+
+    g.fusion = DeepFusionTask(rflow.FSResource("scene1-deep.ply"))
     with g.fusion as args:
         args.dataset = g.dataset
-        args.odometry = None
+        args.gt_mesh = g.gt_mesh
 
-
-@rflow.graph()
-def iclnuim(g):
-    ds_g = rflow.open_graph("../../test-data/rgbd/iclnuim", "iclnuim")
-
-    g.frame_to_frame = FrameToFrameOdometry(
-        rflow.FSResource("lr0-frame2frame.json"))
-    with g.frame_to_frame as args:
-        args.dataset = ds_g.lr0_to_ftb
-
-    g.view_frame_to_frame = ViewOdometry()
-    with g.view_frame_to_frame as args:
-        args.dataset = ds_g.lr0_to_ftb
-        args.odometry = g.frame_to_frame
-
-    g.fusion = FusionTask(rflow.FSResource("lr0.ply"))
-    with g.fusion as args:
-        args.dataset = ds_g.lr0_to_ftb
-        args.odometry = g.frame_to_frame
+    evaluation_graph(g, g.fusion, g.gt_mesh,
+                     g.gt_pcl, init_mtx=torch.eye(4))
 
 
 if __name__ == '__main__':

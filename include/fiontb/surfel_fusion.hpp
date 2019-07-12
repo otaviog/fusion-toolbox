@@ -17,10 +17,19 @@ void MergeRedundant(const torch::Tensor &pos_fb,
 torch::Tensor FindLiveToModelMerges(const torch::Tensor &live_pos_fb,
                                     const torch::Tensor &live_normal_fb,
                                     const torch::Tensor &live_idx_fb,
-                                    const torch::Tensor &live_feats,
                                     const torch::Tensor &model_pos_fb,
                                     const torch::Tensor &model_normal_fb,
                                     const torch::Tensor &model_idx_fb,
-                                    const torch::Tensor &model_feats,
-                                    float max_normal_angle, bool use_feats);
+                                    float max_normal_angle);
+
+torch::Tensor FindFeatLiveToModelMerges(const torch::Tensor &live_pos_fb,
+                                        const torch::Tensor &live_normal_fb,
+                                        const torch::Tensor &live_idx_fb,
+                                        const torch::Tensor &live_feats,
+                                        const torch::Tensor &model_pos_fb,
+                                        const torch::Tensor &model_normal_fb,
+                                        const torch::Tensor &model_idx_fb,
+                                        const torch::Tensor &model_feats,
+                                        float max_normal_angle);
+
 }  // namespace fiontb

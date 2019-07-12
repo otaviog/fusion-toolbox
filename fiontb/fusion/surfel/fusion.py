@@ -137,7 +137,7 @@ class SurfelFusion:
         self.surfels.max_time = self._time
 
         self.surfels.update_active_mask_gl()
-        self._update_cam_view(proj_matrix, rt_cam, width, height)
+        # self._update_cam_view(proj_matrix, rt_cam, width, height)
         return FusionStats(live_unst_idxs.size(0), model_idxs.size(0),
                            removed_count)
 

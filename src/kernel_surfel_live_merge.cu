@@ -5,8 +5,7 @@
 #include "math.hpp"
 
 namespace fiontb {
-namespace {
-__global__ void FindLiveToModelMerges_gpu_kernel(
+static __global__ void FindLiveToModelMerges_gpu_kernel(
     const PackedAccessor<float, 3> live_pos_fb,
     const PackedAccessor<float, 3> live_normal_fb,
     const PackedAccessor<int32_t, 3> live_idx_fb,
@@ -74,7 +73,46 @@ __global__ void FindLiveToModelMerges_gpu_kernel(
   merge_map_fb[row][col][1] = best_model;
 }
 
-__global__ void FindFeatLiveToModelMerges_gpu_kernel(
+torch::Tensor FindLiveToModelMerges(const torch::Tensor &live_pos_fb,
+                                    const torch::Tensor &live_normal_fb,
+                                    const torch::Tensor &live_idx_fb,
+                                    const torch::Tensor &model_pos_fb,
+                                    const torch::Tensor &model_normal_fb,
+                                    const torch::Tensor &model_idx_fb,
+                                    float max_normal_angle) {
+  const int width = live_pos_fb.size(1);
+  const int height = live_pos_fb.size(0);
+
+  torch::Tensor merge_map = torch::empty(
+      {height, width, 3},
+      torch::TensorOptions(torch::kInt32).device(live_pos_fb.device()));
+
+  const float scale = model_pos_fb.size(0) / height;
+  const float window_multiplier = 2;
+  const int search_size = int(scale * window_multiplier);
+
+  dim3 block_dim = dim3(16, 16);
+  dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
+  FindLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
+      live_pos_fb.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      live_normal_fb
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      live_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+      model_pos_fb
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      model_normal_fb
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      model_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+      merge_map.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+      int(scale), search_size, max_normal_angle);
+
+  CudaCheck();
+  CudaSafeCall(cudaDeviceSynchronize());
+
+  return merge_map;
+}
+
+static __global__ void FindFeatLiveToModelMerges_gpu_kernel(
     const PackedAccessor<float, 3> live_pos_fb,
     const PackedAccessor<float, 3> live_normal_fb,
     const PackedAccessor<int32_t, 3> live_idx_fb,
@@ -105,7 +143,6 @@ __global__ void FindFeatLiveToModelMerges_gpu_kernel(
   const float lambda = sqrt(ray[0] * ray[0] + ray[1] * ray[1] + 1);
 
   const Eigen::Vector3f view_normal(to_vec3<float>(live_normal_fb[row][col]));
-
 
   const int xstart = max(col * scale - search_size, 0);
   const int xend =
@@ -157,14 +194,12 @@ __global__ void FindFeatLiveToModelMerges_gpu_kernel(
   merge_map_fb[row][col][1] = best_model;
 }
 
-}  // namespace
-
-torch::Tensor FindLiveToModelMerges(
+torch::Tensor FindFeatLiveToModelMerges(
     const torch::Tensor &live_pos_fb, const torch::Tensor &live_normal_fb,
     const torch::Tensor &live_idx_fb, const torch::Tensor &live_feats,
     const torch::Tensor &model_pos_fb, const torch::Tensor &model_normal_fb,
     const torch::Tensor &model_idx_fb, const torch::Tensor &model_feats,
-    float max_normal_angle, bool use_feats) {
+    float max_normal_angle) {
   const int width = live_pos_fb.size(1);
   const int height = live_pos_fb.size(0);
 
@@ -178,41 +213,21 @@ torch::Tensor FindLiveToModelMerges(
 
   dim3 block_dim = dim3(16, 16);
   dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
-  if (!use_feats) {
-    FindLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
-        live_pos_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        live_normal_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        live_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        model_pos_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        model_normal_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        model_idx_fb
-            .packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        merge_map.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        int(scale), search_size, max_normal_angle);
-  } else {
-    FindFeatLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
-        live_pos_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        live_normal_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        live_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        live_feats
-            .packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
-        model_pos_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        model_normal_fb
-            .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-        model_idx_fb
-            .packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        model_feats
-            .packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
-        merge_map.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
-        int(scale), search_size, max_normal_angle);
-  }
+
+  FindFeatLiveToModelMerges_gpu_kernel<<<grid_size, block_dim>>>(
+      live_pos_fb.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      live_normal_fb
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      live_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+      live_feats.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
+      model_pos_fb
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      model_normal_fb
+          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
+      model_idx_fb.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+      model_feats.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
+      merge_map.packed_accessor<int, 3, torch::RestrictPtrTraits, size_t>(),
+      int(scale), search_size, max_normal_angle);
 
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());

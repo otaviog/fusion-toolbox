@@ -66,10 +66,10 @@ class ReconstructionViewer:
 
             key = chr(key)
 
-            if key == 'g':
+            if key == '1':
                 self.gt_geo.visible = not self.gt_geo.visible
 
-            if key == 'r':
+            if key == '2':
                 self.rec_pcl.visible = not self.rec_pcl.visible
 
         cv2.destroyWindow(self.title)
