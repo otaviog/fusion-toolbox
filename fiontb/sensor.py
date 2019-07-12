@@ -2,9 +2,10 @@
 """
 
 from enum import Enum
-import numpy as np
+import copy
 
-# import onireader
+import numpy as np
+import torch
 
 from fiontb.camera import KCamera
 from fiontb.frame import Frame, FrameInfo
@@ -17,9 +18,11 @@ class DeviceType(Enum):
 
 
 DEVICE_TO_KCAM = {
-    DeviceType.ASUS_XTION: np.array([[544.47329, 0.0, 320],
-                                     [0.0, 544.47329, 240],
-                                     [0.0, 0.0, 1.0]])
+    DeviceType.ASUS_XTION: FrameInfo(
+        kcam=KCamera(torch.Tensor([[544.47329, 0.0, 320],
+                                   [0.0, 544.47329, 240],
+                                   [0.0, 0.0, 1.0]])),
+        depth_scale=0.001, depth_bias=0, depth_max=16000)
 }
 
 
@@ -31,8 +34,7 @@ class Sensor:
         self.device = device
         if device_type is None:
             device_type = DeviceType.ASUS_XTION
-        kmatrix = DEVICE_TO_KCAM.get(device_type, None)
-        self.kcam = KCamera(kmatrix)
+        self.base_info = DEVICE_TO_KCAM.get(device_type, None)
 
     def next_frame(self):
         """Reads the next frame from the device stream.
@@ -45,10 +47,10 @@ class Sensor:
         depth_img, depth_ts, depth_idx = self.device.readDepth()
         rgb_img, rgb_ts, rgb_idx = self.device.readColor()
 
-        info = FrameInfo(self.kcam, depth_scale=1, depth_bias=0.0, depth_max=16000,
-                         timestamp=depth_ts)
+        info = copy.copy(self.base_info)
+        info.timestamp = depth_ts
 
-        frame = Frame(info, depth_img, rgb_image=rgb_img)
+        frame = Frame(info, depth_img.astype(np.int32), rgb_image=rgb_img)
 
         return frame
 

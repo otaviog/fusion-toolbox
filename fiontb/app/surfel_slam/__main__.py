@@ -34,7 +34,7 @@ def _main():
     fusion_ctx = SurfelFusion(surfel_model)
 
     sensor_ui = FrameUI("Frame Control")
-    rec_ui = SurfelReconstructionUI(surfel_model, RunMode.PLAY, invert=True)
+    rec_ui = SurfelReconstructionUI(surfel_model, RunMode.PLAY, inverse=True)
 
     rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
     prev_frame = None
@@ -65,7 +65,6 @@ def _main():
             relative_cam = torch.eye(4, dtype=torch.float32)
 
         prev_frame = frame
-
         rt_cam = rt_cam.integrate(relative_cam)
 
         fusion_ctx.fuse(live_fpcl, rt_cam)
