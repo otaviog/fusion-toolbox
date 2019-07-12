@@ -7,10 +7,9 @@ from os import path
 from codecs import open
 import subprocess
 
-from setuptools import setup, find_packages
-from setuptools import setup, Extension, find_packages
-from setuptools.command.build_ext import build_ext
 from distutils.version import LooseVersion
+from setuptools import setup, find_packages, Extension
+from setuptools.command.build_ext import build_exts
 
 
 def _forbid_publish():
@@ -73,7 +72,6 @@ class CMakeBuild(build_ext):
 
         cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
                       '-DPYTHON_EXECUTABLE=' + sys.executable,
-                      '-DBUILD_PYTHON_BINDINGS=ON',
                       '-DBUILD_TESTS=OFF']
 
         cfg = 'Debug' if self.debug else 'Release'
@@ -111,7 +109,7 @@ setup(
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.6'
+        'Programming Language :: Python :: 3.5'
     ],
     keywords='fusion 3d reconstruction',
     packages=find_packages(),
@@ -130,7 +128,8 @@ setup(
         'console_scripts': [
             'ftb-view-dataset=fiontb.viz.datasetviewer:_main',
             'ftb-capture=fiontb.app.sensor_record.__main__:_main',
-            'ftb-klg-view=fiontb.app.klg_view.__main__:_main'
+            'ftb-klg-view=fiontb.app.klg_view.__main__:_main',
+            'ftb-surfel-slam=fiontb.app.surfel_slam.__main__:_main'
         ]
     }
 )

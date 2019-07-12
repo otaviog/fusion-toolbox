@@ -30,11 +30,12 @@ class Sensor:
     """Sensor IO based on OpenNI2.
     """
 
-    def __init__(self, device, device_type=None):
+    def __init__(self, device, device_type=None, depth_cutoff=None):
         self.device = device
         if device_type is None:
             device_type = DeviceType.ASUS_XTION
         self.base_info = DEVICE_TO_KCAM.get(device_type, None)
+        self.depth_cutoff = depth_cutoff
 
     def next_frame(self):
         """Reads the next frame from the device stream.
@@ -49,6 +50,9 @@ class Sensor:
 
         info = copy.copy(self.base_info)
         info.timestamp = depth_ts
+
+        if self.depth_cutoff is not None:
+            depth_img[depth_img > self.depth_cutoff] = 0
 
         frame = Frame(info, depth_img.astype(np.int32), rgb_image=rgb_img)
 

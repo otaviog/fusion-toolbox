@@ -26,7 +26,7 @@ def _main():
     sensor_dev.open()
     sensor_dev.start(4, 12)
 
-    sensor = Sensor(sensor_dev, DeviceType.ASUS_XTION)
+    sensor = Sensor(sensor_dev, DeviceType.ASUS_XTION, 3.5*1000)
 
     device = "cuda:0"
     context = tenviz.Context()
@@ -64,8 +64,8 @@ def _main():
         else:
             relative_cam = torch.eye(4, dtype=torch.float32)
 
-        prev_frame = frame
         rt_cam = rt_cam.integrate(relative_cam)
+        prev_frame = frame
 
         fusion_ctx.fuse(live_fpcl, rt_cam)
 
