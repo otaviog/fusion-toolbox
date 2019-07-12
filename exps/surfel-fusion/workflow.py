@@ -302,7 +302,7 @@ def scene1(g):
     g.dataset = LoadFTB(rflow.FSResource("scenenn-objs/scene1"))
     g.dataset.show = False
 
-    g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1.ply"))
+    g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1/scene1.ply"))
     g.gt_mesh.show = False
 
     g.gt_pcl = MeshToPCL()
@@ -330,7 +330,7 @@ def scene1_deep(g):
     g.dataset = LoadFTB(rflow.FSResource("scenenn-objs/scene1"))
     g.dataset.show = False
 
-    g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1.ply"))
+    g.gt_mesh = LoadMesh(rflow.FSResource("scenenn-objs/scene1/scene1.ply"))
     g.gt_mesh.show = False
 
     g.gt_pcl = MeshToPCL()
