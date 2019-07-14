@@ -6,22 +6,29 @@ point-based fusion." In 2013 International Conference on 3D Vision-3DV
 """
 
 from pathlib import Path
+import math
 
 import torch
 
 from .indexmap import ModelIndexMap
-from ._ckernels import surfel_merge_redundant
+from ._ckernels import surfel_find_mergeable_surfels
 
 
-class IntraModelMergeMap(ModelIndexMap):
+class IntraMergeMap(ModelIndexMap):
     """Finds and merge surfel that are too close.
     """
 
-    def __init__(self, surfel_model):
-        super(IntraModelMergeMap, self).__init__(surfel_model)
+    def __init__(self, surfel_model, max_dist=0.005,
+                 normal_max_angle=math.radians(45),
+                 search_size=2):
+        super(IntraMergeMap, self).__init__(surfel_model)
+        self.merge_map = None
+        self.max_dist = max_dist
+        self.normal_max_angle = normal_max_angle
+        self.search_size = search_size
 
-    def merge_close_surfels(self, proj_matrix, rt_cam, width, height,
-                            stable_conf_thresh):
+    def find_mergeable_surfels(self, proj_matrix, rt_cam, width, height,
+                               stable_conf_thresh):
         self.raster(proj_matrix, rt_cam, width, height,
                     stable_conf_thresh, -1)
         context = self.surfel_model.context
@@ -31,9 +38,21 @@ class IntraModelMergeMap(ModelIndexMap):
             normal_rad_fb = self.normal_rad_tex.to_tensor()
             idx_fb = self.idx_tex.to_tensor()
 
-        surfel_merge_redundant(pos_fb, normal_rad_fb,
-                               idx_fb, self.surfel_model.active_mask,
-                               0.05, 34, 4)
+        if self.merge_map is None:
+            self.merge_map = torch.empty(pos_fb.size(0), pos_fb.size(1),
+                                         device=pos_fb.device, dtype=torch.int64)
+
+        surfel_find_mergeable_surfels(
+            pos_fb, normal_rad_fb,
+            idx_fb, self.merge_map,
+            self.max_dist, self.normal_max_angle, self.search_size)
+
+        which = self.merge_map > -1
+        dest_idxs = self.merge_map[which]
+
+        merge_idxs = idx_fb[:, :, 0][which].long()
+
+        return dest_idxs, merge_idxs
 
 
 def _test():
@@ -59,7 +78,7 @@ def _test():
 
     ctx = tenviz.Context()
 
-    radii = torch.full((model_size, ), 0.05, dtype=torch.float)
+    radii = torch.full((model_size, ), 0.005, dtype=torch.float)
     confs = torch.full((model_size, ), 15, dtype=torch.float)
     times = torch.full((model_size, ), 5, dtype=torch.int32)
 
@@ -73,9 +92,10 @@ def _test():
 
     before = surfel_model.compact()
 
-    merge_ctx = IntraModelMergeMap(surfel_model)
-    merge_ctx.merge_close_surfels(proj_matrix, rt_cam, 640, 480,
-                                  15)
+    merge_ctx = IntraMergeMap(surfel_model)
+    dest_idxs, merge_idxs = merge_ctx.find_mergeable_surfels(proj_matrix, rt_cam, 640, 480,
+                                                             15)
+    surfel_model.mark_inactive(merge_idxs)
     surfel_model.update_active_mask_gl()
 
     show_surfels(ctx, [before, surfel_model])

@@ -79,7 +79,7 @@ torch::Tensor FindLiveToModelMerges(const torch::Tensor &live_pos_fb,
                                     const torch::Tensor &model_pos_fb,
                                     const torch::Tensor &model_normal_fb,
                                     const torch::Tensor &model_idx_fb,
-                                    float max_normal_angle) {
+                                    float max_normal_angle, int search_size) {
   const int width = live_pos_fb.size(1);
   const int height = live_pos_fb.size(0);
 
@@ -88,8 +88,7 @@ torch::Tensor FindLiveToModelMerges(const torch::Tensor &live_pos_fb,
       torch::TensorOptions(torch::kInt32).device(live_pos_fb.device()));
 
   const float scale = model_pos_fb.size(0) / height;
-  const float window_multiplier = 2;
-  const int search_size = int(scale * window_multiplier);
+  search_size = int(scale * search_size);
 
   dim3 block_dim = dim3(16, 16);
   dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
@@ -199,7 +198,7 @@ torch::Tensor FindFeatLiveToModelMerges(
     const torch::Tensor &live_idx_fb, const torch::Tensor &live_feats,
     const torch::Tensor &model_pos_fb, const torch::Tensor &model_normal_fb,
     const torch::Tensor &model_idx_fb, const torch::Tensor &model_feats,
-    float max_normal_angle) {
+    float max_normal_angle, int search_size) {
   const int width = live_pos_fb.size(1);
   const int height = live_pos_fb.size(0);
 
@@ -208,8 +207,7 @@ torch::Tensor FindFeatLiveToModelMerges(
       torch::TensorOptions(torch::kInt32).device(live_pos_fb.device()));
 
   const float scale = model_pos_fb.size(0) / height;
-  const float window_multiplier = 2;
-  const int search_size = int(scale * window_multiplier);
+  search_size = int(scale * search_size);
 
   dim3 block_dim = dim3(16, 16);
   dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);

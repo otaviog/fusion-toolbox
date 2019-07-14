@@ -2,6 +2,7 @@
 """
 
 from pathlib import Path
+import math
 
 import torch
 import matplotlib.pyplot as plt
@@ -13,9 +14,13 @@ _SHADER_DIR = Path(__file__).parent / "shaders"
 
 
 class LiveToModelMergeMap:
-    def __init__(self, surfel_model):
+    def __init__(self, surfel_model,
+                 normal_max_angle=math.radians(30),
+                 search_size=2):
         self.live_raster = LiveIndexMap(surfel_model.context)
         self.model_raster = ModelIndexMap(surfel_model)
+        self.normal_max_angle = normal_max_angle
+        self.search_size = search_size
 
     def find_mergeable(self, surfel_cloud, proj_matrix, rt_cam,
                        width, height, debug=False):
@@ -36,22 +41,18 @@ class LiveToModelMergeMap:
             model_normals = self.model_raster.normal_rad_tex.to_tensor()
             model_idxs = self.model_raster.idx_tex.to_tensor()
 
-        _SENTINEL_TENSOR = torch.tensor([])
-        live_features = model_features = _SENTINEL_TENSOR
-
-        if surfel_cloud.features is not None:
-            live_features = surfel_cloud.features
-            model_features = self.model_raster.surfel_model.features
-
         if surfel_cloud.features is None:
             merge_map = surfel_find_live_to_model_merges(
                 live_pos, live_normals, live_idxs,
-                model_pos, model_normals, model_idxs, 0.5)
+                model_pos, model_normals, model_idxs,
+                self.normal_max_angle, self.search_size)
         else:
+            live_features = surfel_cloud.features
+            model_features = self.model_raster.surfel_model.features
             merge_map = surfel_find_feat_live_to_model_merges(
                 live_pos, live_normals, live_idxs, live_features,
                 model_pos, model_normals, model_idxs, model_features,
-                0.5)
+                self.normal_max_angle, self.search_size)
 
         if debug:
             plt.figure("Merge map")

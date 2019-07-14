@@ -57,6 +57,8 @@ class SurfelRender(tenviz.DrawProgram):
         with self.surfel_model.context.current():
             self['RenderMode'] = int(render_mode.value)
 
+        self.render_mode = render_mode
+
     def set_max_confidence(self, max_conf):
         with self.surfel_model.context.current():
             self['MaxConf'] = float(max_conf)
@@ -127,7 +129,7 @@ def show_surfels(context, surfels_list, overlay_mesh=None,
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 
         mode_dict = {'I': RenderMode.Confs,
-                     'U': RenderMode.Color,
+                     'J': RenderMode.Color,
                      'O': RenderMode.Normal,
                      'P': RenderMode.Gray,
                      'Y': RenderMode.Times,

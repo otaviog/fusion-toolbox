@@ -48,7 +48,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("query_closest_points", &QueryClosestPoints);
 
   m.def("surfel_cave_free_space", &CarveSpace);
-  m.def("surfel_merge_redundant", &MergeRedundant);
+  m.def("surfel_find_mergeable_surfels", &FindMergeableSurfels);
+  
   m.def("surfel_find_live_to_model_merges", &FindLiveToModelMerges);
   m.def("surfel_find_feat_live_to_model_merges", &FindFeatLiveToModelMerges);
 

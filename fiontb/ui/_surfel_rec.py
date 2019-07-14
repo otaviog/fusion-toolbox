@@ -78,7 +78,7 @@ class SurfelReconstructionUI:
                     read_next_frame = True
                 elif key == 'i':
                     self.surfel_render.set_render_mode(RenderMode.Confs)
-                    self.surfel_render.set_max_confidence(20)
+                    self.surfel_render.set_max_confidence(1024)
                 elif key == 'u':
                     self.surfel_render.set_render_mode(RenderMode.Color)
                 elif key == 'o':
@@ -100,8 +100,12 @@ class SurfelReconstructionUI:
                     import ipdb
                     ipdb.set_trace()
 
-        cv2.destroyAllWindows()
+            if self.surfel_render.render_mode == RenderMode.Confs:
+                with self.surfel_model.context.current():
+                    with self.surfel_model.confs.as_tensor() as confs:
+                        max_conf = confs[self.surfel_model.active_mask].max()
 
+        cv2.destroyAllWindows()
 
     def _eval_accuracy(self):
         if self.gt_mesh is None:

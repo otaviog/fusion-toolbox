@@ -21,6 +21,7 @@ class LoadFTB(rflow.Interface):
 
         return load_ftb(resource.filepath)
 
+import matplotlib.pyplot as plt
 
 class _Odometry:
     def __init__(self, mode, fusion_ctx):
@@ -40,18 +41,29 @@ class _Odometry:
             self.prev_frame = frame
             return relative_cam
         elif self.mode == "frame-to-model":
-            if self.fusion_ctx.pose_indexmap.is_rasterized:
-                source_frame = self.fusion_ctx.pose_indexmap.to_frame(
-                    frame.info)
+            if not self.fusion_ctx.pose_indexmap.is_rasterized:
+                return torch.eye(4, dtype=torch.float32)
+            
+            source_frame = self.fusion_ctx.pose_indexmap.to_frame(
+                frame.info)
 
             if False:
-                import matplotlib.pyplot as plt
                 plt.figure()
+                plt.title("Model Depth")
                 plt.imshow(source_frame.depth_image)
-
+                
                 plt.figure()
+                plt.title("Model RGB")
                 plt.imshow(source_frame.rgb_image)
 
+                plt.figure()
+                plt.title("Frame RGB")
+                plt.imshow(frame.rgb_image)
+
+                plt.figure()
+                plt.title("Frame Depth")
+                plt.imshow(frame.depth_image)
+                
                 plt.show()
 
             return fiontb.pose.open3d.estimate_odometry(
@@ -93,11 +105,11 @@ class FusionTask(rflow.Interface):
         fusion_ctx = SurfelFusion(surfel_model)
 
         sensor_ui = FrameUI("Frame Control")
-        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP)
+        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP, inverse=False)
 
         device = "cuda:0"
         rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
-        odometry = _Odometry("ground-truth", fusion_ctx)
+        odometry = _Odometry("frame-to-model", fusion_ctx)
 
         prof = Profile()
         prof.enable()
@@ -124,15 +136,16 @@ class FusionTask(rflow.Interface):
 
             rt_cam = rt_cam.integrate(relative_cam)
 
-            fusion_ctx.fuse(live_fpcl, rt_cam)
+            stats = fusion_ctx.fuse(live_fpcl, rt_cam)
+            print(stats)
 
         prof.disable()
         prof.dump_stats("surfel_fusion.prof")
 
-        final_model = surfel_model.to_surfel_cloud()
-        write_3dobject(resource.filepath, final_model.points,
-                       normals=final_model.normals,
-                       colors=final_model.colors)
+        # final_model = surfel_model.to_surfel_cloud()
+        # write_3dobject(resource.filepath, final_model.points,
+        # normals=final_model.normals,
+        # colors=final_model.colors)
 
     def load(self, resource):
         pass

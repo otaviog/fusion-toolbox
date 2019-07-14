@@ -1,10 +1,13 @@
+import math
+
 import torch
+
 import tenviz
 
 from .model import compute_confidences, SurfelCloud
 from .live_merge import LiveToModelMergeMap
 from .spacecarving import SpaceCarving
-from .intra_merge import IntraModelMergeMap
+from .intra_merge import IntraMergeMap
 from .indexmap import ModelIndexMap
 
 
@@ -51,26 +54,27 @@ class FusionStats:
 
 
 class SurfelFusion:
-    def __init__(self, surfels, max_distance=0.05, normal_max_angle=20.0,
+    def __init__(self, surfels, max_distance=0.005, normal_max_angle=math.radians(30),
                  stable_conf_thresh=10, max_unstable_time=20):
+
         self.surfels = surfels
-        self.live_merge_map = LiveToModelMergeMap(surfels)
-        self.intra_merge_map = IntraModelMergeMap(surfels)
+        self.live_merge_map = LiveToModelMergeMap(surfels,
+                                                  normal_max_angle=normal_max_angle,
+                                                  search_size=2)
+        self.intra_merge_map = IntraMergeMap(surfels, max_dist=max_distance,
+                                             normal_max_angle=normal_max_angle,
+                                             search_size=2)
         self.pose_indexmap = ModelIndexMap(surfels)
         self.spacecarving = SpaceCarving(surfels)
-
-        self.max_distance = max_distance
-        self.normal_min_dot = 1 - normal_max_angle / 90.0
 
         self.stable_conf_thresh = stable_conf_thresh
         self.max_unstable_time = max_unstable_time
 
-        self._is_first_fusion = True
-
         self._time = 0
-        self.merge_min_radio = 0.5
+        self._merge_min_radio = 0.5
 
         self._conf_compute_cache = _ConfidenceCache()
+        self._is_first_fusion = True
 
     def fuse(self, frame_pcl, rt_cam, features=None):
         device = "cuda:0"
@@ -113,35 +117,41 @@ class SurfelFusion:
                 device)
 
         live_idxs = live_idxs.to(device)
-        self._merge_surfels(
+        self._merge_live_surfels(
             live_surfels.index_select(live_idxs),
             model_surfels, model_idxs.to(device))
 
-        removed_count = self._remove_surfels(visible_model_idxs)
+        removed_count = 0
+        if True:
+            removed_count = self._remove_surfels(visible_model_idxs)
         self.surfels.update_active_mask_gl()
 
         active_count = self.surfels.num_active_surfels()
 
         fb_scale = 4
-        self.spacecarving.carve(proj_matrix, rt_cam, int(width*fb_scale), int(height*fb_scale),
-                                self.stable_conf_thresh, self._time, 4)
+        if True:
+            self.spacecarving.carve(proj_matrix, rt_cam, int(width*fb_scale), int(height*fb_scale),
+                                    self.stable_conf_thresh, self._time, 4)
 
         self.surfels.update_active_mask_gl()
 
-        self.intra_merge_map.merge_close_surfels(proj_matrix, rt_cam,
-                                                 int(width*fb_scale), int(height*fb_scale),
-                                                 self.stable_conf_thresh)
+        if True:
+            dest_idxs, merge_idxs = self.intra_merge_map.find_mergeable_surfels(
+                proj_matrix, rt_cam,
+                int(width*fb_scale), int(height*fb_scale),
+                self.stable_conf_thresh)
+            self._merge_intra_surfels(dest_idxs, merge_idxs)
 
         removed_count += active_count - self.surfels.num_active_surfels()
         self._time += 1
         self.surfels.max_time = self._time
 
         self.surfels.update_active_mask_gl()
-        # self._update_cam_view(proj_matrix, rt_cam, width, height)
+        self._update_cam_view(proj_matrix, rt_cam, width, height)
         return FusionStats(live_unst_idxs.size(0), model_idxs.size(0),
                            removed_count)
 
-    def _merge_surfels(self, live, model, model_idxs):
+    def _merge_live_surfels(self, live, model, model_idxs):
         # radii_mask = (live.radii < model.radii *
         #              (1.0 + self.merge_min_radio))
         # live_idxs = live_idxs[radii_mask]
@@ -170,6 +180,30 @@ class SurfelFusion:
             self.surfels.confs[model_idxs] = model.confs
             self.surfels.times[model_idxs] = live.times
 
+    def _merge_intra_surfels(self, dest_idxs, merge_idxs):
+        with self.surfels.context.current():
+            with self.surfels.confs.as_tensor() as confs:
+                dest_confs = confs[dest_idxs]
+                merge_confs = confs[merge_idxs]
+                confs_update = dest_confs + merge_confs
+
+                with self.surfels.points.as_tensor() as points:
+                    points[dest_idxs] = (points[dest_idxs]*dest_confs
+                                         + points[merge_idxs]*merge_confs) / confs_update
+
+                with self.surfels.colors.as_tensor() as colors:
+                    updt_colors = (colors[dest_idxs].float()*dest_confs
+                                   + colors[merge_idxs].float()*merge_confs) / confs_update
+                    colors[dest_idxs] = updt_colors.byte()
+
+                with self.surfels.normals.as_tensor() as normals:
+                    normals[dest_idxs] = (normals[dest_idxs]*dest_confs
+                                          + normals[merge_idxs]*merge_confs) / confs_update
+
+                confs[dest_idxs] = confs_update
+
+        self.surfels.mark_inactive(merge_idxs)
+
     def _remove_surfels(self, visible_model_idxs):
         with self.surfels.context.current():
             confs = self.surfels.confs[visible_model_idxs].squeeze()
@@ -194,4 +228,3 @@ class SurfelFusion:
 
     def _update_cam_view(self, proj_matrix, rt_cam, width, height):
         self.pose_indexmap.raster(proj_matrix, rt_cam, width, height, -1.0, -1)
-

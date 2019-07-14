@@ -12,13 +12,12 @@ namespace fiontb {
 #endif
 
 inline FTB_CUDA_HOST_DEVICE float GetVectorsAngle(const Eigen::Vector3f &v0,
-                                              const Eigen::Vector3f &v1) {
+                                                  const Eigen::Vector3f &v1) {
   return acos(v0.dot(v1) / (v0.norm() * v1.norm()));
 }
 
 template <typename scalar_t, int size>
 using Vector = Eigen::Matrix<scalar_t, size, 1>;
-
 
 template <typename scalar_t, typename Accessor>
 inline FTB_CUDA_HOST_DEVICE Eigen::Matrix<scalar_t, 2, 1> to_vec2(
