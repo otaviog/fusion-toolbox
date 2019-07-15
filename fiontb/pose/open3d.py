@@ -1,5 +1,5 @@
 from pathlib import Path
-    
+
 import open3d
 import numpy as np
 import cv2

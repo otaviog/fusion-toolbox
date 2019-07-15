@@ -11,6 +11,7 @@
 #include "metrics.hpp"
 #include "normals.hpp"
 #include "sparse_volume.hpp"
+#include "icpodometry.hpp"
 #include "surfel_fusion.hpp"
 #include "trigoctree.hpp"
 #include "tsdf_fusion.hpp"
@@ -54,4 +55,9 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("surfel_find_feat_live_to_model_merges", &FindFeatLiveToModelMerges);
 
   m.def("raster_indexmap", &RasterIndexmap);
+
+  py::class_<ICPOdometry>(m, "ICPOdometry")
+      .def(py::init<vector<float>, vector<int>>())
+      .def("estimate", &ICPOdometry::Estimate);
+  m.def("icp_estimate_jacobian_gpu", &EstimateJacobian_gpu);
 }
