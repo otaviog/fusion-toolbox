@@ -24,7 +24,9 @@ target_include_directories(fiontb
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/fiontb>
   )
 
-target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX Sophus::Sophus)
+target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX
+  #Sophus::Sophus
+  )
 set_target_properties(fiontb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET fiontb PROPERTY CXX_STANDARD 14)
