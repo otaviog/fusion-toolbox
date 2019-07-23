@@ -79,14 +79,23 @@ def _show_pcl(pcls):
             pcls[1].visible = not pcls[1].visible
 
 
-def _test():
+def _prepare_frame(frame):
+    from fiontb.filtering import bilateral_filter_depth_image
+
+    frame.depth_image = bilateral_filter_depth_image(
+        frame.depth_image,
+        frame.depth_image > 0,
+        depth_scale=frame.info.depth_scale)
+
+    return frame
+
+
+def _test1():
     from pathlib import Path
-    import torch
 
     from fiontb.data.ftb import load_ftb
     from fiontb.frame import FramePointCloud
-    from fiontb.viz.datasetviewer import DatasetViewer
-    from fiontb.filtering import bilateral_filter_depth_image
+
     torch.set_printoptions(precision=10)
 
     _TEST_DATA = Path(__file__).parent / "_test"
@@ -100,13 +109,9 @@ def _test():
     frame = dataset[0]
     next_frame = dataset[1]
 
-    frame.depth_image = bilateral_filter_depth_image(frame.depth_image,
-                                                     frame.depth_image > 0,
-                                                     depth_scale=0.001)
-    next_frame.depth_image = bilateral_filter_depth_image(next_frame.depth_image,
-                                                          next_frame.depth_image > 0,
-                                                          depth_scale=0.001)
-    
+    frame = _prepare_frame(frame)
+    next_frame = _prepare_frame(next_frame)
+
     fpcl = FramePointCloud(frame)
     next_fpcl = FramePointCloud(next_frame)
 
@@ -124,21 +129,43 @@ def _test():
     _show_pcl([pcl0, pcl1])
     return
 
-    for i in range(1, len(dataset)):
-        frame = FramePointCloud(dataset[i])
-        prev_frame = FramePointCloud(dataset[i-1])
 
-        relative_rt = icp.estimate(frame.points.to(device),
-                                   frame.normals.to(device),
-                                   prev_frame.points.to(device),
-                                   prev_frame.kcam,
+def _test():
+    from pathlib import Path
+
+    from fiontb.data.ftb import load_ftb
+    from fiontb.frame import FramePointCloud
+    from fiontb.viz.datasetviewer import DatasetViewer
+
+    torch.set_printoptions(precision=10)
+
+    _TEST_DATA = Path(__file__).parent / "_test"
+    dataset = load_ftb(_TEST_DATA / "sample1")
+
+    icp = ICPOdometry([(1.0, 15)])
+    device = "cuda:0"
+
+    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
+    prev_frame = _prepare_frame(dataset[0])
+    prev_fpcl = FramePointCloud(prev_frame)
+
+    for i in range(1, len(dataset)):
+        frame = _prepare_frame(dataset[i])
+        fpcl = FramePointCloud(frame)
+
+        relative_rt = icp.estimate(prev_fpcl.points.to(device),
+                                   prev_fpcl.normals.to(device),
+                                   prev_fpcl.fg_mask.to(device),
+                                   fpcl.points.to(device),
+                                   fpcl.fg_mask.to(device),
+                                   fpcl.kcam,
                                    torch.eye(4).to(device))
         relative_rt = relative_rt.cpu()
         dataset.get_info(
             i).rt_cam = dataset[i-1].info.rt_cam.integrate(relative_rt)
 
-    import ipdb
-    ipdb.set_trace()
+        prev_frame = frame
+        prev_fpcl = fpcl
 
     viewer = DatasetViewer(dataset)
     viewer.run()
