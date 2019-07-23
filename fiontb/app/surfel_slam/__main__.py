@@ -24,9 +24,9 @@ def _main():
 
     sensor_dev = onireader.Device()
     sensor_dev.open()
-    sensor_dev.start(4, 12)
+    sensor_dev.start(*sensor_dev.find_best_fit_modes(640, 480))
 
-    sensor = Sensor(sensor_dev, DeviceType.ASUS_XTION, 3.5*1000)
+    sensor = Sensor(sensor_dev, depth_cutoff=3.5*1000)
 
     device = "cuda:0"
     context = tenviz.Context()

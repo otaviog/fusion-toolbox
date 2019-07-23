@@ -9,4 +9,13 @@ torch::Tensor BilateralFilterDepthImage(torch::Tensor input, torch::Tensor mask,
                                         float sigma_r = 29.9999880000072,
                                         float depth_scale=1.0f);
 
+enum DownsampleXYZMethod {
+  kNearest
+};
+
+  void DownsampleXYZ(const torch::Tensor input,
+					 const torch::Tensor mask,
+					 torch::Tensor result,
+					 DownsampleXYZMethod method) {
+  }
 }  // namespace fiontb
