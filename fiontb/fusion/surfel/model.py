@@ -186,12 +186,18 @@ class SurfelModel:
         self.mark_active(new_indices)
 
         with self.context.current():
-            self.points[new_indices] = new_surfels.points
-            self.colors[new_indices] = new_surfels.colors
-            self.normals[new_indices] = new_surfels.normals
-            self.radii[new_indices] = new_surfels.radii
-            self.confs[new_indices] = new_surfels.confs
-            self.times[new_indices] = new_surfels.times
+            with self.points.as_tensor() as points:
+                points[new_indices] = new_surfels.points
+            with self.colors.as_tensor() as colors:
+                colors[new_indices] = new_surfels.colors
+            with self.normals.as_tensor() as normals:
+                normals[new_indices] = new_surfels.normals
+            with self.radii.as_tensor() as radii:
+                radii[new_indices] = new_surfels.radii.view(-1, 1)
+            with self.confs.as_tensor() as confs:
+                confs[new_indices] = new_surfels.confs.view(-1, 1)
+            with self.times.as_tensor() as times:
+                times[new_indices] = new_surfels.times.view(-1, 1)
 
         if new_surfels.features is not None:
             self.features[new_indices] = new_surfels.features

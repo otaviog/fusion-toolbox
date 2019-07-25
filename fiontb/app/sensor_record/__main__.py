@@ -20,6 +20,11 @@ def _cap_main(argv):
     parser.add_argument("output", help="Output KLG file")
     parser.add_argument(
         "--device-uri", help="Device URI, if not specified then the first found sensor is used")
+    parser.add_argument("--resolution", "-r", 
+                        help="""Find the best fit mode for the given resolution.
+                        Overrides depth-mode and rgb-mode""",
+                        type=int, nargs=2)
+
     parser.add_argument(
         "--depth-mode", help="Depth video mode index, see the `modes` command",
         type=int, default=-1)
@@ -30,10 +35,17 @@ def _cap_main(argv):
 
     device = onireader.Device()
     device.open(args.device_uri)
-    device.start(args.depth_mode, args.rgb_mode)
+    depth_mode, rgb_mode = args.depth_mode, args.rgb_mode
+    if args.resolution:
+        depth_mode, rgb_mode = device.find_best_fit_modes(
+            args.resolution[0], args.resolution[1])
+    device.start(depth_mode, rgb_mode)
 
     sensor = Sensor(device)
     frame_ui = FrameUI("RGBD sensor view")
+
+    import ipdb
+    ipdb.set_trace()
 
     with open(args.output, 'wb') as outstream:
         klg_writer = KLGWriter(outstream)
@@ -56,7 +68,8 @@ def _cap_main(argv):
 
 def _print_modes(sensor_infos):
     for i, sinfo in enumerate(sensor_infos):
-        print("{} - {} {} {}".format(i, sinfo.width, sinfo.height, sinfo.fps))
+        print("{} - {} {} {} {}".format(i, sinfo.width,
+                                        sinfo.height, sinfo.fps, sinfo.format))
 
 
 def _modes_main(argv):
@@ -68,10 +81,10 @@ def _modes_main(argv):
     dev = onireader.Device()
     dev.open(args.device_uri)
     print("Depth modes")
-    _print_modes(dev.get_depth_sensor_infos())
+    _print_modes(dev.get_depth_video_modes())
 
     print("RGB modes")
-    _print_modes(dev.get_rgb_sensor_infos())
+    _print_modes(dev.get_color_video_modes())
 
 
 def _main():
