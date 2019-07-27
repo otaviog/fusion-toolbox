@@ -207,3 +207,4 @@ def estimate_normals(depth_image, frame_info, mask,
                       out_tensor, method)
 
     return out_tensor
+
