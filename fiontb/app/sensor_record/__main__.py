@@ -8,11 +8,11 @@ import cv2
 
 import onireader
 
-from fiontb.sensor import Sensor, DeviceType
+from fiontb.sensor import Sensor, PresetIntrinsics
 from fiontb.data.klg import KLGWriter
 from fiontb.ui import FrameUI
 
-_SENSOR_TYPE_MAP = {'xtion': DeviceType.ASUS_XTION}
+_SENSOR_TYPE_MAP = {'xtion': PresetIntrinsics.ASUS_XTION}
 
 
 def _cap_main(argv):
@@ -69,7 +69,8 @@ def _cap_main(argv):
 def _print_modes(sensor_infos):
     for i, sinfo in enumerate(sensor_infos):
         print("{} - {} {} {} {}".format(i, sinfo.width,
-                                        sinfo.height, sinfo.fps, sinfo.format))
+                                        sinfo.height, sinfo.fps,
+                                        sinfo.format))
 
 
 def _modes_main(argv):
@@ -84,7 +85,7 @@ def _modes_main(argv):
     _print_modes(dev.get_depth_video_modes())
 
     print("RGB modes")
-    _print_modes(dev.get_color_video_modes())
+    _print_modes(dev.get_color_sensor_infos())
 
 
 def _main():

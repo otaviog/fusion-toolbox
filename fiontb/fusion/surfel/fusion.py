@@ -25,7 +25,7 @@ class _ConfidenceCache:
             self.height = fheight
             self.confidences = compute_confidences(frame_pcl, no_mask=True)
 
-        return self.confidences[frame_pcl.fg_mask.flatten()]
+        return self.confidences[frame_pcl.mask.flatten()]
 
 
 class FusionStats:

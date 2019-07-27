@@ -65,6 +65,7 @@ class ICPOdometry:
             that aligns source points to target points.
 
         """
+        assert source_points.is_cuda, "At least source_points must be a cuda tensor."
 
         device = source_points.device
 
@@ -102,6 +103,10 @@ class ICPOdometry:
 
         return transform
 
+    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
+        return self.estimate(target_frame.points, target_frame.normals,
+                             target_frame.mask, source_frame.points, source_frame.mask,
+                             source_frame.kcam, transform)
 
 class MultiscaleICPOdometry:
     """Pyramidal point-to-plane iterative closest points
@@ -195,7 +200,10 @@ class MultiscaleICPOdometry:
 
         return transform
 
-
+    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
+        return self.estimate(target_frame.points, target_frame.normals,
+                             target_frame.mask, source_frame.points, source_frame.mask,
+                             source_frame.kcam, transform)
 def _show_pcl(pcls):
     import tenviz
 

@@ -34,12 +34,12 @@ def compute_surfel_radii(cam_points, normals, kcam):
 
 def compute_confidences(frame_pcl, no_mask=False):
     img_points = frame_pcl.image_points[:, :, :2].reshape(-1, 2)
-    img_mask = frame_pcl.fg_mask.flatten()
+    img_mask = frame_pcl.mask.flatten()
 
     if not no_mask:
         img_points = img_points[img_mask]
 
-    camera_center = torch.tensor(frame_pcl.kcam.pixel_center)
+    camera_center = torch.tensor(frame_pcl.kcam.pixel_center, device=img_points.device)
 
     confidences = torch.norm(
         img_points - camera_center, p=2, dim=1)
@@ -68,7 +68,7 @@ class SurfelCloud:
                            dtype=torch.int32).to(device)
 
         if features is not None:
-            features = features[frame_pcl.fg_mask.flatten()].to(device)
+            features = features[frame_pcl.mask.flatten()].to(device)
 
         return cls(cam_pcl.points.to(device),
                    cam_pcl.colors.to(device),

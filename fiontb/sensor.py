@@ -13,14 +13,14 @@ from fiontb.camera import KCamera
 from fiontb.frame import Frame, FrameInfo
 
 
-class DeviceType(Enum):
+class PresetIntrinsics(Enum):
     """Sensor device kind selector.
     """
     ASUS_XTION = 1
 
 
 DEVICE_TO_KCAM = {
-    DeviceType.ASUS_XTION: FrameInfo(
+    PresetIntrinsics.ASUS_XTION: FrameInfo(
         kcam=KCamera(torch.Tensor([[544.47329, 0.0, 320],
                                    [0.0, 544.47329, 240],
                                    [0.0, 0.0, 1.0]])),
@@ -32,9 +32,9 @@ class Sensor:
     """Sensor IO based on OpenNI2.
     """
 
-    def __init__(self, device, device_type=None, depth_cutoff=None):
+    def __init__(self, device, preset_intrinsics=None, depth_cutoff=None):
         self.device = device
-        if device_type is None:
+        if preset_intrinsics is None:
             intrinsics = device.get_intrinsics()
 
             kcam = KCamera.create_from_params(
@@ -47,12 +47,13 @@ class Sensor:
                 depth_scale = 0.001
             elif depth_format == onireader.PixelFormat.DEPTH_100_UM:
                 depth_scale = 0.01
+
             self.base_info = FrameInfo(kcam=kcam,
                                        depth_scale=depth_scale,
                                        depth_bias=0.0,
                                        depth_max=device.get_max_depth_value())
         else:
-            self.base_info = DEVICE_TO_KCAM.get(device_type, None)
+            self.base_info = DEVICE_TO_KCAM.get(preset_intrinsics, None)
         self.depth_cutoff = depth_cutoff
 
     def next_frame(self):
@@ -63,8 +64,8 @@ class Sensor:
         """
         # pylint: disable=unused-variable
 
-        depth_img, depth_ts, depth_idx = self.device.read_depth()
-        rgb_img, rgb_ts, rgb_idx = self.device.read_color()
+        depth_img, depth_ts, depth_idx = self.device.readDepth()
+        rgb_img, rgb_ts, rgb_idx = self.device.readColor()
 
         info = copy.copy(self.base_info)
         info.timestamp = depth_ts

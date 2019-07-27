@@ -19,7 +19,6 @@ import tenviz
 class TestFrame(unittest.TestCase):
 
     def test_compute_normals(self):
-
         depth_image = torch.from_numpy(
             cv2.imread(str(Path(__file__).parent / "assets" / "frame_depth.png"),
                        cv2.IMREAD_ANYDEPTH).astype(np.int32))

@@ -142,29 +142,88 @@ class _DepthImagePointCloud:
         return self._points
 
 
-class FramePointCloud(_DepthImagePointCloud):
+class DepthXYZImage:
+    def __init__(self, depth_image, finfo):
+
+        if finfo.kcam is None:
+            raise RuntimeError("Frame doesn't have intrinsics camera")
+
+        self.points = finfo.kcam.backproject(
+            self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
+
+
+def depth_image_to_uvz(depth_image, finfo, dtype=torch.float):
+    depth_image = (depth_image.float()*finfo.depth_scale +
+                   finfo.depth_bias)
+    device = depth_image.device
+
+    ys, xs = torch.meshgrid(torch.arange(depth_image.size(0), dtype=dtype),
+                            torch.arange(depth_image.size(1), dtype=dtype))
+
+    image_points = torch.stack(
+        [xs.to(device), ys.to(device), depth_image], 2)
+
+    return image_points
+
+
+class FramePointCloud:
     """A point cloud ordered by image positions.
     """
 
-    def __init__(self, frame: Frame):
-        super(FramePointCloud, self).__init__(frame.depth_image, frame.info)
+    def __init__(self, image_points, mask, kcam, rt_cam=None, points=None,
+                 normals=None, colors=None):
+        self.image_points = image_points
+        self.mask = mask
+        self.kcam = kcam
+        self.rt_cam = rt_cam
+        self._points = points
+        self._normals = normals
+        self.colors = colors
 
-        self.fg_mask = self.depth_mask
+    @classmethod
+    def from_frame(cls, frame: Frame):
+
+        depth_image = ensure_torch(frame.depth_image)
+
+        image_points = depth_image_to_uvz(depth_image, frame.info)
+
+        mask = depth_image > 0
         if frame.fg_mask is not None:
-            self.fg_mask = torch.logical_and(
-                torch.from_numpy(frame.fg_mask).byte(), self.depth_mask)
+            mask = torch.logical_and(
+                torch.from_numpy(frame.fg_mask).byte(), mask)
 
+        colors = None
         if frame.rgb_image is not None:
-            self.colors = torch.from_numpy(frame.rgb_image)
+            colors = torch.from_numpy(frame.rgb_image)
 
-        self.rt_cam = frame.info.rt_cam
-
-        self._normals = None
+        normals = None
         if frame.normal_image is not None:
-            self._normals = frame.normal_image
+            normals = frame.normal_image
+        return FramePointCloud(image_points, mask, frame.info.kcam, frame.info.rt_cam,
+                               normals=normals, colors=colors)
+
+    @property
+    def points(self):
+        """Points in the camera space.
+
+        Returns: (:obj:`numpy.ndarray`): [WxHx3] array of points in the camera space.
+        """
+
+        if self._points is None:
+            if self.kcam is None:
+                raise RuntimeError("Frame doesn't have intrinsics camera")
+
+            self._points = self.kcam.backproject(
+                self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
+        return self._points
 
     @property
     def normals(self):
+        """Normals.
+
+        Returns: (:obj:`numpy.ndarray`): [WxHx3] array of normals in the camera space.
+        """
+
         if self._normals is None:
             self._normals = torch.empty(self.points.size(0), self.points.size(1), 3,
                                         dtype=self.points.dtype, device=self.points.device)
@@ -179,13 +238,14 @@ class FramePointCloud(_DepthImagePointCloud):
         self._normals = normals
 
     def unordered_point_cloud(self, world_space=True):
-        mask = self.fg_mask.flatten()
+        mask = self.mask.flatten()
 
         normals = self.normals.reshape(-1, 3)
         normals = normals[mask]
 
         pcl = PointCloud(self.points.reshape(-1, 3)[mask],
-                         self.colors.reshape(-1, 3)[mask],
+                         self.colors.reshape(-1, 3)[mask]
+                         if self.colors is not None else None,
                          normals)
 
         if world_space and self.rt_cam is not None:
@@ -193,11 +253,23 @@ class FramePointCloud(_DepthImagePointCloud):
 
         return pcl
 
+    def to(self, device):
+        return FramePointCloud(
+            self.image_points.to(device),
+            self.mask.to(device),
+            self.kcam.to(device),
+            self.rt_cam.to(device) if self.rt_cam is not None else None,
+            self._points.to(device) if self._points is not None else None,
+            self._normals.to(device) if self._normals is not None else None,
+            self.colors.to(device) if self.colors is not None else None)
+
+
 def estimate_normals(depth_image, frame_info, mask,
                      method=EstimateNormalsMethod.CentralDifferences,
                      out_tensor=None):
-    pcl = _DepthImagePointCloud(depth_image, frame_info)
-    xyz_img = pcl.points
+    image_points = depth_image_to_uvz(depth_image, frame_info)
+    xyz_img = frame_info.kcam.backproject(
+        image_points.reshape(-1, 3)).reshape(image_points.shape)
 
     if out_tensor is None:
         out_tensor = torch.empty(xyz_img.size(0), xyz_img.size(1), 3, dtype=xyz_img.dtype,
@@ -207,4 +279,3 @@ def estimate_normals(depth_image, frame_info, mask,
                       out_tensor, method)
 
     return out_tensor
-
