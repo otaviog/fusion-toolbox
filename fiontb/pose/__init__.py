@@ -1,1 +1,1 @@
-from .icp import estimate_icp
+from .icp import ICPOdometry

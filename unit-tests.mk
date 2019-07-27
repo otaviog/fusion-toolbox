@@ -40,3 +40,8 @@ fiontb.spatial.trigoctree:
 fiontb.filtering:
 	python3 -m unittest fiontb._tests.test_filtering
 
+fiontb.pose.se3:
+	python3 -m unittest fiontb.pose._test.test_se3
+
+fiontb.pose.so3:
+	python3 -m unittest fiontb.pose._test.test_so3

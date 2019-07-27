@@ -18,6 +18,7 @@ find_package(Torch REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PythonLibs 3 REQUIRED)
 find_package(OpenMP)
+# find_package(Sophus REQUIRED)
 
 set(CMAKE_CXX_FLAGS -fPIC)
 include_directories(${CMAKE_SOURCE_DIR}/include)

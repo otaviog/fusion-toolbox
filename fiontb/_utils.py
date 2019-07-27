@@ -8,3 +8,10 @@ def ensure_torch(x, dtype=None):
     if dtype is not None:
         return x.type(dtype)
     return x
+
+
+def empty_ensured_size(tensor, *sizes, dtype=torch.float, device=None):
+    if tensor is None or tensor.size() != sizes:
+        return torch.empty(sizes, dtype=dtype, device=device)
+
+    return tensor

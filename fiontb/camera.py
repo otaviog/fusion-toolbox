@@ -72,7 +72,7 @@ class KCamera:
 
     @classmethod
     def create_from_params(cls, flen_x, flen_y, center_point,
-                           undist_coeff=None, depth_radial_distortion=False, image_size=False):
+                           undist_coeff=None, depth_radial_distortion=False, image_size=None):
         """Computes the intrinsic matrix from given focal lengths and center point information.
 
         Args:
@@ -132,9 +132,17 @@ class KCamera:
         points[:, :2] /= z.reshape(-1, 1)
         return points
 
+    def scaled(self, scale):
+        return KCamera.create_from_params(self.matrix[0, 0]*scale, self.matrix[1, 1]*scale,
+                                          (self.matrix[0, 2]*scale,
+                                           self.matrix[1, 2]*scale),
+                                          self.undist_coeff, self.depth_radial_distortion,
+                                          self.image_size).to(self.matrix.device)
+
     def to(self, device):
-        return KCamera(self.matrix.to(device))
-    
+        return KCamera(self.matrix.to(device), self.undist_coeff,
+                       self.depth_radial_distortion, self.image_size)
+
     @property
     def pixel_center(self):
         """Center pixel.

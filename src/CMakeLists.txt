@@ -13,7 +13,9 @@ cuda_add_library(fiontb
   kernel_surfel_intra_merge.cu
   kernel_surfel_live_merge.cu
   kernel_surfel_space_carving.cu
-  kernel_indexmap.cu)
+  kernel_indexmap.cu
+  kernel_icp_estimate.cu
+  kernel_downsample.cu)
 
 target_include_directories(fiontb
   PUBLIC
@@ -21,7 +23,9 @@ target_include_directories(fiontb
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/fiontb>
   )
 
-target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX)
+target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX
+  #Sophus::Sophus
+  )
 set_target_properties(fiontb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET fiontb PROPERTY CXX_STANDARD 14)
