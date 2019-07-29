@@ -118,17 +118,17 @@ class FusionTask(rflow.Interface):
             if frame is None:
                 continue
 
-            live_fpcl = FramePointCloud(frame)
-            mask = live_fpcl.depth_mask.to(device)
+            live_fpcl = FramePointCloud.from_frame(frame)
+            live_fpcl = live_fpcl.to(device)
 
             filtered_depth_image = bilateral_filter_depth_image(
                 torch.from_numpy(frame.depth_image).to(device),
-                mask, depth_scale=frame.info.depth_scale)
+                live_fpcl.mask, depth_scale=frame.info.depth_scale)
 
             live_fpcl.normals = estimate_normals(filtered_depth_image, frame.info,
-                                                 mask).cpu()
+                                                 live_fpcl.mask)
 
-            frame.normal_image = live_fpcl.normals
+            frame.normal_image = live_fpcl.normals.cpu()
 
             sensor_ui.update(frame)
 

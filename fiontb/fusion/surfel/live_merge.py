@@ -7,7 +7,7 @@ import math
 import torch
 import matplotlib.pyplot as plt
 
-from .indexmap import LiveIndexMap, ModelIndexMap
+from .indexmap import LiveIndexMap
 from ._ckernels import surfel_find_live_to_model_merges, surfel_find_feat_live_to_model_merges
 
 _SHADER_DIR = Path(__file__).parent / "shaders"
@@ -17,38 +17,35 @@ class LiveToModelMergeMap:
     def __init__(self, surfel_model,
                  normal_max_angle=math.radians(30),
                  search_size=2):
-        self.live_raster = LiveIndexMap(surfel_model.context)
-        self.model_raster = ModelIndexMap(surfel_model)
+        self.surfel_model = surfel_model
+        self.live_indexmap = LiveIndexMap(surfel_model.context)
         self.normal_max_angle = normal_max_angle
         self.search_size = search_size
 
-    def find_mergeable(self, surfel_cloud, proj_matrix, rt_cam,
+    def find_mergeable(self, model_indexmap, live_surfels, proj_matrix,
                        width, height, debug=False):
-        self.model_raster.raster(
-            proj_matrix, rt_cam, width*4, height*4, -1.0, -1)
-        self.model_raster.show_debug("Model", debug)
+        import ipdb; ipdb.set_trace()
+        self.live_indexmap.raster(live_surfels, proj_matrix, width, height)
+        self.live_indexmap.show_debug("Live", debug)
 
-        self.live_raster.raster(surfel_cloud, proj_matrix, width, height)
-        self.live_raster.show_debug("Live", debug)
-
-        context = self.live_raster.context
+        context = self.live_indexmap.context
         with context.current():
-            live_pos = self.live_raster.pos_tex.to_tensor()
-            live_normals = self.live_raster.normal_rad_tex.to_tensor()
-            live_idxs = self.live_raster.idx_tex.to_tensor()
+            live_pos = self.live_indexmap.pos_tex.to_tensor()
+            live_normals = self.live_indexmap.normal_rad_tex.to_tensor()
+            live_idxs = self.live_indexmap.idx_tex.to_tensor()
 
-            model_pos = self.model_raster.pos_tex.to_tensor()
-            model_normals = self.model_raster.normal_rad_tex.to_tensor()
-            model_idxs = self.model_raster.idx_tex.to_tensor()
+            model_pos = model_indexmap.position_confidence_tex.to_tensor()
+            model_normals = model_indexmap.normal_radius_tex.to_tensor()
+            model_idxs = model_indexmap.index_tex.to_tensor()
 
-        if surfel_cloud.features is None:
+        if live_surfels.features is None:
             merge_map = surfel_find_live_to_model_merges(
                 live_pos, live_normals, live_idxs,
                 model_pos, model_normals, model_idxs,
                 self.normal_max_angle, self.search_size)
         else:
-            live_features = surfel_cloud.features
-            model_features = self.model_raster.surfel_model.features
+            live_features = live_surfels.features
+            model_features = self.surfel_model.features
             merge_map = surfel_find_feat_live_to_model_merges(
                 live_pos, live_normals, live_idxs, live_features,
                 model_pos, model_normals, model_idxs, model_features,
@@ -84,6 +81,7 @@ def _test():
     from fiontb.camera import KCamera, RTCamera
     from fiontb.frame import Frame, FrameInfo, FramePointCloud
     from .model import SurfelModel, SurfelCloud
+    from .indexmap import ModelIndexMap
 
     test_data = Path(__file__).parent / "_test"
     model = tenviz.io.read_3dobject(test_data / "chair-model.ply").torch()
@@ -117,8 +115,8 @@ def _test():
     surfel_model.active_mask[idxs] = torch.zeros(
         (model_size,), dtype=torch.uint8, device="cuda:0")
     surfel_model.update_active_mask_gl()
-    merge_map = LiveToModelMergeMap(surfel_model)
 
+    merge_map = LiveToModelMergeMap(surfel_model)
     frame_depth = cv2.imread(
         str(test_data / "chair-next-depth.png"), cv2.IMREAD_ANYDEPTH).astype(np.int32)
     frame_color = cv2.cvtColor(cv2.imread(
@@ -126,11 +124,15 @@ def _test():
 
     frame = Frame(FrameInfo(kcam, depth_scale=1.0/5000),
                   frame_depth, frame_color)
-    frame_pcl = FramePointCloud(frame)
-    surfel_cloud = SurfelCloud.from_frame_pcl(frame_pcl, 0, device="cuda:0")
+    frame_pcl = FramePointCloud.from_frame(frame)
+    live_surfels = SurfelCloud.from_frame_pcl(frame_pcl, 0, device="cuda:0")
 
-    merge_map.find_mergeable(surfel_cloud, proj_matrix,
-                             rt_cam, 640, 480, debug=True)
+    height, width = frame.depth_image.shape
+    model_indexmap = ModelIndexMap(surfel_model)
+    model_indexmap.raster(proj_matrix, rt_cam, width*4, height*4)
+    model_indexmap.show_debug("Model")
+    merge_map.find_mergeable(model_indexmap, live_surfels, proj_matrix,
+                             width, height, debug=True)
 
 
 if __name__ == '__main__':

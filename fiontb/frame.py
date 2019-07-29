@@ -228,7 +228,7 @@ class FramePointCloud:
             self._normals = torch.empty(self.points.size(0), self.points.size(1), 3,
                                         dtype=self.points.dtype, device=self.points.device)
             _estimate_normals(
-                self.points, self.depth_mask, self._normals,
+                self.points, self.mask, self._normals,
                 EstimateNormalsMethod.CentralDifferences)
 
         return self._normals
@@ -255,10 +255,11 @@ class FramePointCloud:
 
     def to(self, device):
         return FramePointCloud(
-            self.image_points.to(device),
+            self.image_points.to(device)
+            if self.image_points is not None else None,
             self.mask.to(device),
-            self.kcam.to(device),
-            self.rt_cam.to(device) if self.rt_cam is not None else None,
+            self.kcam,
+            self.rt_cam,
             self._points.to(device) if self._points is not None else None,
             self._normals.to(device) if self._normals is not None else None,
             self.colors.to(device) if self.colors is not None else None)

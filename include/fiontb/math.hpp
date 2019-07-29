@@ -1,6 +1,8 @@
 #pragma once
 
+#include <math_constants.h>
 #include <torch/torch.h>
+
 #include "eigen_common.hpp"
 
 namespace fiontb {

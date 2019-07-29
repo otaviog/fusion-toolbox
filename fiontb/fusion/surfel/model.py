@@ -39,7 +39,8 @@ def compute_confidences(frame_pcl, no_mask=False):
     if not no_mask:
         img_points = img_points[img_mask]
 
-    camera_center = torch.tensor(frame_pcl.kcam.pixel_center, device=img_points.device)
+    camera_center = torch.tensor(
+        frame_pcl.kcam.pixel_center, device=img_points.device)
 
     confidences = torch.norm(
         img_points - camera_center, p=2, dim=1)
@@ -54,6 +55,17 @@ def compute_confidences(frame_pcl, no_mask=False):
 class SurfelCloud:
     """Compact surfels representation in PyTorch.
     """
+
+    def __init__(self, points, colors, normals, radii, confs, times,
+                 features, device):
+        self.points = points.to(device)
+        self.colors = colors.to(device)
+        self.normals = normals.to(device)
+        self.radii = radii.to(device)
+        self.confs = confs.to(device)
+        self.times = times.to(device)
+        self.features = (features.to(device)
+                         if features is not None else None)
 
     @classmethod
     def from_frame_pcl(cls, frame_pcl, time, device, confs=None, features=None):
@@ -76,35 +88,18 @@ class SurfelCloud:
                    radii.to(device), confs.to(device),
                    times, features, device)
 
-    def __init__(self, points, colors, normals, radii, confs, times,
-                 features, device):
-        self.points = points
-        self.colors = colors
-        self.normals = normals
-        self.radii = radii
-        self.confs = confs
-        self.times = times
-        self.features = features
-        self.device = device
+    @property
+    def device(self):
+        return self.points.device
 
     def to(self, device):
-        self.points = self.points.to(device)
-        self.colors = self.colors.to(device)
-        self.normals = self.normals.to(device)
-        self.radii = self.radii.to(device)
-        self.confs = self.confs.to(device)
-        self.times = self.times.to(device)
-        if self.features is not None:
-            self.features = self.features.to(device)
-        self.device = device
+        return SurfelCloud(self.points, self.colors, self.normals, self.radii,
+                           self.confs, self.times, self.features, device)
 
     def index_select(self, index):
-        return SurfelCloud(self.points[index],
-                           self.colors[index],
-                           self.normals[index],
-                           self.radii[index],
-                           self.confs[index],
-                           self.times[index],
+        return SurfelCloud(self.points[index], self.colors[index],
+                           self.normals[index], self.radii[index],
+                           self.confs[index], self.times[index],
                            (self.features[index]
                             if self.features is not None else None),
                            self.device)

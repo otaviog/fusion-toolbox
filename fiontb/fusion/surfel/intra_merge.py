@@ -10,42 +10,35 @@ import math
 
 import torch
 
-from .indexmap import ModelIndexMap
+from fiontb._utils import empty_ensured_size
 from ._ckernels import surfel_find_mergeable_surfels
 
 
-class IntraMergeMap(ModelIndexMap):
+class IntraMergeMap:
     """Finds and merge surfel that are too close.
     """
 
-    def __init__(self, surfel_model, max_dist=0.005,
+    def __init__(self, max_dist=0.005,
                  normal_max_angle=math.radians(45),
-                 search_size=2):
-        super(IntraMergeMap, self).__init__(surfel_model)
+                 search_size=8):
         self.merge_map = None
         self.max_dist = max_dist
         self.normal_max_angle = normal_max_angle
         self.search_size = search_size
 
-    def find_mergeable_surfels(self, proj_matrix, rt_cam, width, height,
-                               stable_conf_thresh):
-        self.raster(proj_matrix, rt_cam, width, height,
-                    stable_conf_thresh, -1)
-        context = self.surfel_model.context
+    def find_mergeable_surfels(self, model_indexmap, stable_conf_thresh):
+        with model_indexmap.context.current():
+            pos_fb = model_indexmap.position_confidence_tex.to_tensor()
+            normal_rad_fb = model_indexmap.normal_radius_tex.to_tensor()
+            idx_fb = model_indexmap.index_tex.to_tensor()
 
-        with context.current():
-            pos_fb = self.pos_tex.to_tensor()
-            normal_rad_fb = self.normal_rad_tex.to_tensor()
-            idx_fb = self.idx_tex.to_tensor()
+        self.merge_map = empty_ensured_size(self.merge_map, pos_fb.size(0), pos_fb.size(1),
+                                            device=pos_fb.device, dtype=torch.int64)
 
-        if self.merge_map is None:
-            self.merge_map = torch.empty(pos_fb.size(0), pos_fb.size(1),
-                                         device=pos_fb.device, dtype=torch.int64)
-
-        surfel_find_mergeable_surfels(
-            pos_fb, normal_rad_fb,
-            idx_fb, self.merge_map,
-            self.max_dist, self.normal_max_angle, self.search_size)
+        surfel_find_mergeable_surfels(pos_fb, normal_rad_fb,
+                                      idx_fb, self.merge_map,
+                                      self.max_dist, self.normal_max_angle,
+                                      self.search_size, stable_conf_thresh)
 
         which = self.merge_map > -1
         dest_idxs = self.merge_map[which]
@@ -61,6 +54,7 @@ def _test():
     from fiontb.camera import KCamera, RTCamera
     from fiontb.viz.surfelrender import show_surfels
     from .model import SurfelModel, SurfelCloud
+    from .indexmap import ModelIndexMap
 
     test_data = Path(__file__).parent / "_test"
 
@@ -83,8 +77,7 @@ def _test():
     times = torch.full((model_size, ), 5, dtype=torch.int32)
 
     model_cloud = SurfelCloud(model.verts, model.colors, model.normals,
-                              radii, confs, times, None, "cpu")
-    model_cloud.to("cuda:0")
+                              radii, confs, times, None, "cuda:0")
 
     surfel_model = SurfelModel(ctx, model_size*2)
     surfel_model.add_surfels(model_cloud)
@@ -92,9 +85,13 @@ def _test():
 
     before = surfel_model.compact()
 
-    merge_ctx = IntraMergeMap(surfel_model)
-    dest_idxs, merge_idxs = merge_ctx.find_mergeable_surfels(proj_matrix, rt_cam, 640, 480,
-                                                             15)
+    model_indexmap = ModelIndexMap(surfel_model)
+    model_indexmap.raster(proj_matrix, rt_cam, 640*4, 480*4)
+
+    merge_ctx = IntraMergeMap()
+
+    dest_idxs, merge_idxs = merge_ctx.find_mergeable_surfels(
+        model_indexmap, 15)
     surfel_model.mark_inactive(merge_idxs)
     surfel_model.update_active_mask_gl()
 

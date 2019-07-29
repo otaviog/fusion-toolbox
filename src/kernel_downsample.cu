@@ -40,7 +40,7 @@ __global__ void DownsampleXYZNearest_gpu_kernel(
   xyz_mean /= float(xyz_count);
 
   Eigen::Vector3f nearest_xyz(0, 0, 0);
-  float best_dist = 99999.0f;
+  float best_dist = CUDART_INF_F;
 
   for (int i = 0; i < 4; ++i) {
     const int src_row = center_src_row + where[i][0];

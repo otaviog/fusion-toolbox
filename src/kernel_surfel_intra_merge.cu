@@ -6,47 +6,63 @@
 
 namespace fiontb {
 namespace {
-__global__ void FindMergeable_gpu_kernel(
-    const PackedAccessor<float, 3> pos_fb,
-    const PackedAccessor<float, 3> normal_rad_fb,
-    const PackedAccessor<int32_t, 3> idx_fb,
-    PackedAccessor<int64_t, 2> merge_map, float max_dist, float max_angle,
-    int neighbor_size) {
+struct Framebuffer {
+  Framebuffer(const PackedAccessor<float, 3> pos_fb,
+              const PackedAccessor<float, 3> normal_rad_fb,
+              const PackedAccessor<int32_t, 3> idx_fb)
+      : position_conf(pos_fb), normal_radius(normal_rad_fb), index(idx_fb) {}
+
+  __device__ __host__ int width() const { return position_conf.size(1); }
+  __device__ __host__ int height() const { return position_conf.size(0); }
+  __device__ bool empty(int row, int col) const {
+    return index[row][col][1] == 0;
+  }
+
+  const PackedAccessor<float, 3> position_conf;
+  const PackedAccessor<float, 3> normal_radius;
+  const PackedAccessor<int32_t, 3> index;
+};
+
+__global__ void FindMergeable_gpu_kernel(Framebuffer model,
+                                         PackedAccessor<int64_t, 2> merge_map,
+                                         float max_dist, float max_angle,
+                                         int neighbor_size,
+                                         float stable_conf_thresh) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-  const int width = pos_fb.size(1);
-  const int height = pos_fb.size(0);
-
-  if (row >= height || col >= width) return;
+  if (row >= model.height() || col >= model.width()) return;
 
   merge_map[row][col] = -1;
-  if (idx_fb[row][col][1] == 0) return;
+  if (model.empty(row, col)) return;
+  if (model.position_conf[row][col][3] < stable_conf_thresh) return;
 
-  const Eigen::Vector3f pos(pos_fb[row][col][0], pos_fb[row][col][1],
-                            pos_fb[row][col][2]);
-  const Eigen::Vector3f normal(normal_rad_fb[row][col][0],
-                               normal_rad_fb[row][col][1],
-                               normal_rad_fb[row][col][2]);
-  const float radius = normal_rad_fb[row][col][3];
+  const Eigen::Vector3f pos(to_vec3<float>(model.position_conf[row][col]));
+  const Eigen::Vector3f normal(to_vec3<float>(model.normal_radius[row][col]));
+  const float radius = model.normal_radius[row][col][3];
 
   int nearest_fb_idx = -1;
   float nearest_dist = max_dist * max_dist;
   int count = 0;
 
-  for (int krow = max(0, row - neighbor_size);
-       krow < min(height - 1, row + neighbor_size); ++krow) {
-    for (int kcol = max(0, col - neighbor_size);
-         kcol < min(width - 1, col + neighbor_size); ++kcol) {
+  const int start_row = max(row - neighbor_size, 0);
+  const int end_row = min(row + neighbor_size, model.height() - 1);
+
+  const int start_col = max(col - neighbor_size, 0);
+  const int end_col = min(col + neighbor_size, model.width() - 1);
+
+  for (int krow = start_row; krow <= end_row; ++krow) {
+    for (int kcol = start_col; kcol <= end_col; ++kcol) {
       if (krow == row && kcol == col) continue;
-      if (idx_fb[krow][kcol][1] == 0) continue;
+      if (model.empty(krow, kcol)) continue;
+      if (model.position_conf[krow][kcol][3] < stable_conf_thresh) continue;
 
       const Eigen::Vector3f neighbor_pos(
-          pos_fb[krow][kcol][0], pos_fb[krow][kcol][1], pos_fb[krow][kcol][2]);
-      const Eigen::Vector3f neighbor_normal(normal_rad_fb[krow][kcol][0],
-                                            normal_rad_fb[krow][kcol][1],
-                                            normal_rad_fb[krow][kcol][2]);
-      const float neighbor_radius = normal_rad_fb[krow][kcol][3];
+          to_vec3<float>(model.position_conf[krow][kcol]));
+
+      const Eigen::Vector3f neighbor_normal(
+          to_vec3<float>(model.normal_radius[krow][kcol]));
+      const float neighbor_radius = model.normal_radius[krow][kcol][3];
       const float angle = abs(GetVectorsAngle(normal, neighbor_normal));
 
       const float dist = (pos - neighbor_pos).squaredNorm();
@@ -54,7 +70,7 @@ __global__ void FindMergeable_gpu_kernel(
           angle <= max_angle) {
         ++count;
         if (dist < nearest_dist) {
-          nearest_fb_idx = krow * width + kcol;
+          nearest_fb_idx = krow * model.width() + kcol;
           nearest_dist = dist;
         }
       }
@@ -105,19 +121,20 @@ __global__ void ConvertFramebufferToSurfelIndices_gpu_kernel(
 void FindMergeableSurfels(const torch::Tensor &pos_fb,
                           const torch::Tensor &normal_rad_fb,
                           const torch::Tensor &idx_fb, torch::Tensor merge_map,
-                          float max_dist, float max_angle, int neighbor_size) {
-  const int width = pos_fb.size(1);
-  const int height = pos_fb.size(0);
-
-  const CudaKernelDims kd_img = Get2DKernelDims(width, height);
-
-  FindMergeable_gpu_kernel<<<kd_img.grid, kd_img.block>>>(
+                          float max_dist, float max_angle, int neighbor_size,
+                          float stable_conf_thresh) {
+  Framebuffer model(
       pos_fb.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
       normal_rad_fb
           .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-      idx_fb.packed_accessor<int32_t, 3, torch::RestrictPtrTraits, size_t>(),
+      idx_fb.packed_accessor<int32_t, 3, torch::RestrictPtrTraits, size_t>());
+
+  const CudaKernelDims kd_img = Get2DKernelDims(model.width(), model.height());
+
+  FindMergeable_gpu_kernel<<<kd_img.grid, kd_img.block>>>(
+      model,
       merge_map.packed_accessor<int64_t, 2, torch::RestrictPtrTraits, size_t>(),
-      max_dist, max_angle, neighbor_size);
+      max_dist, max_angle, neighbor_size, stable_conf_thresh);
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());
 
