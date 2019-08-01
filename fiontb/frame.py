@@ -113,7 +113,7 @@ class _DepthImagePointCloud:
         self.depth_image = (depth_image.float()*finfo.depth_scale +
                             finfo.depth_bias)
 
-        self.depth_mask = depth_image > 0
+        self.mask = depth_image > 0
         device = self.depth_image.device
 
         self.kcam = finfo.kcam
@@ -228,7 +228,7 @@ class FramePointCloud:
             self._normals = torch.empty(self.points.size(0), self.points.size(1), 3,
                                         dtype=self.points.dtype, device=self.points.device)
             _estimate_normals(
-                self.points, self.depth_mask, self._normals,
+                self.points, self.mask, self._normals,
                 EstimateNormalsMethod.CentralDifferences)
 
         return self._normals

@@ -220,15 +220,16 @@ def _show_pcl(pcls):
             break
         key = chr(key & 0xff)
 
-        if key == '1':
-            pcls[0].visible = not pcls[0].visible
-        elif key == '2':
-            pcls[1].visible = not pcls[1].visible
+        try:
+            pcls[int(key)-1].visible = not pcls[int(key)-1].visible
+        except:
+            pass
 
 
 def _prepare_frame(frame):
     from fiontb.filtering import bilateral_filter_depth_image
 
+    return frame
     frame.depth_image = bilateral_filter_depth_image(
         frame.depth_image,
         frame.depth_image > 0,
@@ -257,20 +258,21 @@ def _test_geom1():
     frame = _prepare_frame(frame)
     next_frame = _prepare_frame(next_frame)
 
-    fpcl = FramePointCloud(frame)
-    next_fpcl = FramePointCloud(next_frame)
+    fpcl = FramePointCloud.from_frame(frame)
+    next_fpcl = FramePointCloud.from_frame(next_frame)
 
     relative_rt = icp.estimate(fpcl.points.to(device),
                                fpcl.normals.to(device),
-                               fpcl.fg_mask.to(device),
+                               fpcl.mask.to(device),
                                next_fpcl.points.to(device),
-                               next_fpcl.fg_mask.to(device),
+                               next_fpcl.mask.to(device),
                                next_fpcl.kcam)
 
     pcl0 = fpcl.unordered_point_cloud(world_space=True)
     pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl1.transform(relative_rt.cpu())
-    _show_pcl([pcl0, pcl1])
+    pcl2 = pcl1.clone()
+    pcl2.transform(relative_rt.cpu())
+    _show_pcl([pcl0, pcl1, pcl2])
 
 
 def _test_geom2():
@@ -290,17 +292,17 @@ def _test_geom2():
 
     dataset.get_info(0).rt_cam.matrix = torch.eye(4)
     prev_frame = _prepare_frame(dataset[0])
-    prev_fpcl = FramePointCloud(prev_frame)
+    prev_fpcl = FramePointCloud.from_frame(prev_frame)
 
     for i in range(1, len(dataset)):
         frame = _prepare_frame(dataset[i])
-        fpcl = FramePointCloud(frame)
+        fpcl = FramePointCloud.from_frame(frame)
 
         relative_rt = icp.estimate(prev_fpcl.points.to(device),
                                    prev_fpcl.normals.to(device),
-                                   prev_fpcl.fg_mask.to(device),
+                                   prev_fpcl.mask.to(device),
                                    fpcl.points.to(device),
-                                   fpcl.fg_mask.to(device),
+                                   fpcl.mask.to(device),
                                    fpcl.kcam)
         relative_rt = relative_rt.cpu()
         dataset.get_info(
@@ -333,14 +335,14 @@ def _test_multiscale_geom():
     frame = _prepare_frame(frame)
     next_frame = _prepare_frame(next_frame)
 
-    fpcl = FramePointCloud(frame)
-    next_fpcl = FramePointCloud(next_frame)
+    fpcl = FramePointCloud.from_frame(frame)
+    next_fpcl = FramePointCloud.from_frame(next_frame)
 
     relative_rt = icp.estimate(fpcl.points.to(device),
                                fpcl.normals.to(device),
-                               fpcl.fg_mask.to(device),
+                               fpcl.mask.to(device),
                                next_fpcl.points.to(device),
-                               next_fpcl.fg_mask.to(device),
+                               next_fpcl.mask.to(device),
                                next_fpcl.kcam)
 
     pcl0 = fpcl.unordered_point_cloud(world_space=True)
