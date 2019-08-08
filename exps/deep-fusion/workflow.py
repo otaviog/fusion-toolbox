@@ -217,7 +217,7 @@ class ConvResidual(rflow.Interface):
     def evaluate(self, dataset, frame_num0, frame_num1, net, odo='gt'):
         from torch.nn.functional import upsample
         import torchvision as tv
-
+        
         from fiontb.frame import FramePointCloud
         from fiontb.spatial.indexmap import IndexMap
         from fiontb.camera import Homogeneous

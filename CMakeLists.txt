@@ -22,4 +22,5 @@ find_package(OpenMP)
 
 set(CMAKE_CXX_FLAGS -fPIC)
 include_directories(${CMAKE_SOURCE_DIR}/include)
+add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 add_subdirectory(src)

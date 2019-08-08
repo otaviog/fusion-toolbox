@@ -99,7 +99,7 @@ class DatasetViewer:
         with self.context.current():
             self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
 
-        pcl = FramePointCloud(frame).unordered_point_cloud(world_space=False)
+        pcl = FramePointCloud.from_frame(frame).unordered_point_cloud(world_space=False)
         cam_space = pcl.points
 
         hand_matrix = torch.eye(4)

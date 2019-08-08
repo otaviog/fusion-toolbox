@@ -48,17 +48,17 @@ class SceneNN:
         self.ni_dev.start()
 
     def _getnext_pair(self):
-        depth_img, depth_ts, _ = self.ni_dev.readDepth()
-        rgb_img, rgb_ts, _ = self.ni_dev.readColor()
+        depth_img, depth_ts, _ = self.ni_dev.read_depth()
+        rgb_img, rgb_ts, _ = self.ni_dev.read_color()
 
         k_time_diff = 33000
         diff = abs(rgb_ts - depth_ts)
 
         while diff > k_time_diff:
             if rgb_ts > depth_ts:
-                depth_img, depth_ts, _ = self.ni_dev.readDepth()
+                depth_img, depth_ts, _ = self.ni_dev.read_depth()
             else:
-                rgb_img, rgb_ts, _ = self.ni_dev.readColor()
+                rgb_img, rgb_ts, _ = self.ni_dev.read_color()
 
             diff = abs(rgb_ts - depth_ts)
             print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
