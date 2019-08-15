@@ -20,17 +20,23 @@ class IntraMergeMap:
 
     def __init__(self, max_dist=0.005,
                  normal_max_angle=math.radians(45),
-                 search_size=8):
+                 search_size=8, use_cpu=False):
         self.merge_map = None
         self.max_dist = max_dist
         self.normal_max_angle = normal_max_angle
         self.search_size = search_size
+        self.use_cpu = use_cpu
 
     def find_mergeable_surfels(self, model_indexmap, stable_conf_thresh):
         with model_indexmap.context.current():
             pos_fb = model_indexmap.position_confidence_tex.to_tensor()
             normal_rad_fb = model_indexmap.normal_radius_tex.to_tensor()
             idx_fb = model_indexmap.index_tex.to_tensor()
+
+        if self.use_cpu:
+            pos_fb = pos_fb.cpu()
+            normal_rad_fb = normal_rad_fb.cpu()
+            idx_fb = idx_fb.cpu()
 
         self.merge_map = empty_ensured_size(self.merge_map, pos_fb.size(0), pos_fb.size(1),
                                             device=pos_fb.device, dtype=torch.int64)
@@ -55,6 +61,8 @@ def _test():
     from fiontb.viz.surfelrender import show_surfels
     from .model import SurfelModel, SurfelCloud
     from .indexmap import ModelIndexMap
+
+    SURFEL_RADIUS = 0.005
 
     test_data = Path(__file__).parent / "_test"
 
@@ -88,7 +96,7 @@ def _test():
     model_indexmap = ModelIndexMap(surfel_model)
     model_indexmap.raster(proj_matrix, rt_cam, 640*4, 480*4)
 
-    merge_ctx = IntraMergeMap()
+    merge_ctx = IntraMergeMap(use_cpu=True, max_dist=SURFEL_RADIUS)
 
     dest_idxs, merge_idxs = merge_ctx.find_mergeable_surfels(
         model_indexmap, 15)

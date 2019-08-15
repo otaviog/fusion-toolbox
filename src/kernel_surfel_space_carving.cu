@@ -8,11 +8,12 @@ namespace fiontb {
 
 namespace {
 
-template <typename PositionAccessor,
+template <typename Float3Accessor,
   typename IndexAccessor>
 struct Framebuffer {
-  Framebuffer(const PositionAccessor position, const IndexAccessor index)
-      : position(position), index(index) {}
+  Framebuffer(const Float3Accessor position,
+			  const IndexAccessor index)
+	: position(position), index(index) {}
 
   __device__ __host__ int width() const { return position.size(1); }
   __device__ __host__ int height() const { return position.size(0); }
@@ -20,18 +21,19 @@ struct Framebuffer {
     return index[row][col][1] == 0;
   }
 
-  const PositionAccessor position;
+  const Float3Accessor position;
   const IndexAccessor index;
 };
 
-typedef Framebuffer<PackedAccessor<float, 3>, PackedAccessor<int32_t, 3>>
-    CUDAFramebuffer;
+typedef Framebuffer<PackedAccessor<float, 3>,
+	PackedAccessor<int32_t, 3>>
+CUDAFramebuffer;
 
 typedef Framebuffer<torch::TensorAccessor<float, 3>,
-                    torch::TensorAccessor<int32_t, 3>>
-    CPUFramebuffer;
+	torch::TensorAccessor<int32_t, 3>>
+CPUFramebuffer;
 
-const int MAX_VIOLANTIONS = 4;
+const int MAX_VIOLANTIONS = 2;
 
 __global__ void CarveSpace_gpu_kernel(CUDAFramebuffer stable_and_new,
                                       CUDAFramebuffer model,

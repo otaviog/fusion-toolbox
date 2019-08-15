@@ -103,7 +103,7 @@ def _test():
     surfel_model.add_surfels(stable_and_new)
 
     np.random.seed(110)
-    num_violations = 2
+    num_violations = 100
     violations_sampling = np.random.choice(model.verts.size(0), num_violations)
     violation_points = (model.verts[violations_sampling]
                         + (rt_cam.center - model.verts[violations_sampling])
@@ -124,7 +124,7 @@ def _test():
     model_indexmap.raster(proj_matrix, rt_cam, 640*4, 480*4)
 
     carving = SpaceCarving(surfel_model, stable_conf_thresh=10,
-                           search_size=4*4, min_z_difference=0.1)
+                           search_size=8, min_z_difference=0.1)
     carving.carve(model_indexmap, proj_matrix, rt_cam,
                   640*4, 480*4, 5, debug=False)
     surfel_model.update_active_mask_gl()
