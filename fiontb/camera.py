@@ -46,9 +46,9 @@ class KCamera:
     def from_json(cls, json):
         """Loads from json representaion.
         """
-        return cls(torch.tensor(json['matrix'], dtype=torch.float),
+        return cls(torch.tensor(json['matrix'], dtype=torch.float).view(-1, 3),
                    undist_coeff=json.get('undist_coeff', None),
-                   depth_radial_distortion=json['is_radial_depth'],
+                   depth_radial_distortion=json.get('is_radial_depth', False),
                    image_size=json.get('image_size', None))
 
     def to_json(self):
@@ -249,7 +249,7 @@ class RTCamera:
 
     @classmethod
     def from_json(cls, json):
-        return cls(torch.tensor(json['matrix'], dtype=torch.float))
+        return cls(torch.tensor(json['matrix'], dtype=torch.float).view(-1, 4))
 
     def to_json(self):
         return {'matrix': self.matrix.tolist()}
