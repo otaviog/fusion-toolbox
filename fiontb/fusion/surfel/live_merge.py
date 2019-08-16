@@ -24,7 +24,6 @@ class LiveToModelMergeMap:
 
     def find_mergeable(self, model_indexmap, live_surfels, proj_matrix,
                        width, height, debug=False):
-        import ipdb; ipdb.set_trace()
         self.live_indexmap.raster(live_surfels, proj_matrix, width, height)
         self.live_indexmap.show_debug("Live", debug)
 

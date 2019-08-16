@@ -96,7 +96,7 @@ def _test():
     model_indexmap = ModelIndexMap(surfel_model)
     model_indexmap.raster(proj_matrix, rt_cam, 640*4, 480*4)
 
-    merge_ctx = IntraMergeMap(use_cpu=True, max_dist=SURFEL_RADIUS)
+    merge_ctx = IntraMergeMap(use_cpu=False, max_dist=SURFEL_RADIUS)
 
     dest_idxs, merge_idxs = merge_ctx.find_mergeable_surfels(
         model_indexmap, 15)

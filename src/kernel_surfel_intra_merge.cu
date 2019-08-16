@@ -55,7 +55,7 @@ __global__ void FindMergeable_gpu_kernel(CUDAFramebuffer model,
   const float radius = model.normal_radius[row][col][3];
 
   int nearest_fb_idx = -1;
-  float nearest_dist = CUDART_INF_F;
+  float nearest_sq_dist = CUDART_INF_F;
   int count = 0;
 
   const int start_row = max(row - neighbor_size, 0);
@@ -78,13 +78,14 @@ __global__ void FindMergeable_gpu_kernel(CUDAFramebuffer model,
       const float neighbor_radius = model.normal_radius[krow][kcol][3];
       const float angle = abs(GetVectorsAngle(normal, neighbor_normal));
 
-      const float dist = (pos - neighbor_pos).squaredNorm();
-      if (dist <= max_dist * max_dist && dist < radius + neighbor_radius &&
+      const float sq_dist = (pos - neighbor_pos).squaredNorm();
+      const float dist_to = radius + neighbor_radius;
+      if (sq_dist <= max_dist * max_dist && sq_dist < dist_to * dist_to &&
           angle <= max_angle) {
         ++count;
-        if (dist < nearest_dist) {
+        if (sq_dist < nearest_sq_dist) {
           nearest_fb_idx = krow * model.width() + kcol;
-          nearest_dist = dist;
+          nearest_sq_dist = sq_dist;
         }
       }
     }
@@ -97,14 +98,23 @@ __global__ void FindMergeable_gpu_kernel(CUDAFramebuffer model,
 
 __global__ void PreventDoubleMerges_gpu_kernel(
     PackedAccessor<int64_t, 1> merge_map) {
-  int my_fb_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  if (my_fb_idx < merge_map.size(0)) return;
+  int64_t i = blockDim.x * blockIdx.x + threadIdx.x;
+  if (i >= merge_map.size(0)) return;
 
-  const long merge_fb_idx = merge_map[my_fb_idx];
-  if (merge_fb_idx >= 0) {
-    long other_fb_idx = merge_map[merge_fb_idx];
-    if (my_fb_idx < merge_fb_idx) {
-      merge_map[my_fb_idx] = -1;
+  /**
+   *   Cases:
+   *   i -> j (-1)      # i merges with no one
+   *   i -> j ->  k (i) # i merges with j, and j merges with i
+   *   i -> j -> -1     # i whats to merge with j
+   *   i -> j ->  k     # i merges with j, and j merges with k
+   */
+  const int64_t j = merge_map[i];
+  if (j >= 0) {
+    const int64_t k = merge_map[j];
+    if (i == k) {
+      if (i < j) merge_map[j] = -1;
+    } else {
+      merge_map[i] = -1;
     }
   }
 }
@@ -173,7 +183,8 @@ void FindMergeable_cpu_kernel(CPUFramebuffer model,
           const float angle = abs(GetVectorsAngle(normal, neighbor_normal));
 
           const float sq_dist = (pos - neighbor_pos).squaredNorm();
-          if (sq_dist <= max_dist * max_dist && sq_dist < radius + neighbor_radius &&
+          const float dist_to = radius + neighbor_radius;
+          if (sq_dist <= max_dist * max_dist && sq_dist < dist_to * dist_to &&
               angle <= max_angle) {
             ++count;
             if (sq_dist < nearest_sq_dist) {
@@ -194,7 +205,7 @@ void FindMergeable_cpu_kernel(CPUFramebuffer model,
 void PreventDoubleMerges_cpu_kernel(
     torch::TensorAccessor<int64_t, 1> merge_map) {
   /**
-   *   Cases: 
+   *   Cases:
    *   i -> -1        # i merges with no one
    *   i ->  j ->  k (i) # i merges with j, and j merges with i
    *   i ->  j -> -1  # i whats to merge with j
@@ -204,16 +215,16 @@ void PreventDoubleMerges_cpu_kernel(
     const int64_t j = merge_map[i];
     if (j >= 0) {
       const int64_t k = merge_map[j];
-	  if (i == k) {
-		merge_map[j] = -1;
-	  } else {
-		merge_map[i] = -1;
-	  }
-	  
-	  //if (merge_map[other_idx] == -1) {
-		// Someone already merged with this one
-		//merge_map[i] = -1;
-	  //}
+      if (i == k) {
+        merge_map[j] = -1;
+      } else {
+        merge_map[i] = -1;
+      }
+
+      // if (merge_map[other_idx] == -1) {
+      // Someone already merged with this one
+      // merge_map[i] = -1;
+      //}
     }
   }
 }
@@ -267,8 +278,8 @@ void FindMergeableSurfels(const torch::Tensor &pos_fb,
     CudaCheck();
     CudaSafeCall(cudaDeviceSynchronize());
 
-    const CudaKernelDims kd_arr = Get1DKernelDims(merge_map.size(0));
     auto linear_merge_map = merge_map.view({-1});
+    const CudaKernelDims kd_arr = Get1DKernelDims(linear_merge_map.size(0));
     PreventDoubleMerges_gpu_kernel<<<kd_arr.grid, kd_arr.block>>>(
         linear_merge_map
             .packed_accessor<int64_t, 1, torch::RestrictPtrTraits, size_t>());

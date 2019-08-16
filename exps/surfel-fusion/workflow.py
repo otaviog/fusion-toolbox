@@ -2,7 +2,7 @@
 """
 
 # pylint: disable=missing-docstring
-
+import open3d
 import torch
 
 import rflow
@@ -105,7 +105,7 @@ class FusionTask(rflow.Interface):
         fusion_ctx = SurfelFusion(surfel_model)
 
         sensor_ui = FrameUI("Frame Control")
-        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP, inverse=False)
+        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP, inverse=True)
 
         device = "cuda:0"
         rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
