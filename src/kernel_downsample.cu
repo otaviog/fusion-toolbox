@@ -1,6 +1,7 @@
 #include "downsample.hpp"
 
 #include "cuda_utils.hpp"
+#include "error.hpp"
 #include "math.hpp"
 
 namespace fiontb {
@@ -65,6 +66,10 @@ __global__ void DownsampleXYZNearest_gpu_kernel(
 void DownsampleXYZ(const torch::Tensor xyz_image, const torch::Tensor mask,
                    float scale, torch::Tensor dst, bool normalize,
                    DownsampleXYZMethod method) {
+  FTB_CHECK(xyz_image.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(mask.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(dst.is_cuda(), "Expected a cuda tensor");
+
   const CudaKernelDims kern_dims =
       Get2DKernelDims(xyz_image.size(1), xyz_image.size(0));
 
@@ -73,6 +78,8 @@ void DownsampleXYZ(const torch::Tensor xyz_image, const torch::Tensor mask,
       mask.packed_accessor<uint8_t, 2, torch::RestrictPtrTraits, size_t>(),
       1.0f / scale,
       dst.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>());
+  CudaCheck();
+  CudaSafeCall(cudaDeviceSynchronize());
 }
 
 }  // namespace fiontb

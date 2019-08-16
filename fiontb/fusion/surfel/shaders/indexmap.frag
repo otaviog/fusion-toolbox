@@ -5,6 +5,7 @@ in Surfel {
   vec4 normal_rad;
   vec3 color;
   flat int index;
+  flat int time;
 } surfel;
 
 layout(location = 0) out vec4 out_point_conf;
@@ -18,9 +19,11 @@ void main() {
   out_point_conf.w = surfel.pos_conf.w;
 
   out_normal_rad = surfel.normal_rad;
-
+  out_normal_rad.z = -surfel.normal_rad.z;
+	
   out_color = surfel.color;
 	
   out_index.x = surfel.index;
   out_index.y = 1;
+  out_index.z = surfel.time;
 }

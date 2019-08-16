@@ -106,10 +106,11 @@ class SurfelFusion:
                                        width, height)
             return FusionStats(live_surfels.size, 0, 0)
 
-        self.model_indexmap.raster(proj_matrix, rt_cam,
-                                   width*self.indexmap_scale,
-                                   height*self.indexmap_scale)
+        indexmap_size = int(
+            width*self.indexmap_scale), int(height*self.indexmap_scale)
 
+        self.model_indexmap.raster(proj_matrix, rt_cam,
+                                   indexmap_size[0], indexmap_size[1])
         live_query = self.live_merge_map.find_mergeable(
             self.model_indexmap, live_surfels,
             proj_matrix, width, height)
@@ -140,15 +141,15 @@ class SurfelFusion:
         self._remove_surfels(visible_model_idxs)
         self.surfels.update_active_mask_gl()
 
-        self.model_indexmap.raster(proj_matrix, rt_cam, int(
-            width*self.indexmap_scale), int(height*self.indexmap_scale))
+        self.model_indexmap.raster(
+            proj_matrix, rt_cam, indexmap_size[0], indexmap_size[1])
         dest_idxs, merge_idxs = self.intra_merge_map.find_mergeable_surfels(
             self.model_indexmap,
             self.stable_conf_thresh)
         self._merge_intra_surfels(dest_idxs, merge_idxs)
 
-        self.model_indexmap.raster(proj_matrix, rt_cam, int(
-            width*self.indexmap_scale), int(height*self.indexmap_scale))
+        # self.model_indexmap.raster(proj_matrix, rt_cam,
+        #  indexmap_size[0], indexmap_size[1])
         self.spacecarving.carve(self.model_indexmap, proj_matrix, rt_cam, width,
                                 height, self._time)
 
@@ -245,7 +246,7 @@ class SurfelFusion:
         self._last_rtcam = rt_cam
 
     def get_last_view_frame_pcl(self):
-        with self.surfels.context.current:
+        with self.surfels.context.current():
             mask = self.pose_indexmap.index_tex.to_tensor()[:, :, 1]
             points = self.pose_indexmap.position_confidence_tex.to_tensor()[
                 :, :, :3]
@@ -254,5 +255,5 @@ class SurfelFusion:
             colors = self.pose_indexmap.color_tex.to_tensor()
 
         return fiontb.frame.FramePointCloud(
-            None, mask, self._last_kcam, self._last_rtcam,
+            None, mask.byte(), self._last_kcam, self._last_rtcam,
             points, normals, colors)

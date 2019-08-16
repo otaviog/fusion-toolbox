@@ -108,6 +108,7 @@ class ICPOdometry:
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform)
 
+
 class MultiscaleICPOdometry:
     """Pyramidal point-to-plane iterative closest points
     algorithm.
@@ -204,6 +205,8 @@ class MultiscaleICPOdometry:
         return self.estimate(target_frame.points, target_frame.normals,
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform)
+
+
 def _show_pcl(pcls):
     import tenviz
 
@@ -257,14 +260,14 @@ def _test_geom1():
     frame = _prepare_frame(frame)
     next_frame = _prepare_frame(next_frame)
 
-    fpcl = FramePointCloud(frame)
-    next_fpcl = FramePointCloud(next_frame)
+    fpcl = FramePointCloud.from_frame(frame)
+    next_fpcl = FramePointCloud.from_frame(next_frame)
 
     relative_rt = icp.estimate(fpcl.points.to(device),
                                fpcl.normals.to(device),
-                               fpcl.fg_mask.to(device),
+                               fpcl.mask.to(device),
                                next_fpcl.points.to(device),
-                               next_fpcl.fg_mask.to(device),
+                               next_fpcl.mask.to(device),
                                next_fpcl.kcam)
 
     pcl0 = fpcl.unordered_point_cloud(world_space=True)
@@ -290,17 +293,17 @@ def _test_geom2():
 
     dataset.get_info(0).rt_cam.matrix = torch.eye(4)
     prev_frame = _prepare_frame(dataset[0])
-    prev_fpcl = FramePointCloud(prev_frame)
+    prev_fpcl = FramePointCloud.from_frame(prev_frame)
 
     for i in range(1, len(dataset)):
         frame = _prepare_frame(dataset[i])
-        fpcl = FramePointCloud(frame)
+        fpcl = FramePointCloud.from_frame(frame)
 
         relative_rt = icp.estimate(prev_fpcl.points.to(device),
                                    prev_fpcl.normals.to(device),
-                                   prev_fpcl.fg_mask.to(device),
+                                   prev_fpcl.mask.to(device),
                                    fpcl.points.to(device),
-                                   fpcl.fg_mask.to(device),
+                                   fpcl.mask.to(device),
                                    fpcl.kcam)
         relative_rt = relative_rt.cpu()
         dataset.get_info(
@@ -333,14 +336,14 @@ def _test_multiscale_geom():
     frame = _prepare_frame(frame)
     next_frame = _prepare_frame(next_frame)
 
-    fpcl = FramePointCloud(frame)
-    next_fpcl = FramePointCloud(next_frame)
+    fpcl = FramePointCloud.from_frame(frame)
+    next_fpcl = FramePointCloud.from_frame(next_frame)
 
     relative_rt = icp.estimate(fpcl.points.to(device),
                                fpcl.normals.to(device),
-                               fpcl.fg_mask.to(device),
+                               fpcl.mask.to(device),
                                next_fpcl.points.to(device),
-                               next_fpcl.fg_mask.to(device),
+                               next_fpcl.mask.to(device),
                                next_fpcl.kcam)
 
     pcl0 = fpcl.unordered_point_cloud(world_space=True)

@@ -9,7 +9,7 @@ import rflow
 
 from fiontb.camera import RTCamera
 import fiontb.fusion
-import fiontb.pose.open3d
+from fiontb.pose.icp import ICPOdometry, MultiscaleICPOdometry
 
 
 class LoadFTB(rflow.Interface):
@@ -21,62 +21,80 @@ class LoadFTB(rflow.Interface):
 
         return load_ftb(resource.filepath)
 
-import matplotlib.pyplot as plt
 
 class _Odometry:
     def __init__(self, mode, fusion_ctx):
         self.use_gt = False
-        self.prev_frame = None
+        self.prev_frame_pcl = None
         self.mode = mode
         self.fusion_ctx = fusion_ctx
 
-    def estimate(self, frame):
+        self.icp = MultiscaleICPOdometry([(0.25, 15), (0.5, 10), (1.0, 5)])
+        #self.icp = ICPOdometry(20)
+
+    def estimate(self, curr_frame_pcl):
         if self.mode == "frame-to-frame":
-            if self.prev_frame is not None:
-                relative_cam = fiontb.pose.open3d.estimate_odometry(
-                    self.prev_frame, frame)
+            if self.prev_frame_pcl is not None:
+                relative_cam = self.icp.estimate_frame_to_frame(self.prev_frame_pcl,
+                                                                curr_frame_pcl)
             else:
                 relative_cam = torch.eye(4, dtype=torch.float32)
 
-            self.prev_frame = frame
+            self.prev_frame_pcl = curr_frame_pcl
             return relative_cam
         elif self.mode == "frame-to-model":
             if not self.fusion_ctx.pose_indexmap.is_rasterized:
                 return torch.eye(4, dtype=torch.float32)
-            
-            source_frame = self.fusion_ctx.pose_indexmap.to_frame(
-                frame.info)
 
-            if False:
-                plt.figure()
-                plt.title("Model Depth")
-                plt.imshow(source_frame.depth_image)
-                
+            model_fpcl = self.fusion_ctx.get_last_view_frame_pcl()
+
+            if True:
+                import matplotlib.pyplot as plt
+
                 plt.figure()
                 plt.title("Model RGB")
-                plt.imshow(source_frame.rgb_image)
+                plt.imshow(model_fpcl.colors.cpu())
+
+                plt.figure()
+                plt.title("Model Point")
+                plt.imshow(model_fpcl.points.cpu())
+
+                plt.figure()
+                plt.title("Model Normals")
+                plt.imshow(model_fpcl.normals.cpu())
+
+                plt.figure()
+                plt.title("Model Mask")
+                plt.imshow(model_fpcl.mask.cpu())
 
                 plt.figure()
                 plt.title("Frame RGB")
-                plt.imshow(frame.rgb_image)
+                plt.imshow(curr_frame_pcl.colors.cpu())
 
                 plt.figure()
-                plt.title("Frame Depth")
-                plt.imshow(frame.depth_image)
-                
+                plt.title("Frame Point")
+                plt.imshow(curr_frame_pcl.points.cpu())
+
+                plt.figure()
+                plt.title("Frame Normals")
+                plt.imshow(curr_frame_pcl.normals.cpu())
+
+                plt.figure()
+                plt.title("Frame Normals")
+                plt.imshow(curr_frame_pcl.mask.cpu())
+
                 plt.show()
 
-            return fiontb.pose.open3d.estimate_odometry(
-                source_frame, frame)
+            return self.icp.estimate_frame_to_frame(curr_frame_pcl, model_fpcl)
         elif self.mode == "ground-truth":
-            if self.prev_frame is not None:
-                relative_cam = (frame.info.rt_cam.cam_to_world
-                                @ self.prev_frame.info.rt_cam.world_to_cam)
+            if self.prev_frame_pcl is not None:
+                relative_cam = (curr_frame_pcl.rt_cam.cam_to_world
+                                @ self.prev_frame_pcl.rt_cam.world_to_cam)
 
             else:
-                relative_cam = frame.info.rt_cam.cam_to_world
+                relative_cam = curr_frame_pcl.rt_cam.cam_to_world
 
-            self.prev_frame = frame
+            self.prev_frame_pcl = curr_frame_pcl
             return relative_cam
 
 
@@ -105,11 +123,14 @@ class FusionTask(rflow.Interface):
         fusion_ctx = SurfelFusion(surfel_model)
 
         sensor_ui = FrameUI("Frame Control")
-        rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP, inverse=True)
+        rec_ui = SurfelReconstructionUI(
+            surfel_model, RunMode.STEP, inverse=True)
 
         device = "cuda:0"
         rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
+        # odometry = _Odometry("frame-to-frame", fusion_ctx)
         odometry = _Odometry("frame-to-model", fusion_ctx)
+        # odometry = _Odometry("ground-truth", fusion_ctx)
 
         prof = Profile()
         prof.enable()
@@ -118,23 +139,23 @@ class FusionTask(rflow.Interface):
             if frame is None:
                 continue
 
-            live_fpcl = FramePointCloud.from_frame(frame)
-            live_fpcl = live_fpcl.to(device)
+            live_fpcl = FramePointCloud.from_frame(frame).to(device)
 
-            filtered_depth_image = bilateral_filter_depth_image(
+            frame.depth_image = bilateral_filter_depth_image(
                 torch.from_numpy(frame.depth_image).to(device),
-                live_fpcl.mask, depth_scale=frame.info.depth_scale)
+                live_fpcl.mask, depth_scale=frame.info.depth_scale).cpu().numpy()
 
-            live_fpcl.normals = estimate_normals(filtered_depth_image, frame.info,
-                                                 live_fpcl.mask)
+            filtered_live_fpcl = FramePointCloud.from_frame(
+                frame).to(device)
 
-            frame.normal_image = live_fpcl.normals.cpu()
+            live_fpcl.normals = filtered_live_fpcl.normals
+            frame.normal_image = filtered_live_fpcl.normals.cpu()
 
             sensor_ui.update(frame)
 
-            relative_cam = odometry.estimate(frame)
+            relative_cam = odometry.estimate(filtered_live_fpcl)
 
-            rt_cam = rt_cam.integrate(relative_cam)
+            rt_cam = rt_cam.integrate(relative_cam.cpu())
 
             stats = fusion_ctx.fuse(live_fpcl, rt_cam)
             print(stats)

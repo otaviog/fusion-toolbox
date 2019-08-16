@@ -1,14 +1,16 @@
 #include "filtering.hpp"
 
+#include "error.hpp"
 #include "cuda_utils.hpp"
 
 namespace fiontb {
 
 template <typename scalar_t>
 __global__ void BilateralFilterDepthImage_gpu_kernel(
-													 const PackedAccessor<scalar_t, 2> input, const PackedAccessor<uint8_t, 2> mask,
-    PackedAccessor<scalar_t, 2> result, int half_width, float inv_sigma_color_sqr,
-    float inv_sigma_space_sqr, float depth_scale) {
+    const PackedAccessor<scalar_t, 2> input,
+    const PackedAccessor<uint8_t, 2> mask, PackedAccessor<scalar_t, 2> result,
+    int half_width, float inv_sigma_color_sqr, float inv_sigma_space_sqr,
+    float depth_scale) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -63,6 +65,9 @@ torch::Tensor BilateralFilterDepthImage_gpu(const torch::Tensor input,
                                             int filter_width, float sigma_color,
                                             float sigma_space,
                                             float depth_scale) {
+  FTB_CHECK(input.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(mask.is_cuda(), "Expected a cuda tensor");
+
   const int width = input.size(1);
   const int height = input.size(0);
 

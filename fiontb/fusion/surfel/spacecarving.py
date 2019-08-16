@@ -28,7 +28,6 @@ class SpaceCarving:
         """
 
         self.surfel_model = surfel_model
-        self.stable_and_new_indexmap = ModelIndexMap(surfel_model)
         self.stable_conf_thresh = stable_conf_thresh
         self.search_size = search_size
         self.min_z_difference = min_z_difference
@@ -51,26 +50,14 @@ class SpaceCarving:
             model_positions = model_indexmap.position_confidence_tex.to_tensor()
             model_idxs = model_indexmap.index_tex.to_tensor()
 
-        self.stable_and_new_indexmap.raster(proj_matrix, rt_cam, width, height,
-                                            self.stable_conf_thresh, curr_time)
-        self.stable_and_new_indexmap.show_debug("Stable and new", debug)
-
-        with context.current():
-            stable_and_new_positions = (self.stable_and_new_indexmap.
-                                        position_confidence_tex.to_tensor())
-            stable_and_new_idxs = self.stable_and_new_indexmap.index_tex.to_tensor()
-
         if self.use_cpu:
-            stable_and_new_idxs = stable_and_new_idxs.cpu()
-            stable_and_new_positions = stable_and_new_positions.cpu()
             model_positions = model_positions.cpu()
             model_idxs = model_idxs.cpu()
 
-        surfel_cave_free_space(
-            stable_and_new_positions, stable_and_new_idxs,
-            model_positions, model_idxs,
-            self.surfel_model.active_mask, self.search_size,
-            self.min_z_difference)
+        surfel_cave_free_space(model_positions, model_idxs,
+                               self.surfel_model.active_mask,
+                               curr_time, self.stable_conf_thresh,
+                               self.search_size, self.min_z_difference)
 
 
 def _test():
@@ -111,30 +98,31 @@ def _test():
     surfel_model.add_surfels(stable_and_new)
 
     np.random.seed(110)
-    num_violations = 10
+    torch.manual_seed(110)
+
+    num_violations = 500
     violations_sampling = np.random.choice(model.verts.size(0), num_violations)
     violation_points = (model.verts[violations_sampling]
                         + (rt_cam.center - model.verts[violations_sampling])
-                        * torch.rand(num_violations, 1)*0.8 - 0.1)
+                        * torch.rand(num_violations, 1)*0.8)
     violations = SurfelCloud(violation_points,
                              stable_and_new.colors[violations_sampling],
                              stable_and_new.normals[violations_sampling],
                              radii[violations_sampling],
-                             confs[violations_sampling] + 10,
+                             confs[violations_sampling] - 10,
                              torch.full((num_violations, ),
                                         3, dtype=torch.int32),
                              None, "cuda:0")
-
     surfel_model.add_surfels(violations)
     surfel_model.update_active_mask_gl()
     before = surfel_model.clone()
 
-    print(violations_sampling)
+    print(torch.arange(0, num_violations) + model.verts.size(0))
     model_indexmap = ModelIndexMap(surfel_model)
     model_indexmap.raster(proj_matrix, rt_cam, 640*4, 480*4)
 
     carving = SpaceCarving(surfel_model, stable_conf_thresh=10,
-                           search_size=8, min_z_difference=0.1, use_cpu=True)
+                           search_size=8, min_z_difference=0.1, use_cpu=False)
     carving.carve(model_indexmap, proj_matrix, rt_cam,
                   640*4, 480*4, 5, debug=False)
     surfel_model.update_active_mask_gl()

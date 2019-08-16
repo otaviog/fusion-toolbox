@@ -14,6 +14,7 @@ out Surfel {
   vec4 normal_rad;
   vec3 color;
   flat int index;
+  flat int time;
 } surfel;
 
 void main() {
@@ -25,5 +26,6 @@ void main() {
   surfel.normal_rad.xyz = NormalModelview*in_normal;
   surfel.normal_rad.w = in_radius;
 
-  surfel.index = gl_VertexID;  
+  surfel.index = gl_VertexID;
+  surfel.time = 0;
 }

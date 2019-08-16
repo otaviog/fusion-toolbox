@@ -221,21 +221,24 @@ class HeatMapMesh(rflow.Interface):
         return tenviz.io.read_3dobject(resource.filepath).torch()
 
 
-def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
+def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None, show_only_end_nodes=True):
     import torch
     from .processing import LoadMesh
 
     result_model_filepath = Path(result_node.get_resource().filepath)
 
     sub.rec_geo = LoadMesh(result_node.get_resource())
+    sub.rec_geo.show = False
 
     sub.unreg_view = ViewAlignment()
     with sub.unreg_view as args:
         args.fixed_geo = gt_pcl
         args.mov_geo = sub.rec_geo
+    sub.unreg_view.show = not show_only_end_nodes
 
     sub.init_align = InitialAlign(rflow.FSResource(
         result_model_filepath.with_suffix(".ireg.ply")))
+    sub.init_align.show = False
     with sub.init_align as args:
         args.fixed_pcl = gt_pcl
         args.mov_geo = sub.rec_geo
@@ -248,18 +251,21 @@ def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
         args.initial_matrix = init_mtx.tolist()
 
     sub.init_align_view = ViewAlignment()
+    sub.init_align_view.show = not show_only_end_nodes
     with sub.init_align_view as args:
         args.fixed_geo = gt_pcl
         args.mov_geo = sub.init_align
 
     sub.manual_align = ManualAlign(rflow.FSResource(
         result_model_filepath.with_suffix(".mreg.ply")))
+    sub.manual_align.show = not show_only_end_nodes
     with sub.manual_align as args:
         # args.fixed_model_path = gt_pcl
         args.fixed_geo = gt_cad_mesh
         args.mov_geo = sub.init_align
 
     sub.manual_align_view = ViewAlignment()
+    sub.manual_align_view.show = not show_only_end_nodes
     with sub.manual_align_view as args:
         # args.fixed_model_path = gt_pcl
         args.fixed_geo = gt_cad_mesh
@@ -268,17 +274,20 @@ def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
     sub.local_reg = LocalRegistration(rflow.MultiResource(
         rflow.FSResource(result_model_filepath.with_suffix(".lreg.ply")),
         rflow.FSResource(result_model_filepath.with_suffix(".lreg.json"))))
+    sub.local_reg.show = not show_only_end_nodes
     with sub.local_reg as args:
         # args.fixed_model_path = gt_pcl
         args.fixed_pcl = gt_pcl
         args.mov_geo = sub.manual_align
 
     sub.local_reg_view = ViewAlignment()
+    sub.local_reg_view.show = not show_only_end_nodes
     with sub.local_reg_view as args:
         args.fixed_geo = gt_pcl
         args.mov_geo = sub.local_reg[0]
 
     sub.final_align_view = ViewAlignment()
+    sub.final_align_view.show = not show_only_end_nodes
     with sub.final_align_view as args:
         args.fixed_geo = gt_cad_mesh
         args.mov_geo = sub.local_reg[0]
@@ -296,12 +305,14 @@ def evaluation_graph(sub, result_node, gt_cad_mesh, gt_pcl, init_mtx=None):
 
     sub.nearest_points = NearestPoints(rflow.FSResource(
         result_model_filepath.with_suffix('.nearest.ply')))
+    sub.nearest_points.show = not show_only_end_nodes
     with sub.nearest_points as args:
         args.rec_geo = sub.local_reg[0]
         args.gt_mesh = gt_cad_mesh
 
     sub.heat_map = HeatMapMesh(rflow.FSResource(
         result_model_filepath.with_suffix('.hmap.ply')))
+    sub.heat_map.show = not show_only_end_nodes
     with sub.heat_map as args:
         args.nearest_points = sub.nearest_points
         args.rec_geo = sub.local_reg[0]
