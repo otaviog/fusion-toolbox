@@ -1,5 +1,6 @@
 """Intrinsic and extrinsic camera handling.
 """
+import math
 
 import numpy as np
 import quaternion
@@ -23,15 +24,11 @@ class KCamera:
         undist_coeff (List[float], optional): Radial distortion
          coeficients. Default is `[]`.
 
-        depth_radial_distortion (bool, optional): Correct radial
-         distorion on Z values from datasets like the
-         UCL-NUIM. Default is `False`.
-
         image_size ((int, int), optional): Width and height of the
          produced image. Default is `None`.
     """
 
-    def __init__(self, matrix, undist_coeff=None, depth_radial_distortion=False, image_size=None):
+    def __init__(self, matrix, undist_coeff=None, image_size=None):
         self.matrix = ensure_torch(matrix).float()
 
         if undist_coeff is not None:
@@ -39,7 +36,6 @@ class KCamera:
         else:
             self.undist_coeff = []
 
-        self.depth_radial_distortion = depth_radial_distortion
         self.image_size = image_size
 
     @classmethod
@@ -48,7 +44,6 @@ class KCamera:
         """
         return cls(torch.tensor(json['matrix'], dtype=torch.float).view(-1, 3),
                    undist_coeff=json.get('undist_coeff', None),
-                   depth_radial_distortion=json.get('is_radial_depth', False),
                    image_size=json.get('image_size', None))
 
     def to_json(self):
@@ -59,7 +54,6 @@ class KCamera:
         """
         json = {
             'matrix': self.matrix.tolist(),
-            'is_radial_depth': self.depth_radial_distortion
         }
 
         if self.undist_coeff is not None:
@@ -71,8 +65,8 @@ class KCamera:
         return json
 
     @classmethod
-    def create_from_params(cls, flen_x, flen_y, center_point,
-                           undist_coeff=None, depth_radial_distortion=False, image_size=None):
+    def from_params(cls, flen_x, flen_y, center_point,
+                    undist_coeff=None, image_size=None):
         """Computes the intrinsic matrix from given focal lengths and center point information.
 
         Args:
@@ -87,10 +81,6 @@ class KCamera:
             undist_coeff (List[float], optional): Radial distortion
              coeficients. Default is `[]`.
 
-            depth_radial_distortion (bool, optional): Correct radial
-             distorion on Z values from datasets like the
-             UCL-NUIM. Default is `False`.
-
             image_size ((int, int), optional): Width and height of the
              produced image. Default is `None`.
 
@@ -102,8 +92,31 @@ class KCamera:
         k_scale = torch.tensor([[flen_x, 0.0, 0.0],
                                 [0.0, flen_y, 0.0],
                                 [0.0, 0.0, 1.0]])
-        return cls(k_trans @ k_scale, undist_coeff,
-                   depth_radial_distortion, image_size)
+        return cls(k_trans @ k_scale, undist_coeff, image_size)
+
+    @classmethod
+    def from_estimation_by_fov(cls, hfov, vfov, img_width, img_height):
+        """Create intrinsics using the ratio of image pixel dimensions and
+        field of view angles. This is useful for guessing intrinsics
+        from a supplied field of views. However, without the actual
+        sensor width and height, it's not possible to generate
+        accurate focal lengths.
+
+        Args:
+
+            hfov (float): Horizontal field of view in radians.
+
+            vfov (float): Vertical field of view in radians.
+
+            img_width (int): Image width in pixels.
+
+            img_height (int): Image height in pixels.
+        """
+
+        flen_x = img_width * .5 / math.tan(hfov/2)
+        flen_y = img_height * .5 / math.tan(vfov/2)
+
+        return cls.from_params(flen_x, flen_y, (img_width*.5, img_height*.5))
 
     def backproject(self, points):
         """Project image points to the camera space.
@@ -132,16 +145,17 @@ class KCamera:
         points[:, :2] /= z.reshape(-1, 1)
         return points
 
-    def scaled(self, scale):
-        return KCamera.create_from_params(self.matrix[0, 0]*scale, self.matrix[1, 1]*scale,
-                                          (self.matrix[0, 2]*scale,
-                                           self.matrix[1, 2]*scale),
-                                          self.undist_coeff, self.depth_radial_distortion,
-                                          self.image_size).to(self.matrix.device)
+    def scaled(self, xscale, yscale=None):
+        if yscale is None:
+            yscale = xscale
+        return KCamera.from_params(self.matrix[0, 0]*xscale, self.matrix[1, 1]*yscale,
+                                   (self.matrix[0, 2]*xscale,
+                                    self.matrix[1, 2]*yscale),
+                                   self.undist_coeff, self.image_size).to(self.matrix.device)
 
     def to(self, device):
         return KCamera(self.matrix.to(device), self.undist_coeff,
-                       self.depth_radial_distortion, self.image_size)
+                       self.image_size)
 
     @property
     def pixel_center(self):

@@ -20,16 +20,16 @@ def _cap_main(argv):
     parser.add_argument("output", help="Output KLG file")
     parser.add_argument(
         "--device-uri", help="Device URI, if not specified then the first found sensor is used")
-    parser.add_argument("--resolution", "-r", 
+    parser.add_argument("--resolution", "-r",
                         help="""Find the best fit mode for the given resolution.
                         Overrides depth-mode and rgb-mode""",
                         type=int, nargs=2)
 
     parser.add_argument(
-        "--depth-mode", help="Depth video mode index, see the `modes` command",
+        "--depth-mode", '-d', help="Depth video mode index, see the `modes` command",
         type=int, default=-1)
     parser.add_argument(
-        "--rgb-mode", help="RGB video mode index, see the `modes` command",
+        "--rgb-mode", '-c', help="RGB video mode index, see the `modes` command",
         type=int, default=-1)
     args = parser.parse_args(argv)
 
@@ -37,16 +37,14 @@ def _cap_main(argv):
     device.open(args.device_uri)
     depth_mode, rgb_mode = args.depth_mode, args.rgb_mode
     if args.resolution:
-        depth_mode, rgb_mode = device.find_best_fit_modes(
+        depth_mode, rgb_mode = device.find_nearest_vmode(
             args.resolution[0], args.resolution[1])
     device.start(depth_mode, rgb_mode)
 
     sensor = Sensor(device)
     frame_ui = FrameUI("RGBD sensor view")
 
-    import ipdb
-    ipdb.set_trace()
-
+    print("Press Ctrl-C (terminal) or ESC (view window) to exit")
     with open(args.output, 'wb') as outstream:
         klg_writer = KLGWriter(outstream)
 
@@ -55,6 +53,7 @@ def _cap_main(argv):
                 frame = sensor.next_frame()
                 if frame is None:
                     break
+
                 klg_writer.write_frame(frame)
                 frame_ui.update(frame)
 
@@ -85,7 +84,7 @@ def _modes_main(argv):
     _print_modes(dev.get_depth_video_modes())
 
     print("RGB modes")
-    _print_modes(dev.get_color_sensor_infos())
+    _print_modes(dev.get_color_video_modes())
 
 
 def _main():

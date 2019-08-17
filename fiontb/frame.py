@@ -187,10 +187,10 @@ class FramePointCloud:
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
-        mask = depth_image > 0
+        mask = (depth_image > 0).byte()
         if frame.fg_mask is not None:
             mask = torch.logical_and(
-                torch.from_numpy(frame.fg_mask).byte(), mask)
+                torch.from_numpy(frame.fg_mask).byte(), mask).byte()
 
         colors = None
         if frame.rgb_image is not None:

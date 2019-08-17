@@ -6,18 +6,20 @@ import cv2
 
 from fiontb.data.klg import KLG
 from fiontb.viz.datasetviewer import DatasetViewer
-from fiontb.sensor import DeviceType, DEVICE_TO_KCAM
+from fiontb.sensor import PresetIntrinsics, get_sensor_kcamera
 from fiontb.camera import KCamera
 
-_SENSOR_TYPE_MAP = {'xtion': (DeviceType.ASUS_XTION, 0.001)}
+_SENSOR_TYPE_MAP = {'xtion': (PresetIntrinsics.ASUS_XTION, 0.001)}
 
 
 def _main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_klg", metavar="input-klg",
                         help="Input KLG file")
-    parser.add_argument("--sensor-type", choices=list(_SENSOR_TYPE_MAP.keys()),
+    parser.add_argument("--sensor-type", '-t', choices=list(_SENSOR_TYPE_MAP.keys()),
                         help="Recording sensor type")
+    parser.add_argument("--depth-scale", '-s', type=float,
+                        help="Override sensor depth scale")
 
     args = parser.parse_args()
 
@@ -26,7 +28,12 @@ def _main():
     if args.sensor_type is not None:
         dev, scale = _SENSOR_TYPE_MAP[args.sensor_type]
         dataset.depth_scale = scale
-        dataset.kcam = KCamera(DEVICE_TO_KCAM[dev])
+        frame0 = dataset[0]
+        height, width = frame0.depth_image.shape[:2]
+        dataset.kcam = get_sensor_kcamera(dev, width, height)
+
+    if args.depth_scale is not None:
+        dataset.depth_scale = args.depth_scale
 
     ds_viewer = DatasetViewer(dataset, args.input_klg)
 

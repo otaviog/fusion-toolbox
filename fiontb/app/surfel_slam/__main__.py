@@ -24,8 +24,8 @@ def _main():
 
     sensor_dev = onireader.Device()
     sensor_dev.open()
-    #sensor_dev.start(*sensor_dev.find_best_fit_modes(640, 480))
-    sensor_dev.start(4, 9)  # 640x480
+    sensor_dev.start_nearest_vmode(640, 480)
+
     sensor = Sensor(sensor_dev, depth_cutoff=3.5*1000,
                     preset_intrinsics=PresetIntrinsics.ASUS_XTION)
 
@@ -40,8 +40,8 @@ def _main():
     rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
     prev_fpcl = None
 
-    icp = MultiscaleICPOdometry([(0.25, 15), (0.5, 10), (1.0, 5)])
-    # icp = ICPOdometry(20)
+    # icp = MultiscaleICPOdometry([(0.25, 15), (0.5, 10), (1.0, 5)])
+    icp = ICPOdometry(20)
     for _ in rec_ui:
         frame = sensor.next_frame()
         if frame is None:

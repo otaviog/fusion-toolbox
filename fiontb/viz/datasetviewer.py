@@ -20,7 +20,7 @@ class DatasetViewer:
 
     """
 
-    def __init__(self, dataset, title="Dataset"):
+    def __init__(self, dataset, title="Dataset", max_pcls=50):
         self.dataset = dataset
         self.title = title
         self.show_mask = False
@@ -32,7 +32,7 @@ class DatasetViewer:
             axis = tenviz.create_axis_grid(-1, 1, 10)
 
         self.cam_viewer = self.context.viewer(
-            [axis], tenviz.CameraManipulator.TrackBall)
+            [], tenviz.CameraManipulator.TrackBall)
         self.cam_viewer.set_title("{}: camera space".format(title))
         self.tv_camera_pcl = None
 
@@ -46,6 +46,9 @@ class DatasetViewer:
         self.pcl_deque = deque()
 
         self.visited_idxs = set()
+
+        self._show_cams = True
+        self.max_pcls = max_pcls
 
     def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
         if idx in self.visited_idxs:
@@ -68,7 +71,7 @@ class DatasetViewer:
         if not self.visited_idxs:
             self.world_viewer.reset_view()
 
-        if len(self.pcl_deque) > 50:
+        if len(self.pcl_deque) > self.max_pcls:
             with self.wcontext.current():
                 oldest_pcl, oldest_cam = self.pcl_deque.popleft()
                 self.world_viewer.get_scene().erase(oldest_pcl)
@@ -99,7 +102,8 @@ class DatasetViewer:
         with self.context.current():
             self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
 
-        pcl = FramePointCloud.from_frame(frame).unordered_point_cloud(world_space=False)
+        pcl = FramePointCloud.from_frame(
+            frame).unordered_point_cloud(world_space=False)
         cam_space = pcl.points
 
         hand_matrix = torch.eye(4)
@@ -176,7 +180,10 @@ class DatasetViewer:
                     quit = True
                 elif key == 'm':
                     self.show_mask = not self.show_mask
-
+                elif key == 'c':
+                    self._show_cams = not self._show_cams
+                    for _, vcam in self.pcl_deque:
+                        vcam.visible = self._show_cams
             if quit:
                 break
         cv2.destroyWindow(self.title)

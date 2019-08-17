@@ -42,6 +42,7 @@ class KLG:
         self.kcam = KCamera(np.eye(3))
         self.trajectory = None
         self.depth_scale = 1.0
+        self.trajectory = None
 
     def __del__(self):
         self.stream.close()
@@ -62,15 +63,13 @@ class KLG:
 
         rt_cam = None
         if self.trajectory is not None:
-            if idx < len(self.trajectory):
-                rt_cam = self.trajectory[idx]
-            else:
-                rt_cam = self.trajectory[-1]
+            rt_cam = self.trajectory[
+                idx if idx < len(self.trajectory) else -1]
 
         info = FrameInfo(kcam=self.kcam, rt_cam=rt_cam,
                          depth_scale=self.depth_scale)
-        frame = Frame(info, depth_image=depth_img.astype(np.int32), rgb_image=rgb_img)
-
+        frame = Frame(info, depth_image=depth_img.astype(
+            np.int32), rgb_image=rgb_img)
         return frame
 
     def __len__(self):
@@ -86,9 +85,9 @@ class KLGWriter:
 
     def write_frame(self, frame):
         depth_image = frame.depth_image
-        depth_image = depth_image*frame.info.depth_scale
 
         if self.format_depth_scale is not None:
+            depth_image = depth_image*frame.info.depth_scale
             depth_image = depth_image*self.format_depth_scale
 
         depth_image = depth_image.astype(np.uint16)
@@ -103,8 +102,6 @@ class KLGWriter:
         else:
             timestamp = self.count + 1
 
-        timestamp = self.count + 1 # REMOVE
-        #print(timestamp)
         self.stream.write(struct.pack('q', timestamp))
         self.stream.write(struct.pack('i', len(compress_depth)))
         self.stream.write(struct.pack('i', len(jpg_rgb)))
