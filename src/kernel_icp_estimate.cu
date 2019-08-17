@@ -1,6 +1,7 @@
 #include "icpodometry.hpp"
 
 #include "cuda_utils.hpp"
+#include "error.hpp"
 #include "math.hpp"
 
 namespace fiontb {
@@ -11,12 +12,11 @@ struct KCamera {
                                         size_t>()) {}
   __device__ Eigen::Vector2i project(const Eigen::Vector3f point) {
     const float img_x =
-	  kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
+        kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
     const float img_y =
-	  kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
+        kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
 
-    return Eigen::Vector2i(round(img_x),						   
-						   round(img_y));
+    return Eigen::Vector2i(round(img_x), round(img_y));
   }
 
   const PackedAccessor<float, 2> kcam_matrix;
@@ -74,27 +74,28 @@ struct JacobianKernel {
     const int ri = blockIdx.x * blockDim.x + threadIdx.x;
     if (ri >= points1.size(0)) return;
 
-	jacobian[ri][0] = 0.0f;
+    jacobian[ri][0] = 0.0f;
     jacobian[ri][1] = 0.0f;
     jacobian[ri][2] = 0.0f;
     jacobian[ri][3] = 0.0f;
     jacobian[ri][4] = 0.0f;
     jacobian[ri][5] = 0.0f;
     residual[ri] = 0.0f;
-	
-	if (mask1[ri] == 0) return;
+
+    if (mask1[ri] == 0) return;
 
     const int width = points0.size(1);
     const int height = points0.size(0);
 
     const Eigen::Vector3f p1_on_prev =
-	  prev_rt_cam.transform(to_vec3<float>(points1[ri]));
-	Eigen::Vector2i p1_proj = kcam.project(p1_on_prev);
+        prev_rt_cam.transform(to_vec3<float>(points1[ri]));
+    Eigen::Vector2i p1_proj = kcam.project(p1_on_prev);
     if (p1_proj[0] < 0 || p1_proj[0] >= width || p1_proj[1] < 0 ||
         p1_proj[1] >= height)
       return;
-	if (mask0[p1_proj[1]][p1_proj[0]] == 0) return;
-    const Eigen::Vector3f point0(to_vec3<float>(points0[p1_proj[1]][p1_proj[0]]));
+    if (mask0[p1_proj[1]][p1_proj[0]] == 0) return;
+    const Eigen::Vector3f point0(
+        to_vec3<float>(points0[p1_proj[1]][p1_proj[0]]));
     const Eigen::Vector3f normal0(
         to_vec3<float>(normals0[p1_proj[1]][p1_proj[0]]));
 
@@ -117,18 +118,29 @@ __global__ void EstimateJacobian_gpu_kernel(JacobianKernel kernel) {
 
 void EstimateJacobian_gpu(const torch::Tensor points0,
                           const torch::Tensor normals0,
-						  const torch::Tensor mask0,
+                          const torch::Tensor mask0,
                           const torch::Tensor points1,
-						  const torch::Tensor mask1,
-						  const torch::Tensor kcam,
+                          const torch::Tensor mask1, const torch::Tensor kcam,
                           const torch::Tensor rt_cam, torch::Tensor jacobian,
                           torch::Tensor residual) {
+  FTB_CHECK(points0.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(normals0.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(mask0.is_cuda(), "Expected a cuda tensor");
+
+  FTB_CHECK(points1.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(mask1.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(kcam.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(rt_cam.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(jacobian.is_cuda(), "Expected a cuda tensor");
+
+  FTB_CHECK(residual.is_cuda(), "Expected a cuda tensor");
+
   JacobianKernel estm_kern(
       points0.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
       normals0.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-	  mask0.packed_accessor<uint8_t, 2, torch::RestrictPtrTraits, size_t>(),
+      mask0.packed_accessor<uint8_t, 2, torch::RestrictPtrTraits, size_t>(),
       points1.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
-	  mask1.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
+      mask1.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
       KCamera(kcam), RTCamera(rt_cam),
       jacobian.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());

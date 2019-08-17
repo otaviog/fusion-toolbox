@@ -190,7 +190,7 @@ class FramePointCloud:
         mask = (depth_image > 0).byte()
         if frame.fg_mask is not None:
             mask = torch.logical_and(
-                torch.from_numpy(frame.fg_mask).byte(), mask).byte()
+                torch.from_numpy(frame.fg_mask), mask).byte()
 
         colors = None
         if frame.rgb_image is not None:
@@ -255,10 +255,11 @@ class FramePointCloud:
 
     def to(self, device):
         return FramePointCloud(
-            self.image_points.to(device),
+            self.image_points.to(device)
+            if self.image_points is not None else None,
             self.mask.to(device),
-            self.kcam.to(device),
-            self.rt_cam.to(device) if self.rt_cam is not None else None,
+            self.kcam,
+            self.rt_cam,
             self._points.to(device) if self._points is not None else None,
             self._normals.to(device) if self._normals is not None else None,
             self.colors.to(device) if self.colors is not None else None)

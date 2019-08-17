@@ -16,10 +16,11 @@ uniform float StableThresh;
 uniform int Time;
 
 out Surfel {
-  vec3 pos;
+  vec4 pos_conf;
   vec4 normal_rad;
   vec3 color;
   flat int index;
+  flat int time;
 } surfel;
 
 void main() {
@@ -32,9 +33,11 @@ void main() {
 
   gl_Position = ProjModelview*in_point;
 
-  surfel.pos = (Modelview*in_point).xyz;
+  surfel.pos_conf.xyz = (Modelview*in_point).xyz;
+  surfel.pos_conf.w = in_conf;
   surfel.normal_rad.xyz = NormalModelview*in_normal;
   surfel.normal_rad.w = in_radius;
   surfel.color = in_color;
-  surfel.index = gl_VertexID;  
+  surfel.index = gl_VertexID;
+  surfel.time = in_time;
 }

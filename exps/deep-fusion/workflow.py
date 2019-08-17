@@ -400,10 +400,10 @@ class PointNetResidual(rflow.Interface):
         model = model.feat
         model.eval()
 
-        fpcl0 = FramePointCloud(frame0)
+        fpcl0 = FramePointCloud.from_frame(frame0)
         pcl0 = fpcl0.unordered_point_cloud()
 
-        fpcl1 = FramePointCloud(frame1)
+        fpcl1 = FramePointCloud.from_frame(frame1)
         pcl1 = fpcl1.unordered_point_cloud()
 
         with torch.no_grad():

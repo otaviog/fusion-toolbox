@@ -10,10 +10,11 @@ uniform mat4 Modelview;
 uniform mat3 NormalModelview;
 
 out Surfel {
-  vec3 pos;
+  vec4 pos_conf;
   vec4 normal_rad;
   vec3 color;
   flat int index;
+  flat int time;
 } surfel;
 
 void main() {
@@ -21,9 +22,10 @@ void main() {
   float tx = ((gl_Position.x / gl_Position.w) + 1.0)*0.5;
   float ty = ((gl_Position.y / gl_Position.w) + 1.0)*0.5;
 
-  surfel.pos = (Modelview*in_point).xyz;
+  surfel.pos_conf.xyz = (Modelview*in_point).xyz;
   surfel.normal_rad.xyz = NormalModelview*in_normal;
   surfel.normal_rad.w = in_radius;
 
-  surfel.index = gl_VertexID;  
+  surfel.index = gl_VertexID;
+  surfel.time = 0;
 }

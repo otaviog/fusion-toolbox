@@ -13,49 +13,51 @@ from .indexmap import ModelIndexMap
 from ._ckernels import surfel_cave_free_space
 
 
-class SpaceCarving(ModelIndexMap):
+class SpaceCarving:
     """Remove unstable surfels in front of recently updated stable
     surfels.
 
     """
 
-    def __init__(self, surfel_model):
+    def __init__(self, surfel_model, stable_conf_thresh,
+                 search_size=2, min_z_difference=0.1, use_cpu=False):
         """
         Args:
             surfel_model
              (:obj:`fiontb.fusion.surfel.model.SurfelModel`): Surfel model.
         """
 
-        super(SpaceCarving, self).__init__(surfel_model)
+        self.surfel_model = surfel_model
+        self.stable_conf_thresh = stable_conf_thresh
+        self.search_size = search_size
+        self.min_z_difference = min_z_difference
 
-    def carve(self, proj_matrix, rt_cam, width, height,
-              stable_conf_thresh, time, window_size, debug=False):
+        self.use_cpu = use_cpu
+
+    def carve(self, model_indexmap, proj_matrix, rt_cam, width, height,
+              curr_time, debug=False):
         """
         Args:
 
             proj_matrix (:obj:`torch.Tensor`):
 
         """
-        self.raster(proj_matrix, rt_cam, width, height,
-                    stable_conf_thresh, time)
+
+        model_indexmap.show_debug("Model", debug)
+
         context = self.surfel_model.context
-
         with context.current():
-            stable_positions = self.pos_tex.to_tensor()
-            stable_idxs = self.idx_tex.to_tensor()
+            model_positions = model_indexmap.position_confidence_tex.to_tensor()
+            model_idxs = model_indexmap.index_tex.to_tensor()
 
-        self.show_debug("Stable", debug)
-        self.raster(proj_matrix, rt_cam, width, height,
-                    -1.0, -1)
+        if self.use_cpu:
+            model_positions = model_positions.cpu()
+            model_idxs = model_idxs.cpu()
 
-        with context.current():
-            view_positions = self.pos_tex.to_tensor()
-            view_idxs = self.idx_tex.to_tensor()
-
-        self.show_debug("All", debug)
-        surfel_cave_free_space(stable_positions, stable_idxs,
-                               view_positions, view_idxs,
-                               self.surfel_model.active_mask, window_size)
+        surfel_cave_free_space(model_positions, model_idxs,
+                               self.surfel_model.active_mask,
+                               curr_time, self.stable_conf_thresh,
+                               self.search_size, self.min_z_difference)
 
 
 def _test():
@@ -74,6 +76,10 @@ def _test():
         kcam.matrix, 0.01, 10.0)
     proj_matrix = torch.from_numpy(proj.to_matrix()).float()
 
+    proj = tenviz.projection_from_kcam(
+        kcam.scaled(4).matrix, 0.001, 10.0)
+    proj_matrix4 = torch.from_numpy(proj.to_matrix()).float()
+
     rt_cam = RTCamera.create_from_pos_quat(
         0.401252, -0.0150952, 0.0846582, 0.976338, 0.0205504, -0.14868, -0.155681)
 
@@ -86,35 +92,43 @@ def _test():
     radii = torch.full((model_size, ), 0.05, dtype=torch.float)
     confs = torch.full((model_size, ), 15, dtype=torch.float)
     times = torch.full((model_size, ), 5, dtype=torch.int32)
+    stable_and_new = SurfelCloud(model.verts, model.colors, model.normals,
+                                 radii, confs, times, None, "cuda:0")
 
-    model_cloud = SurfelCloud(model.verts, model.colors, model.normals,
-                              radii, confs, times, None, "cpu")
-    model_cloud.to("cuda:0")
+    surfel_model.add_surfels(stable_and_new)
 
-    surfel_model.add_surfels(model_cloud)
+    np.random.seed(110)
+    torch.manual_seed(110)
 
-    np.random.seed(10)
-    space_vl_sample = np.random.choice(model.verts.size(0), 100)
-    verts = (model.verts[space_vl_sample]
-             + (rt_cam.center - model.verts[space_vl_sample])
-             * torch.rand(100, 1))
-    space_vl_cloud = SurfelCloud(verts,
-                                 model_cloud.colors[space_vl_sample],
-                                 model_cloud.normals[space_vl_sample],
-                                 radii[space_vl_sample],
-                                 confs[space_vl_sample],
-                                 torch.full((100, ), 3, dtype=torch.int32),
-                                 None, "cpu")
-    space_vl_cloud.to("cuda:0")
-    surfel_model.add_surfels(space_vl_cloud)
+    num_violations = 500
+    violations_sampling = np.random.choice(model.verts.size(0), num_violations)
+    violation_points = (model.verts[violations_sampling]
+                        + (rt_cam.center - model.verts[violations_sampling])
+                        * torch.rand(num_violations, 1)*0.8)
+    violations = SurfelCloud(violation_points,
+                             stable_and_new.colors[violations_sampling],
+                             stable_and_new.normals[violations_sampling],
+                             radii[violations_sampling],
+                             confs[violations_sampling] - 10,
+                             torch.full((num_violations, ),
+                                        3, dtype=torch.int32),
+                             None, "cuda:0")
+    surfel_model.add_surfels(violations)
     surfel_model.update_active_mask_gl()
     before = surfel_model.clone()
 
-    carving = SpaceCarving(surfel_model)
-    carving.carve(proj_matrix, rt_cam, 640, 480, 10, 5, 4)
+    print(torch.arange(0, num_violations) + model.verts.size(0))
+    model_indexmap = ModelIndexMap(surfel_model)
+    model_indexmap.raster(proj_matrix, rt_cam, 640*4, 480*4)
+
+    carving = SpaceCarving(surfel_model, stable_conf_thresh=10,
+                           search_size=8, min_z_difference=0.1, use_cpu=False)
+    carving.carve(model_indexmap, proj_matrix, rt_cam,
+                  640*4, 480*4, 5, debug=False)
     surfel_model.update_active_mask_gl()
 
-    show_surfels(ctx, [before, surfel_model])
+    show_surfels(ctx, [before, surfel_model],
+                 view_matrix=rt_cam.opengl_view_cam)
 
 
 if __name__ == "__main__":

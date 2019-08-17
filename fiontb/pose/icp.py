@@ -108,6 +108,7 @@ class ICPOdometry:
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform)
 
+
 class MultiscaleICPOdometry:
     """Pyramidal point-to-plane iterative closest points
     algorithm.
@@ -204,6 +205,8 @@ class MultiscaleICPOdometry:
         return self.estimate(target_frame.points, target_frame.normals,
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform)
+
+
 def _show_pcl(pcls):
     import tenviz
 

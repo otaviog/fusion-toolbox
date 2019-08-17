@@ -1,10 +1,7 @@
-
 from pathlib import Path
 from enum import Enum
 
 import torch
-import numpy as np
-from PIL import Image
 from matplotlib.pyplot import get_cmap
 
 import tenviz
@@ -104,12 +101,17 @@ def _test():
             break
 
 
-def show_surfels(context, surfels_list, overlay_mesh=None,
-                 title="Surfels", max_time=10, max_conf=10):
+def show_surfels(context, surfels_list, title="Surfels",
+                 max_time=10, max_conf=10, view_matrix=None):
     scene = [SurfelRender(surfels) for surfels in surfels_list]
     viewer = context.viewer(scene, tenviz.CameraManipulator.WASD)
+
+    if view_matrix is not None:
+        viewer.set_camera_matrix(view_matrix.clone().numpy())
+    else:
+        viewer.reset_view()
     viewer.set_title(title)
-    viewer.reset_view()
+
     print("""Keys:
     I: Show confidences
     U: Show colors

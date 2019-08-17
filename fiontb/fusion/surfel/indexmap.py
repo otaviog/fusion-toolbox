@@ -169,17 +169,21 @@ class ModelIndexMap:
             self.render_surfels_prg['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
 
             self.framebuffer = tenviz.create_framebuffer({
-                0: tenviz.FramebufferTarget.RGBFloat,  # pos
+                0: tenviz.FramebufferTarget.RGBAFloat,  # pos + conf
                 1: tenviz.FramebufferTarget.RGBAFloat,  # normal + radius
-                2: tenviz.FramebufferTarget.RGBInt32,  # indexes + existence
-                3: tenviz.FramebufferTarget.RGBUint8
+                2: tenviz.FramebufferTarget.RGBInt32,  # index + existence
+                3: tenviz.FramebufferTarget.RGBUint8  # debug
             })
 
         self.surfel_model = surfel_model
         self.is_rasterized = False
 
+    @property
+    def context(self):
+        return self.surfel_model.context
+
     def raster(self, proj_matrix, rt_cam, width, height,
-               stable_conf_thresh, time):
+               stable_conf_thresh=None, time=None):
         """Raster the surfel model to the framebuffers.
 
         Args:
@@ -198,8 +202,11 @@ class ModelIndexMap:
         context = self.surfel_model.context
 
         with context.current():
-            self.render_surfels_prg['StableThresh'] = float(stable_conf_thresh)
-            self.render_surfels_prg['Time'] = int(time)
+            self.render_surfels_prg['StableThresh'] = (
+                float(stable_conf_thresh)
+                if stable_conf_thresh is not None else -1.0)
+            self.render_surfels_prg['Time'] = (
+                int(time) if time is not None else -1)
 
         context.set_clear_color(0, 0, 0, 0)
         context.render(proj_matrix, rt_cam.opengl_view_cam,
@@ -208,7 +215,7 @@ class ModelIndexMap:
         self.is_rasterized = True
 
     @property
-    def pos_tex(self):
+    def position_confidence_tex(self):
         """Texture from the last raster position framebuffer.
 
         Returns: (:obj:`tenviz.Texture`): RGB float texture
@@ -217,7 +224,7 @@ class ModelIndexMap:
         return self.framebuffer[0]
 
     @property
-    def normal_rad_tex(self):
+    def normal_radius_tex(self):
         """Texture from the last raster normal and radius framebuffer.
 
         Returns: (:obj:`tenviz.Texture`): RGBA float texture, `A` is
@@ -227,7 +234,7 @@ class ModelIndexMap:
         return self.framebuffer[1]
 
     @property
-    def idx_tex(self):
+    def index_tex(self):
         """Texture from the last raster index framebuffer.
 
         Returns: (:obj:`tenviz.Texture`): RGB int32 texture, `R` is
@@ -244,7 +251,7 @@ class ModelIndexMap:
 
     def to_frame(self, frame_info):
         with self.surfel_model.context.current():
-            depth = self.pos_tex.to_tensor()[:, :, 2]
+            depth = self.position_confidence_tex.to_tensor()[:, :, 2]
             color = self.color_tex.to_tensor()
 
         depth = (depth*(1.0 / frame_info.depth_scale)
@@ -252,7 +259,7 @@ class ModelIndexMap:
         color = color.cpu().numpy()
 
         return Frame(frame_info, depth, color)
-        
+
     def show_debug(self, title, debug=True):
         """Helper function for quickly display the framebuffers in pyplot.
 
@@ -267,9 +274,9 @@ class ModelIndexMap:
             return
 
         with self.surfel_model.context.current():
-            pos = self.pos_tex.to_tensor()
-            normals = self.normal_rad_tex.to_tensor()
-            idxs = self.idx_tex.to_tensor()
+            pos = self.position_confidence_tex.to_tensor()
+            normals = self.normal_radius_tex.to_tensor()
+            idxs = self.index_tex.to_tensor()
 
         plt.figure()
         plt.title("{} - pos".format(title))

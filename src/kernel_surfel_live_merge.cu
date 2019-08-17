@@ -2,6 +2,7 @@
 
 #include "cuda_utils.hpp"
 #include "eigen_common.hpp"
+#include "error.hpp"
 #include "math.hpp"
 
 namespace fiontb {
@@ -80,6 +81,14 @@ torch::Tensor FindLiveToModelMerges(const torch::Tensor &live_pos_fb,
                                     const torch::Tensor &model_normal_fb,
                                     const torch::Tensor &model_idx_fb,
                                     float max_normal_angle, int search_size) {
+  FTB_CHECK(live_pos_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(live_normal_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(live_idx_fb.is_cuda(), "Expected a cuda tensor");
+
+  FTB_CHECK(model_pos_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(model_normal_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(model_idx_fb.is_cuda(), "Expected a cuda tensor");
+
   const int width = live_pos_fb.size(1);
   const int height = live_pos_fb.size(0);
 
@@ -199,6 +208,16 @@ torch::Tensor FindFeatLiveToModelMerges(
     const torch::Tensor &model_pos_fb, const torch::Tensor &model_normal_fb,
     const torch::Tensor &model_idx_fb, const torch::Tensor &model_feats,
     float max_normal_angle, int search_size) {
+  FTB_CHECK(live_pos_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(live_normal_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(live_idx_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(live_feats.is_cuda(), "Expected a cuda tensor");
+
+  FTB_CHECK(model_pos_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(model_normal_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(model_idx_fb.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(model_feats.is_cuda(), "Expected a cuda tensor");
+
   const int width = live_pos_fb.size(1);
   const int height = live_pos_fb.size(0);
 

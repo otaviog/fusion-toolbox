@@ -4,6 +4,7 @@ import torch
 
 import tenviz
 
+import fiontb.frame
 from .model import compute_confidences, SurfelCloud
 from .live_merge import LiveToModelMergeMap
 from .spacecarving import SpaceCarving
@@ -55,26 +56,33 @@ class FusionStats:
 
 class SurfelFusion:
     def __init__(self, surfels, max_distance=0.005, normal_max_angle=math.radians(30),
-                 stable_conf_thresh=10, max_unstable_time=20):
+                 stable_conf_thresh=10, max_unstable_time=20,
+                 indexmap_scale=4):
 
         self.surfels = surfels
+        self.model_indexmap = ModelIndexMap(surfels)
         self.live_merge_map = LiveToModelMergeMap(surfels,
                                                   normal_max_angle=normal_max_angle,
                                                   search_size=2)
-        self.intra_merge_map = IntraMergeMap(surfels, max_dist=max_distance,
+        self.pose_indexmap = ModelIndexMap(surfels)
+
+        self.intra_merge_map = IntraMergeMap(max_dist=max_distance,
                                              normal_max_angle=normal_max_angle,
                                              search_size=2)
-        self.pose_indexmap = ModelIndexMap(surfels)
-        self.spacecarving = SpaceCarving(surfels)
+        self.spacecarving = SpaceCarving(surfels, stable_conf_thresh,
+                                         search_size=2, min_z_difference=0.1)
 
         self.stable_conf_thresh = stable_conf_thresh
         self.max_unstable_time = max_unstable_time
+        self.indexmap_scale = indexmap_scale
 
         self._time = 0
-        self._merge_min_radio = 0.5
-
         self._conf_compute_cache = _ConfidenceCache()
-        self._is_first_fusion = True
+
+        self._last_kcam = None
+        self._last_rtcam = None
+
+        self._merge_min_radio = 0.5
 
     def fuse(self, frame_pcl, rt_cam, features=None):
         device = "cuda:0"
@@ -87,17 +95,25 @@ class SurfelFusion:
             frame_pcl.kcam.matrix, 0.01, 10.0).to_matrix()).float()
         height, width = frame_pcl.image_points.shape[:2]
 
-        if self._is_first_fusion:
+        if self._time == 0:
             live_surfels.transform(rt_cam.cam_to_world)
             self.surfels.add_surfels(live_surfels)
             self.surfels.update_active_mask_gl()
-            self._is_first_fusion = False
 
-            self._update_cam_view(proj_matrix, rt_cam, width, height)
+            self._time += 1
+            self.surfels.max_time = self._time
+            self._update_pose_indexmap(proj_matrix, frame_pcl.kcam, rt_cam,
+                                       width, height)
             return FusionStats(live_surfels.size, 0, 0)
 
+        indexmap_size = int(
+            width*self.indexmap_scale), int(height*self.indexmap_scale)
+
+        self.model_indexmap.raster(proj_matrix, rt_cam,
+                                   indexmap_size[0], indexmap_size[1])
         live_query = self.live_merge_map.find_mergeable(
-            live_surfels, proj_matrix, rt_cam, width, height)
+            self.model_indexmap, live_surfels,
+            proj_matrix, width, height)
         live_idxs, model_idxs, live_unst_idxs, visible_model_idxs = live_query
 
         live_surfels.transform(rt_cam.cam_to_world)
@@ -121,33 +137,31 @@ class SurfelFusion:
             live_surfels.index_select(live_idxs),
             model_surfels, model_idxs.to(device))
 
-        removed_count = 0
-        if True:
-            removed_count = self._remove_surfels(visible_model_idxs)
-        self.surfels.update_active_mask_gl()
-
         active_count = self.surfels.num_active_surfels()
+        self._remove_surfels(visible_model_idxs)
+        self.surfels.update_active_mask_gl()
 
-        fb_scale = 4
-        if True:
-            self.spacecarving.carve(proj_matrix, rt_cam, int(width*fb_scale), int(height*fb_scale),
-                                    self.stable_conf_thresh, self._time, 4)
+        self.model_indexmap.raster(
+            proj_matrix, rt_cam, indexmap_size[0], indexmap_size[1])
+        dest_idxs, merge_idxs = self.intra_merge_map.find_mergeable_surfels(
+            self.model_indexmap,
+            self.stable_conf_thresh)
+        self._merge_intra_surfels(dest_idxs, merge_idxs)
+
+        # self.model_indexmap.raster(proj_matrix, rt_cam,
+        #  indexmap_size[0], indexmap_size[1])
+        self.spacecarving.carve(self.model_indexmap, proj_matrix, rt_cam, width,
+                                height, self._time)
 
         self.surfels.update_active_mask_gl()
 
-        if True:
-            dest_idxs, merge_idxs = self.intra_merge_map.find_mergeable_surfels(
-                proj_matrix, rt_cam,
-                int(width*fb_scale), int(height*fb_scale),
-                self.stable_conf_thresh)
-            self._merge_intra_surfels(dest_idxs, merge_idxs)
-
-        removed_count += active_count - self.surfels.num_active_surfels()
+        removed_count = active_count - self.surfels.num_active_surfels()
         self._time += 1
         self.surfels.max_time = self._time
 
         self.surfels.update_active_mask_gl()
-        self._update_cam_view(proj_matrix, rt_cam, width, height)
+        self._update_pose_indexmap(
+            proj_matrix, frame_pcl.kcam, rt_cam, width, height)
         return FusionStats(live_unst_idxs.size(0), model_idxs.size(0),
                            removed_count)
 
@@ -226,5 +240,20 @@ class SurfelFusion:
 
         return points
 
-    def _update_cam_view(self, proj_matrix, rt_cam, width, height):
+    def _update_pose_indexmap(self, proj_matrix, kcam, rt_cam, width, height):
         self.pose_indexmap.raster(proj_matrix, rt_cam, width, height, -1.0, -1)
+        self._last_kcam = kcam
+        self._last_rtcam = rt_cam
+
+    def get_last_view_frame_pcl(self):
+        with self.surfels.context.current():
+            mask = self.pose_indexmap.index_tex.to_tensor()[:, :, 1]
+            points = self.pose_indexmap.position_confidence_tex.to_tensor()[
+                :, :, :3]
+            normals = self.pose_indexmap.normal_radius_tex.to_tensor()[
+                :, :, :3]
+            colors = self.pose_indexmap.color_tex.to_tensor()
+
+        return fiontb.frame.FramePointCloud(
+            None, mask.byte(), self._last_kcam, self._last_rtcam,
+            points, normals, colors)
