@@ -7,11 +7,10 @@ import quaternion
 import cv2
 
 from fiontb.camera import RTCamera, KCamera
+from fiontb.frame import Frame, FrameInfo
 
-from .datatype import Snapshot
-
-KCAMERA = KCamera.create_from_params(flen_x=525.0, flen_y=525.0,
-                                     center_point=(319.5, 239.5))
+KCAMERA = KCamera.from_params(flen_x=525.0, flen_y=525.0,
+                              center_point=(319.5, 239.5))
 DEFAULT_DEPTH_SCALE = 1.0/5000.0
 
 
@@ -36,11 +35,11 @@ class TUMRGBDDataset:
         rgb_img = cv2.imread(str(self.base_path / self.rgbs[rgb_ts][0]))
         rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
 
-        return Snapshot(
-            depth_img, kcam=KCAMERA, rgb_image=rgb_img,
-            depth_scale=self.depth_scale,
-            rt_cam=self.depth_gt_traj[depth_ts],
-            timestamp=depth_ts)
+        rt_cam = self.depth_gt_traj[depth_ts]
+        info = FrameInfo(kcam=KCAMERA, depth_scale=self.depth_scale, depth_bias=0.0,
+                         timestamp=depth_ts, rt_cam=rt_cam)
+
+        return Frame(info, depth_img.astype(np.int32), rgb_img)
 
     def __len__(self):
         return len(self.depth_rgb_assoc)
