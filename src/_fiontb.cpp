@@ -58,6 +58,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("raster_indexmap", &RasterIndexmap);
 
   m.def("icp_estimate_jacobian_gpu", &EstimateJacobian_gpu);
+  m.def("icp_estimate_descriptor_jacobian_gpu",
+        &EstimateDescriptorJacobian_gpu);
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);

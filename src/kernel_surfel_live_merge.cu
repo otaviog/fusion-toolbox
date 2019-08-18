@@ -21,7 +21,7 @@ static __global__ void FindLiveToModelMerges_gpu_kernel(
   const int live_fb_width = live_pos_fb.size(1);
   const int live_fb_height = live_pos_fb.size(0);
 
-  if (row >= live_pos_fb.size(0) || col >= live_pos_fb.size(1)) return;
+  if (row >= live_fb_height || col >= live_fb_width) return;
   merge_map_fb[row][col][0] = 0;
   merge_map_fb[row][col][1] = -1;
   merge_map_fb[row][col][2] = -1;

@@ -14,7 +14,7 @@ cuda_add_library(fiontb
   kernel_surfel_live_merge.cu
   kernel_surfel_space_carving.cu
   kernel_indexmap.cu
-  kernel_icp_estimate.cu
+  kernel_icp_jacobian.cu
   kernel_downsample.cu)
 
 target_include_directories(fiontb
