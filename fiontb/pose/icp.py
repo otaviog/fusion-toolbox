@@ -232,7 +232,6 @@ def _show_pcl(pcls):
 def _prepare_frame(frame):
     from fiontb.filtering import bilateral_filter_depth_image
 
-    return frame
     frame.depth_image = bilateral_filter_depth_image(
         frame.depth_image,
         frame.depth_image > 0,
