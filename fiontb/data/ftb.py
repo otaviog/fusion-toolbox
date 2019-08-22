@@ -119,9 +119,12 @@ class FTBDataset:
         return len(self.frames_json)
 
 
-def load_ftb(base_path, ground_truth_model_path=None):
+def load_ftb(base_path, ground_truth_model_path=None, info_file=None):
     base_path = Path(base_path)
-    with open(str(base_path / "frames.json"), 'r') as stream:
+    if info_file is None:
+        info_file = str(base_path / "frames.json")
+
+    with open(info_file, 'r') as stream:
         frames = json.load(stream)['root']
 
     frame_infos = [FrameInfo.from_json(frame_json['info'])

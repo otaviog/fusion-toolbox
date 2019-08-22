@@ -9,6 +9,11 @@ namespace fiontb {
 
 namespace {
 
+template <typename Kernel>
+__global__ void LaunchKernel(Kernel kern) {
+  kern();
+}
+
 struct CUDAFramebuffer {
   CUDAFramebuffer(const torch::Tensor &points, const torch::Tensor &normals,
                   const torch::Tensor &mask)
@@ -52,7 +57,7 @@ struct GeometricJacobianKernel {
         jacobian(jacobian),
         residual(residual) {}
 
-  __device__ void EstimateJacobian() {
+  __device__ void operator()() {
     const int ri = blockIdx.x * blockDim.x + threadIdx.x;
     if (ri >= src_points.size(0)) return;
 
@@ -94,9 +99,6 @@ struct GeometricJacobianKernel {
   }
 };
 
-__global__ void EstimateJacobian_gpu_kernel(GeometricJacobianKernel kernel) {
-  kernel.EstimateJacobian();
-}
 }  // namespace
 
 void EstimateJacobian_gpu(const torch::Tensor tgt_points,
@@ -127,28 +129,15 @@ void EstimateJacobian_gpu(const torch::Tensor tgt_points,
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());
 
   CudaKernelDims kl = Get1DKernelDims(src_points.size(0));
-  EstimateJacobian_gpu_kernel<<<kl.grid, kl.block>>>(estm_kern);
+  LaunchKernel<<<kl.grid, kl.block>>>(estm_kern);
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());
 }
 
 namespace {
 
-__device__ float SquaredNorm(
-    const torch::TensorAccessor<float, 1, torch::RestrictPtrTraits, size_t>
-        vec0,
-    const torch::TensorAccessor<float, 1, torch::RestrictPtrTraits, size_t>
-        vec1) {
-  float sum = 0.0f;
-  for (int i = 0; i < vec0.size(0); ++i) {
-    const float diff = (vec1[i] - vec0[i]);
-    sum += diff * diff;
-  }
-  return sum;
-}
-
-__global__ void SobelDescriptorGradient(const PackedAccessor<float, 3> image,
-                                        PackedAccessor<float, 3> grad) {
+__global__ void SobelImageGradient(const PackedAccessor<float, 2> image,
+                                   PackedAccessor<float, 3> grad) {
   const int row = blockIdx.y * blockDim.y + threadIdx.y;
   const int col = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -157,8 +146,12 @@ __global__ void SobelDescriptorGradient(const PackedAccessor<float, 3> image,
 
   if (row >= height || col >= width) return;
 
-  const float Gx[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
-  const float Gy[3][3] = {{-1, -2, 1}, {0, 0, 0}, {1, 2, 1}};
+  const float Gx[3][3] = {{-1, 0, 1},
+						  {-2, 0, 2},
+						  {-1, 0, 1}};
+  const float Gy[3][3] = {{1, 2, 1},
+						  {0, 0, 0},
+						  {-1, -2, -1}};
 
   const int row_start = max(row - 1, 0);
   const int row_end = min(row + 1, height - 1);
@@ -174,8 +167,10 @@ __global__ void SobelDescriptorGradient(const PackedAccessor<float, 3> image,
     const auto image_row = image[irow];
     for (int icol = col_start; icol <= col_end; ++icol) {
       const int kcol = icol - col + 1;
-      gx_sum += image_row[icol][0] * Gx[krow][kcol];
-      gy_sum += image_row[icol][0] * Gy[krow][kcol];
+	  const float value = image_row[icol];
+	  
+      gx_sum += value * Gx[krow][kcol];
+      gy_sum += value * Gy[krow][kcol];
     }
   }
 
@@ -183,50 +178,52 @@ __global__ void SobelDescriptorGradient(const PackedAccessor<float, 3> image,
   grad[row][col][1] = gy_sum;
 }
 
-struct CUDADescriptorFramebuffer : public CUDAFramebuffer {
-  CUDADescriptorFramebuffer(const torch::Tensor &points,
-                            const torch::Tensor &normals,
-                            const torch::Tensor &mask,
-                            const torch::Tensor &descriptors)
+struct CUDAIntensityFramebuffer : public CUDAFramebuffer {
+  CUDAIntensityFramebuffer(const torch::Tensor &points,
+                           const torch::Tensor &normals,
+                           const torch::Tensor &mask,
+                           const torch::Tensor &image,
+                           const torch::Tensor &image_grad)
       : CUDAFramebuffer(points, normals, mask),
-        descriptors(
-            descriptors.packed_accessor<float, 3, torch::RestrictPtrTraits,
-                                        size_t>()) {}
+        image(
+            image
+                .packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>()),
+        image_grad(
+            image_grad.packed_accessor<float, 3, torch::RestrictPtrTraits,
+                                       size_t>()) {}
 
-  const PackedAccessor<float, 3> descriptors;
+  const PackedAccessor<float, 2> image;
+  const PackedAccessor<float, 3> image_grad;
 };
 
-struct DescriptorJacobianKernel {
-  CUDADescriptorFramebuffer tgt;
-  const PackedAccessor<float, 3> grad_xy;
+struct IntensityJacobianKernel {
+  CUDAIntensityFramebuffer tgt;
   const PackedAccessor<float, 2> src_points;
-  const PackedAccessor<float, 2> src_descriptors;
+  const PackedAccessor<float, 1> src_intensity;
   const PackedAccessor<uint8_t, 1> src_mask;
   CUDAKCamera kcam;
-  CUDARTCamera prev_rt_cam;
+  CUDARTCamera rt_cam;
 
   PackedAccessor<float, 2> jacobian;
   PackedAccessor<float, 1> residual;
 
-  DescriptorJacobianKernel(const CUDADescriptorFramebuffer tgt,
-                           const PackedAccessor<float, 2> src_points,
-                           const PackedAccessor<float, 2> src_descriptors,
-                           const PackedAccessor<uint8_t, 1> src_mask,
-                           const PackedAccessor<float, 3> grad_xy,
-                           CUDAKCamera kcam, CUDARTCamera prev_rt_cam,
-                           PackedAccessor<float, 2> jacobian,
-                           PackedAccessor<float, 1> residual)
+  IntensityJacobianKernel(const CUDAIntensityFramebuffer tgt,
+                          const PackedAccessor<float, 2> src_points,
+                          const PackedAccessor<float, 1> src_intensity,
+                          const PackedAccessor<uint8_t, 1> src_mask,
+                          CUDAKCamera kcam, CUDARTCamera rt_cam,
+                          PackedAccessor<float, 2> jacobian,
+                          PackedAccessor<float, 1> residual)
       : tgt(tgt),
         src_points(src_points),
-        src_descriptors(src_descriptors),
+        src_intensity(src_intensity),
         src_mask(src_mask),
-        grad_xy(grad_xy),
         kcam(kcam),
-        prev_rt_cam(prev_rt_cam),
+        rt_cam(rt_cam),
         jacobian(jacobian),
         residual(residual) {}
 
-  __device__ void EstimateJacobian() {
+  __device__ void operator()() {
     const int ri = blockIdx.x * blockDim.x + threadIdx.x;
     if (ri >= src_points.size(0)) return;
 
@@ -243,62 +240,66 @@ struct DescriptorJacobianKernel {
     const int width = tgt.points.size(1);
     const int height = tgt.points.size(0);
 
-    const Eigen::Vector3f p1_on_prev =
-        prev_rt_cam.transform(to_vec3<float>(src_points[ri]));
-    Eigen::Vector2i p1_proj = kcam.project(p1_on_prev);
-    int proj_x = p1_proj[0], proj_y = p1_proj[1];
+    const Eigen::Vector3f Tsrc_point =
+        rt_cam.transform(to_vec3<float>(src_points[ri]));
+
+    int proj_x, proj_y;
+    kcam.project(Tsrc_point, proj_x, proj_y);
 
     if (proj_x < 0 || proj_x >= width || proj_y < 0 || proj_y >= height) return;
     if (tgt.empty(proj_y, proj_x)) return;
-
-    const auto tgt_desc = tgt.descriptors[proj_y][proj_x];
-    const auto src_desc = src_descriptors[ri];
 
     const Eigen::Vector3f tgt_point(to_vec3<float>(tgt.points[proj_y][proj_x]));
     const Eigen::Vector3f tgt_normal(
         to_vec3<float>(tgt.normals[proj_y][proj_x]));
 
-    const float desc_grad_x = grad_xy[proj_y][proj_x][0];
-    const float desc_grad_y = grad_xy[proj_y][proj_x][1];
+    const float grad_x = tgt.image_grad[proj_y][proj_x][0];
+    const float grad_y = tgt.image_grad[proj_y][proj_x][1];
 
-    const Eigen::Matrix<float, 4, 1> dx_kcam(kcam.Dx_projection(p1_on_prev));
-    const Eigen::Vector3f gradk(
-        desc_grad_x * dx_kcam[0], desc_grad_y * dx_kcam[2],
-        desc_grad_x * dx_kcam[1] + desc_grad_y * dx_kcam[3]);
+    const Eigen::Matrix<float, 4, 1> dx_kcam(kcam.Dx_projection(Tsrc_point));
+    const Eigen::Vector3f gradk(grad_x * dx_kcam[0], grad_y * dx_kcam[2],
+                                grad_x * dx_kcam[1] + grad_y * dx_kcam[3]);
 
     jacobian[ri][0] = gradk[0];
     jacobian[ri][1] = gradk[1];
     jacobian[ri][2] = gradk[2];
 
-    const Eigen::Vector3f rot_twist = p1_on_prev.cross(gradk);
+    const Eigen::Vector3f rot_twist = Tsrc_point.cross(gradk);
     jacobian[ri][3] = rot_twist[0];
     jacobian[ri][4] = rot_twist[1];
     jacobian[ri][5] = rot_twist[2];
 
-    residual[ri] = SquaredNorm(tgt_desc, src_desc);
+    residual[ri] = tgt.image[proj_y][proj_x] - src_intensity[ri];
   }
 };
 
-__global__ void EstimateDescriptorJacobian_gpu_kernel(
-    DescriptorJacobianKernel kernel) {
-  kernel.EstimateJacobian();
-}
 }  // namespace
 
-void EstimateDescriptorJacobian_gpu(
+void CalcSobelGradient_gpu(const torch::Tensor image, torch::Tensor out_grad) {
+  auto grad_acc =
+      out_grad.packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>();
+
+  const CudaKernelDims kl = Get2DKernelDims(image.size(1), image.size(0));
+  SobelImageGradient<<<kl.grid, kl.block>>>(
+      image.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
+      grad_acc);
+}
+
+void EstimateIntensityJacobian_gpu(
     const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
-    const torch::Tensor tgt_descriptors, const torch::Tensor tgt_mask,
-    const torch::Tensor src_points, const torch::Tensor src_descriptors,
-    const torch::Tensor src_mask, const torch::Tensor kcam,
-    const torch::Tensor rt_cam, torch::Tensor jacobian,
-    torch::Tensor residual) {
+    const torch::Tensor tgt_image, const torch::Tensor tgt_grad_image,
+    const torch::Tensor tgt_mask, const torch::Tensor src_points,
+    const torch::Tensor src_intensity, const torch::Tensor src_mask,
+    const torch::Tensor kcam, const torch::Tensor rt_cam,
+    torch::Tensor jacobian, torch::Tensor residual) {
   FTB_CHECK(tgt_points.is_cuda(), "Expected a cuda tensor");
   FTB_CHECK(tgt_normals.is_cuda(), "Expected a cuda tensor");
-  FTB_CHECK(tgt_descriptors.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(tgt_image.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(tgt_grad_image.is_cuda(), "Expected a cuda tensor");
   FTB_CHECK(tgt_mask.is_cuda(), "Expected a cuda tensor");
 
   FTB_CHECK(src_points.is_cuda(), "Expected a cuda tensor");
-  FTB_CHECK(src_descriptors.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK(src_intensity.is_cuda(), "Expected a cuda tensor");
   FTB_CHECK(src_mask.is_cuda(), "Expected a cuda tensor");
 
   FTB_CHECK(kcam.is_cuda(), "Expected a cuda tensor");
@@ -306,33 +307,20 @@ void EstimateDescriptorJacobian_gpu(
   FTB_CHECK(jacobian.is_cuda(), "Expected a cuda tensor");
   FTB_CHECK(residual.is_cuda(), "Expected a cuda tensor");
 
-  torch::Tensor descriptor_grad = torch::empty(
-      {tgt_points.size(0), tgt_points.size(1)},
-      torch::TensorOptions(torch::kFloat).device(tgt_points.device()));
-  auto descr_grad_acc =
-      descriptor_grad
-          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>();
-
-  CudaKernelDims kl = Get2DKernelDims(tgt_points.size(1), tgt_points.size(0));
-  SobelDescriptorGradient<<<kl.grid, kl.block>>>(
-      tgt_descriptors
-          .packed_accessor<float, 3, torch::RestrictPtrTraits, size_t>(),
-      descr_grad_acc);
-
-  CUDADescriptorFramebuffer tgt(tgt_points, tgt_normals, tgt_mask,
-                                tgt_descriptors);
-  DescriptorJacobianKernel estm_kern(
+  CUDAIntensityFramebuffer tgt(tgt_points, tgt_normals, tgt_mask, tgt_image,
+                               tgt_grad_image);
+  IntensityJacobianKernel estm_kern(
       tgt,
       src_points.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
-      src_descriptors
-          .packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
+      src_intensity
+          .packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>(),
       src_mask.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
-      descr_grad_acc, CUDAKCamera(kcam), CUDARTCamera(rt_cam),
+      CUDAKCamera(kcam), CUDARTCamera(rt_cam),
       jacobian.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());
 
-  kl = Get1DKernelDims(src_points.size(0));
-  EstimateDescriptorJacobian_gpu_kernel<<<kl.grid, kl.block>>>(estm_kern);
+  CudaKernelDims kl = Get1DKernelDims(src_points.size(0));
+  LaunchKernel<<<kl.grid, kl.block>>>(estm_kern);
   CudaCheck();
   CudaSafeCall(cudaDeviceSynchronize());
 }

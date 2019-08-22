@@ -237,11 +237,14 @@ class FramePointCloud:
     def normals(self, normals):
         self._normals = normals
 
-    def unordered_point_cloud(self, world_space=True):
+    def unordered_point_cloud(self, world_space=True, compute_normals=True):
         mask = self.mask.flatten()
 
-        normals = self.normals.reshape(-1, 3)
-        normals = normals[mask]
+        if compute_normals:
+            normals = self.normals.reshape(-1, 3)
+            normals = normals[mask]
+        else:
+            normals = None
 
         pcl = PointCloud(self.points.reshape(-1, 3)[mask],
                          self.colors.reshape(-1, 3)[mask]

@@ -23,11 +23,14 @@ fiontb.pose.open3d:
 	python3 -m fiontb.pose.open3d
 
 fiontb.pose.icp.geometric1:
-	python3 -m fiontb.pose.icp geometric1
+	python3 -m fiontb.pose._test.test_icp geometric1
 
 fiontb.pose.icp.geometric2:
-	python3 -m fiontb.pose.icp geometric2
+	python3 -m fiontb.pose._test.test_icp geometric2
 
 fiontb.pose.icp.multiscale-geometric:
-	python3 -m fiontb.pose.icp multiscale-geometric
+	python3 -m fiontb.pose._test.test_icp multiscale-geometric
+
+fiontb.pose.icp.intensity:
+	python3 -m fiontb.pose._test.test_icp intensity
 

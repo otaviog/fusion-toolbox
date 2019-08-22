@@ -14,11 +14,14 @@ void EstimateJacobian_gpu(const torch::Tensor points0,
                           const torch::Tensor params, torch::Tensor jacobian,
                           torch::Tensor residual);
 
-void EstimateDescriptorJacobian_gpu(
+void CalcSobelGradient_gpu(const torch::Tensor image, torch::Tensor out_grad);
+
+void EstimateIntensityJacobian_gpu(
     const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
-    const torch::Tensor tgt_descriptors, const torch::Tensor tgt_mask,
-    const torch::Tensor src_points, const torch::Tensor src_descriptors,
-    const torch::Tensor src_mask, const torch::Tensor kcam,
-    const torch::Tensor rt_cam, torch::Tensor jacobian, torch::Tensor residual);
+    const torch::Tensor tgt_image, const torch::Tensor tgt_grad_image,
+    const torch::Tensor tgt_mask, const torch::Tensor src_points,
+    const torch::Tensor src_intensity, const torch::Tensor src_mask,
+    const torch::Tensor kcam, const torch::Tensor rt_cam,
+    torch::Tensor jacobian, torch::Tensor residual);
 
 }  // namespace fiontb

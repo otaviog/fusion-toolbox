@@ -20,6 +20,16 @@ struct CUDAKCamera {
     return Eigen::Vector2i(round(img_x), round(img_y));
   }
 
+  __device__ void project(const Eigen::Vector3f point, int &x, int &y) {
+    const float img_x =
+        kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
+    const float img_y =
+        kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
+
+    x = round(img_x);
+    y = round(img_y);
+  }
+
   __device__ Eigen::Matrix<float, 4, 1> Dx_projection(const Eigen::Vector3f point) {
     Eigen::Matrix<float, 4, 1> coeffs;
 
@@ -28,7 +38,10 @@ struct CUDAKCamera {
 
     const float z = point[2];
     const float z_sqr = z * z;
-    coeffs << fx / z, -point[0] * fx / z_sqr, fy / z, -point[1] * fy / z_sqr;
+    coeffs << fx / z,
+        -point[0] * fx / z_sqr,
+        fy / z,
+        -point[1] * fy / z_sqr;
     return coeffs;
   }
 
