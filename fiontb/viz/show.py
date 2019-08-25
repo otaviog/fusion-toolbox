@@ -1,9 +1,13 @@
-def show_surfels(pcl_list, width=640, height=480, overlay_mesh=None):
+import torch
+
+import tenviz
+
+
+def show_surfels(pcl_list, width=640, height=480):
     ctx = tenviz.Context(width, height)
 
     scene = []
     for pcl in pcl_list:
-        pcl = pcl.torch()
         surfels = ctx.add_surfel_cloud()
 
         with ctx.current():
@@ -26,21 +30,20 @@ def show_surfels(pcl_list, width=640, height=480, overlay_mesh=None):
             break
 
         key = chr(key & 0xff)
-        if '0' <= key <= '9':
-            toggle_idx = int(key)
+        if '1' <= key <= '9':
+            toggle_idx = int(key) - 1
             if toggle_idx < len(scene):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 
 
-def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None):
+def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
     ctx = tenviz.Context(width, height)
 
     with ctx.current():
         scene = []
         for pcl in pcl_list:
-            pcl = pcl.torch()
             tv_pcl = tenviz.create_point_cloud(pcl.points, pcl.colors)
-            tv_pcl.style.point_size = 7
+            tv_pcl.style.point_size = int(point_size)
             scene.append(tv_pcl)
 
         if overlay_mesh is not None:
@@ -57,8 +60,8 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None):
             break
 
         key = chr(key & 0xff)
-        if '0' <= key <= '9':
-            toggle_idx = int(key)
+        if '1' <= key <= '9':
+            toggle_idx = int(key) - 1
             if toggle_idx < len(scene):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 

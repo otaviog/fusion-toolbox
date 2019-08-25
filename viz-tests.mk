@@ -19,8 +19,14 @@ fiontb.filtering:
 fiontb.spatial.indexmap:
 	python3 -m fiontb.spatial.indexmap
 
-fiontb.pose.open3d:
-	python3 -m fiontb.pose.open3d
+fiontb.pose.open3d.real:
+	python3 fiontb/pose/open3d_interop.py real
+
+fiontb.pose.open3d.syn:
+	python3 fiontb/pose/open3d_interop.py syn
+
+fiontb.pose.open3d.dataset:
+	python3 fiontb/pose/open3d_interop.py dataset
 
 fiontb.pose.icp.geometric1:
 	python3 -m fiontb.pose._test.test_icp geometric1

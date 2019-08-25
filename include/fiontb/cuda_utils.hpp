@@ -12,6 +12,13 @@
 #define CudaSafeCall(err) fiontb::_CudaSafeCall(err, __FILE__, __LINE__)
 #define CudaCheck() fiontb::_CudaCheck(__FILE__, __LINE__)
 
+#ifdef __CUDACC__
+#define FTB_DEVICE __device__
+#define FTB_DEVICE_HOST __device__ __host__
+#else
+#define FTB_DEVICE
+#define FTB_DEVICE_HOST
+#endif
 namespace fiontb {
 
 inline void _CudaSafeCall(cudaError err, const char *file, const int line) {
@@ -41,7 +48,7 @@ struct CudaKernelDims {
 };
 
 CudaKernelDims Get1DKernelDims(int size);
-  
+
 CudaKernelDims Get2DKernelDims(int width, int height);
 
 #ifdef __CUDACC__

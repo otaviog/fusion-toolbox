@@ -58,7 +58,9 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("raster_indexmap", &RasterIndexmap);
 
   m.def("icp_estimate_jacobian_gpu", &EstimateJacobian_gpu);
+  m.def("icp_estimate_jacobian_cpu", &EstimateJacobian_cpu);
   m.def("icp_estimate_intensity_jacobian_gpu", &EstimateIntensityJacobian_gpu);
+    m.def("icp_estimate_intensity_jacobian_cpu", &EstimateIntensityJacobian_cpu);
   m.def("calc_sobel_gradient_gpu", &CalcSobelGradient_gpu);
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")

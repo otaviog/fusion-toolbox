@@ -9,32 +9,13 @@ import matplotlib.pyplot as plt
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
 from fiontb.filtering import bilateral_filter_depth_image
+from fiontb.viz.show import show_pcls
 
 from fiontb.pose.icp import (ICPOdometry, MultiscaleICPOdometry)
 
 _TEST_DATA = Path(__file__).parent
 
 torch.set_printoptions(precision=10)
-
-
-def _show_pcl(pcls):
-    ctx = tenviz.Context(640, 480)
-
-    with ctx.current():
-        pcls = [tenviz.create_point_cloud(pcl.points, pcl.colors)
-                for pcl in pcls]
-
-    viewer = ctx.viewer(pcls, tenviz.CameraManipulator.WASD)
-    while True:
-        key = viewer.wait_key(1)
-        if key < 0:
-            break
-        key = chr(key & 0xff)
-
-        try:
-            pcls[int(key)-1].visible = not pcls[int(key)-1].visible
-        except:
-            pass
 
 
 def _prepare_frame(frame, bi_filter=True):
@@ -75,8 +56,8 @@ def _test_geometric1():
     pcl0 = fpcl.unordered_point_cloud(world_space=False)
     pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
     pcl2 = pcl1.clone()
-    pcl2.transform(relative_rt.cpu())
-    _show_pcl([pcl0, pcl1, pcl2])
+    pcl2 = pcl2.transform(relative_rt.cpu())
+    show_pcls([pcl0, pcl1, pcl2])
 
 
 def _test_geometric2():
@@ -139,7 +120,7 @@ def _test_multiscale_geometric():
     pcl0 = fpcl.unordered_point_cloud(world_space=True)
     pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
     pcl1.transform(relative_rt.cpu())
-    _show_pcl([pcl0, pcl1])
+    show_pcls([pcl0, pcl1])
 
 
 def _test_intensity():
@@ -173,7 +154,7 @@ def _test_intensity():
     image = image.to(device)
     next_image = next_image.to(device)
 
-    icp = ICPOdometry(150)
+    icp = ICPOdometry(15, use_cpu=True)
     relative_rt = icp.estimate(fpcl.points.to(device),
                                fpcl.normals.to(device),
                                fpcl.mask.to(device),
@@ -181,13 +162,14 @@ def _test_intensity():
                                next_fpcl.mask.to(device),
                                next_fpcl.kcam,
                                target_image=image,
-                               source_intensity=next_image.flatten())
+                               source_intensity=next_image.flatten()
+                               )
 
     pcl0 = fpcl.unordered_point_cloud(world_space=False)
     pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
     pcl2 = pcl1.clone()
     pcl2.transform(relative_rt.cpu())
-    _show_pcl([pcl0, pcl1, pcl2])
+    show_pcls([pcl0, pcl1, pcl2])
 
 
 def _main():

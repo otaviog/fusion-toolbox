@@ -8,7 +8,9 @@ from tenviz.pose import SE3
 from fiontb.downsample import (
     downsample_xyz, downsample, DownsampleXYZMethod, DownsampleMethod)
 from fiontb._cfiontb import (icp_estimate_jacobian_gpu,
+                             icp_estimate_jacobian_cpu,
                              icp_estimate_intensity_jacobian_gpu,
+                             icp_estimate_intensity_jacobian_cpu,
                              calc_sobel_gradient_gpu)
 from fiontb._utils import empty_ensured_size
 
@@ -26,12 +28,13 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters):
+    def __init__(self, num_iters, use_cpu=False):
         self.num_iters = num_iters
 
         self.jacobian = None
         self.residual = None
         self.image_grad = None
+        self.use_cpu = use_cpu
 
     def estimate(self, target_points, target_normals, target_mask,
                  source_points, source_mask, kcam, transform=None,
@@ -69,9 +72,12 @@ class ICPOdometry:
             that aligns source points to target points.
 
         """
-        assert source_points.is_cuda, "At least source_points must be a cuda tensor."
+        # assert source_points.is_cuda, "At least source_points must be a cuda tensor."
 
-        device = source_points.device
+        if not self.use_cpu:
+            device = source_points.device
+        else:
+            device = "cpu"
 
         kcam = kcam.matrix.to(device)
         if transform is None:
@@ -87,35 +93,55 @@ class ICPOdometry:
         self.residual = empty_ensured_size(self.residual, source_points.size(0),
                                            device=device, dtype=torch.float)
 
-        # used only for intensity
-        self.image_grad = empty_ensured_size(self.image_grad, target_image.size(0),
-                                             target_image.size(1), 2,
-                                             device=device, dtype=torch.float)
-
         geom_only = target_image is None or source_intensity is None
 
         if not geom_only:
             import matplotlib.pyplot as plt
+            self.image_grad = empty_ensured_size(self.image_grad, target_image.size(0),
+                                                 target_image.size(1), 2,
+                                                 device="cuda:0", dtype=torch.float)
+
             calc_sobel_gradient_gpu(target_image, self.image_grad)
-            plt.figure()
-            plt.imshow(self.image_grad[:, :, 0].cpu())
-            plt.figure()
-            plt.imshow(self.image_grad[:, :, 1].cpu())
-            plt.show()
+            if False:
+                plt.figure()
+                plt.imshow(self.image_grad[:, :, 0].cpu())
+                plt.figure()
+                plt.imshow(self.image_grad[:, :, 1].cpu())
+                plt.show()
+
+        if self.use_cpu:
+            target_points = target_points.to(device)
+            target_normals = target_normals.to(device)
+            target_mask = target_mask.to(device)
+            source_points = source_points.to(device)
+            source_mask = source_mask.to(device)
 
         for _ in range(self.num_iters):
             if geom_only:
-                icp_estimate_jacobian_gpu(target_points, target_normals, target_mask,
-                                          source_points, source_mask, kcam, transform,
-                                          self.jacobian, self.residual)
+                if not self.use_cpu:
+                    icp_estimate_jacobian_gpu(target_points, target_normals, target_mask,
+                                              source_points, source_mask, kcam, transform,
+                                              self.jacobian, self.residual)
+                else:
+                    icp_estimate_jacobian_cpu(target_points, target_normals, target_mask,
+                                              source_points, source_mask, kcam, transform,
+                                              self.jacobian, self.residual)
             else:
-                icp_estimate_intensity_jacobian_gpu(
-                    target_points, target_normals, target_image,
-                    self.image_grad,
-                    target_mask, source_points, source_intensity,
-                    source_mask, kcam, transform, self.jacobian,
-                    self.residual)
-
+                if not self.use_cpu:
+                    icp_estimate_intensity_jacobian_gpu(
+                        target_points, target_normals, target_image,
+                        self.image_grad,
+                        target_mask, source_points, source_intensity,
+                        source_mask, kcam, transform, self.jacobian,
+                        self.residual)
+                else:
+                    icp_estimate_intensity_jacobian_cpu(
+                        target_points, target_normals, target_image.to(device),
+                        self.image_grad.to(device),
+                        target_mask, source_points, source_intensity.to(device),
+                        source_mask, kcam, transform, self.jacobian,
+                        self.residual)
+#            import ipdb; ipdb.set_trace()
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
             upper_JtJ = torch.cholesky(JtJ.double())
