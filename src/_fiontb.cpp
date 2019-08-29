@@ -10,6 +10,7 @@
 #include "filtering.hpp"
 #include "icpodometry.hpp"
 #include "indexmap.hpp"
+#include "matching.hpp"
 #include "metrics.hpp"
 #include "normals.hpp"
 #include "sparse_volume.hpp"
@@ -47,6 +48,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("fuse_dense_volume", &FuseDenseVolume);
   m.def("fuse_sparse_volume", &FuseSparseVolume);
 
+  m.def("match_dense_points_gpu", &MatchDensePoints_gpu);
+
   m.def("query_closest_points", &QueryClosestPoints);
 
   m.def("surfel_cave_free_space", &CarveSpace);
@@ -60,7 +63,7 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("icp_estimate_jacobian_gpu", &EstimateJacobian_gpu);
   m.def("icp_estimate_jacobian_cpu", &EstimateJacobian_cpu);
   m.def("icp_estimate_intensity_jacobian_gpu", &EstimateIntensityJacobian_gpu);
-    m.def("icp_estimate_intensity_jacobian_cpu", &EstimateIntensityJacobian_cpu);
+  m.def("icp_estimate_intensity_jacobian_cpu", &EstimateIntensityJacobian_cpu);
   m.def("calc_sobel_gradient_gpu", &CalcSobelGradient_gpu);
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")

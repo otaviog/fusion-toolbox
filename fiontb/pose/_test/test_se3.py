@@ -10,9 +10,11 @@ class TestSE3(unittest.TestCase):
         # trf = se3.exp(torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
         # torch.testing.assert_allclose(torch.eye(4), trf)
 
-        twist = torch.tensor([0.0, 0.1, 0.0, 0.0, 0.1, 0.2], dtype=torch.float64)
+        twist = torch.tensor([0.0, 0.1, 0.0, 0.0, 0.1, 0.2], dtype=torch.float64, requires_grad=True)
         mtx = se3.exp(twist)
         twist0 = se3.log(mtx)
         import ipdb; ipdb.set_trace()
 
         torch.testing.assert_allclose(torch.eye(4), trf)
+
+        

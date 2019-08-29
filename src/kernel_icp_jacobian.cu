@@ -1,6 +1,6 @@
 #include "icpodometry.hpp"
 
-#include "cuda_camera.hpp"
+#include "camera.hpp"
 #include "cuda_utils.hpp"
 #include "error.hpp"
 #include "math.hpp"
@@ -37,8 +37,8 @@ struct GeometricJacobianKernel {
   const CUDAFramebuffer tgt;
   const PackedAccessor<float, 2> src_points;
   const PackedAccessor<uint8_t, 1> src_mask;
-  CUDAKCamera kcam;
-  CUDARTCamera prev_rt_cam;
+  KCamera<kCUDA> kcam;
+  RTCamera<kCUDA> prev_rt_cam;
 
   PackedAccessor<float, 2> jacobian;
   PackedAccessor<float, 1> residual;
@@ -46,7 +46,7 @@ struct GeometricJacobianKernel {
   GeometricJacobianKernel(CUDAFramebuffer tgt,
                           const PackedAccessor<float, 2> src_points,
                           const PackedAccessor<uint8_t, 1> src_mask,
-                          CUDAKCamera kcam, CUDARTCamera prev_rt_cam,
+                          KCamera<kCUDA> kcam, RTCamera<kCUDA> prev_rt_cam,
                           PackedAccessor<float, 2> jacobian,
                           PackedAccessor<float, 1> residual)
       : tgt(tgt),
@@ -75,8 +75,8 @@ struct GeometricJacobianKernel {
     const int height = tgt.points.size(0);
 
     const Eigen::Vector3f p1_on_prev =
-        prev_rt_cam.transform(to_vec3<float>(src_points[ri]));
-    Eigen::Vector2i p1_proj = kcam.project(p1_on_prev);
+        prev_rt_cam.Transform(to_vec3<float>(src_points[ri]));
+    Eigen::Vector2i p1_proj = kcam.Project(p1_on_prev);
     if (p1_proj[0] < 0 || p1_proj[0] >= width || p1_proj[1] < 0 ||
         p1_proj[1] >= height)
       return;
@@ -124,7 +124,7 @@ void EstimateJacobian_gpu(const torch::Tensor tgt_points,
       CUDAFramebuffer(tgt_points, tgt_normals, tgt_mask),
       src_points.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       src_mask.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
-      CUDAKCamera(kcam), CUDARTCamera(rt_cam),
+      KCamera<kCUDA>(kcam), RTCamera<kCUDA>(rt_cam),
       jacobian.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());
 
@@ -201,8 +201,8 @@ struct IntensityJacobianKernel {
   const PackedAccessor<float, 2> src_points;
   const PackedAccessor<float, 1> src_intensity;
   const PackedAccessor<uint8_t, 1> src_mask;
-  CUDAKCamera kcam;
-  CUDARTCamera rt_cam;
+  KCamera<kCUDA> kcam;
+  RTCamera<kCUDA> rt_cam;
 
   PackedAccessor<float, 2> jacobian;
   PackedAccessor<float, 1> residual;
@@ -211,7 +211,7 @@ struct IntensityJacobianKernel {
                           const PackedAccessor<float, 2> src_points,
                           const PackedAccessor<float, 1> src_intensity,
                           const PackedAccessor<uint8_t, 1> src_mask,
-                          CUDAKCamera kcam, CUDARTCamera rt_cam,
+                          KCamera<kCUDA> kcam, RTCamera<kCUDA> rt_cam,
                           PackedAccessor<float, 2> jacobian,
                           PackedAccessor<float, 1> residual)
       : tgt(tgt),
@@ -241,10 +241,10 @@ struct IntensityJacobianKernel {
     const int height = tgt.points.size(0);
 
     const Eigen::Vector3f Tsrc_point =
-        rt_cam.transform(to_vec3<float>(src_points[ri]));
+        rt_cam.Transform(to_vec3<float>(src_points[ri]));
 
     int proj_x, proj_y;
-    kcam.project(Tsrc_point, proj_x, proj_y);
+    kcam.Project(Tsrc_point, proj_x, proj_y);
 
     if (proj_x < 0 || proj_x >= width || proj_y < 0 || proj_y >= height) return;
     if (tgt.empty(proj_y, proj_x)) return;
@@ -256,7 +256,7 @@ struct IntensityJacobianKernel {
     const float grad_x = tgt.image_grad[proj_y][proj_x][0];
     const float grad_y = tgt.image_grad[proj_y][proj_x][1];
 
-    const Eigen::Matrix<float, 4, 1> dx_kcam(kcam.Dx_projection(Tsrc_point));
+    const Eigen::Matrix<float, 4, 1> dx_kcam(kcam.Dx_Projection(Tsrc_point));
     const Eigen::Vector3f gradk(grad_x * dx_kcam[0], grad_y * dx_kcam[2],
                                 grad_x * dx_kcam[1] + grad_y * dx_kcam[3]);
 
@@ -315,7 +315,7 @@ void EstimateIntensityJacobian_gpu(
       src_intensity
           .packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>(),
       src_mask.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
-      CUDAKCamera(kcam), CUDARTCamera(rt_cam),
+      KCamera<kCUDA>(kcam), RTCamera<kCUDA>(rt_cam),
       jacobian.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());
 

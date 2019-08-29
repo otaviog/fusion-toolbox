@@ -7,11 +7,11 @@
 #include "cuda_utils.hpp"
 
 namespace fiontb {
-template <bool CUDA>
+template <Device dev>
 struct KCamera {
-  KCamera(torch::Tensor kcam_matrix)
-      : kcam_matrix(Accessor<CUDA, float, 2>::Get(kcam_matrix)) {}
-  FTB_DEVICE_HOST Eigen::Vector2i Project(const Eigen::Vector3f point) {
+  KCamera(const torch::Tensor kcam_matrix)
+      : kcam_matrix(Accessor<dev, float, 2>::Get(kcam_matrix)) {}
+  FTB_DEVICE_HOST Eigen::Vector2i Project(const Eigen::Vector3f point) const {
     const float img_x =
         kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
     const float img_y =
@@ -20,7 +20,8 @@ struct KCamera {
     return Eigen::Vector2i(round(img_x), round(img_y));
   }
 
-  FTB_DEVICE_HOST void Project(const Eigen::Vector3f point, int &x, int &y) {
+  FTB_DEVICE_HOST void Project(const Eigen::Vector3f point, int &x,
+                               int &y) const {
     const float img_x =
         kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
     const float img_y =
@@ -31,7 +32,7 @@ struct KCamera {
   }
 
   FTB_DEVICE_HOST Eigen::Matrix<float, 4, 1> Dx_Projection(
-      const Eigen::Vector3f point) {
+      const Eigen::Vector3f point) const {
     Eigen::Matrix<float, 4, 1> coeffs;
 
     const float fx = kcam_matrix[0][0];
@@ -42,18 +43,15 @@ struct KCamera {
     coeffs << fx / z, -point[0] * fx / z_sqr, fy / z, -point[1] * fy / z_sqr;
     return coeffs;
   }
-  const typename Accessor<CUDA, float, 2>::Type kcam_matrix;
+  const typename Accessor<dev, float, 2>::T kcam_matrix;
 };
 
-typedef KCamera<false> CPUKCamera;
-typedef KCamera<true> CUDAKCamera;
-
-template <bool CUDA>
+template <Device dev>
 struct RTCamera {
-  RTCamera(torch::Tensor rt_matrix)
-      : rt_matrix(Accessor<CUDA, float, 2>::Get(rt_matrix)) {}
+  RTCamera(const torch::Tensor rt_matrix)
+      : rt_matrix(Accessor<dev, float, 2>::Get(rt_matrix)) {}
 
-  FTB_DEVICE_HOST Eigen::Vector3f transform(const Eigen::Vector3f point) const {
+  FTB_DEVICE_HOST Eigen::Vector3f Transform(const Eigen::Vector3f point) const {
     const auto mtx = rt_matrix;
     const float px = mtx[0][0] * point[0] + mtx[0][1] * point[1] +
                      mtx[0][2] * point[2] + mtx[0][3];
@@ -64,10 +62,7 @@ struct RTCamera {
 
     return Eigen::Vector3f(px, py, pz);
   }
-  const typename Accessor<CUDA, float, 2>::Type rt_matrix;
+  const typename Accessor<dev, float, 2>::T rt_matrix;
 };
-
-typedef RTCamera<false> CPURTCamera;
-typedef RTCamera<true> CUDARTCamera;
 
 }  // namespace fiontb

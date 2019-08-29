@@ -4,7 +4,7 @@ import math
 
 import torch
 
-from .so3 import hat, vee
+from fiontb.pose.so3 import hat, vee
 
 # pylint: disable=invalid-name
 
@@ -12,6 +12,45 @@ _I3 = {
     torch.float32: torch.eye(3, dtype=torch.float32),
     torch.float64: torch.eye(3, dtype=torch.float64)
 }
+
+
+class SE3Box(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        device = input.device
+        dtype = input.dtype
+
+        omega = input[3:]
+        omega_skew = hat(omega)
+        omega_skew_sq = omega_skew @ omega_skew
+
+        theta = omega.norm()
+        theta_sq = theta*theta
+
+        so3 = torch.eye(3, dtype=dtype, device=device)
+        so3 += (torch.sin(theta) / theta)*omega_skew
+        so3 += ((1.0 - torch.cos(theta)) / theta_sq)*omega_skew_sq
+
+        theta_cu = theta_sq*theta
+
+        V = torch.eye(3)
+        V += (1 - torch.cos(theta)) / theta_sq * omega_skew
+        V += (theta - torch.sin(theta)) / theta_cu * omega_skew
+
+        se3 = torch.eye(4)
+        se3[:3, :3] = so3
+
+        rho = input[:3]
+        se3[:3, 3] = V@rho
+
+        return se3
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        import ipdb; ipdb.set_trace()
+
+        J = torch.tensor()
+        pass
 
 
 def exp(twist):
@@ -66,3 +105,24 @@ def log(se3_matrix):
     t = V_inv@t
 
     return torch.cat((t, omega_vec))
+
+
+class Tests:
+    def torch_func(self):
+        box = SE3Box.apply
+        ep = torch.tensor([1, 2, 3, 4, 5, 6.0], requires_grad=True)
+        T = torch.eye(4)
+        K = torch.ones(3, 3)
+            
+        n = torch.tensor([1, 2, 3.0, 4])
+        p = torch.tensor([1, 2.0, 3, 4])
+        print(box(ep))
+
+        forward = torch.dot(box(ep) @ p, n)
+        forward.backward()
+
+
+if __name__ == '__main__':
+    import fire
+
+    fire.Fire(Tests)

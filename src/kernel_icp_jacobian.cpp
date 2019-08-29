@@ -8,19 +8,19 @@
 namespace fiontb {
 namespace {
 struct GeometricJacobianKernel {
-  CPUPointGrid tgt;
+  PointGrid<kCPU> tgt;
   const torch::TensorAccessor<float, 2> src_points;
   const torch::TensorAccessor<uint8_t, 1> src_mask;
-  CPUKCamera kcam;
-  CPURTCamera rt_cam;
+  KCamera<kCPU> kcam;
+  RTCamera<kCPU> rt_cam;
 
   torch::TensorAccessor<float, 2> jacobian;
   torch::TensorAccessor<float, 1> residual;
 
-  GeometricJacobianKernel(CPUPointGrid tgt,
+  GeometricJacobianKernel(PointGrid<kCPU> tgt,
                           const torch::TensorAccessor<float, 2> src_points,
                           const torch::TensorAccessor<uint8_t, 1> src_mask,
-                          CPUKCamera kcam, CPURTCamera rt_cam,
+                          KCamera<kCPU> kcam, RTCamera<kCPU> rt_cam,
                           torch::TensorAccessor<float, 2> jacobian,
                           torch::TensorAccessor<float, 1> residual)
       : tgt(tgt),
@@ -54,7 +54,7 @@ struct GeometricJacobianKernel {
     const int height = tgt.points.size(0);
 
     const Eigen::Vector3f Tsrc_point =
-        rt_cam.transform(to_vec3<float>(src_points[ri]));
+        rt_cam.Transform(to_vec3<float>(src_points[ri]));
     Eigen::Vector2i p1_proj = kcam.Project(Tsrc_point);
     if (p1_proj[0] < 0 || p1_proj[0] >= width || p1_proj[1] < 0 ||
         p1_proj[1] >= height)
@@ -100,32 +100,32 @@ void EstimateJacobian_cpu(const torch::Tensor tgt_points,
   FTB_CHECK(!residual.is_cuda(), "Expected a cpu tensor");
 
   GeometricJacobianKernel estm_kern(
-      CPUPointGrid(tgt_points, tgt_normals, tgt_mask),
+      PointGrid<kCPU>(tgt_points, tgt_normals, tgt_mask),
       src_points.accessor<float, 2>(), src_mask.accessor<uint8_t, 1>(),
-      CPUKCamera(kcam), CPURTCamera(rt_cam), jacobian.accessor<float, 2>(),
-      residual.accessor<float, 1>());
+      KCamera<kCPU>(kcam), RTCamera<kCPU>(rt_cam),
+      jacobian.accessor<float, 2>(), residual.accessor<float, 1>());
 
   estm_kern();
 }
 
 namespace {
 struct IntensityJacobianKernel {
-  CPUIntensityPointGrid tgt;
+  IntensityPointGrid<kCPU> tgt;
   torch::TensorAccessor<float, 2> src_points;
   torch::TensorAccessor<float, 1> src_intensity;
   torch::TensorAccessor<uint8_t, 1> src_mask;
 
-  CPUKCamera kcam;
-  CPURTCamera rt_cam;
+  KCamera<kCPU> kcam;
+  RTCamera<kCPU> rt_cam;
 
   torch::TensorAccessor<float, 2> jacobian;
   torch::TensorAccessor<float, 1> residual;
 
-  IntensityJacobianKernel(const CPUIntensityPointGrid tgt,
+  IntensityJacobianKernel(const IntensityPointGrid<kCPU> tgt,
                           const torch::TensorAccessor<float, 2> src_points,
                           const torch::TensorAccessor<float, 1> src_intensity,
                           const torch::TensorAccessor<uint8_t, 1> src_mask,
-                          CPUKCamera kcam, CPURTCamera rt_cam,
+                          KCamera<kCPU> kcam, RTCamera<kCPU> rt_cam,
                           torch::TensorAccessor<float, 2> jacobian,
                           torch::TensorAccessor<float, 1> residual)
       : tgt(tgt),
@@ -159,7 +159,7 @@ struct IntensityJacobianKernel {
     const int height = tgt.points.size(0);
 
     const Eigen::Vector3f Tsrc_point =
-        rt_cam.transform(to_vec3<float>(src_points[ri]));
+        rt_cam.Transform(to_vec3<float>(src_points[ri]));
 
     int proj_x, proj_y;
     kcam.Project(Tsrc_point, proj_x, proj_y);
@@ -176,7 +176,7 @@ struct IntensityJacobianKernel {
 
     const Eigen::Matrix<float, 4, 1> dx_kcam(kcam.Dx_Projection(Tsrc_point));
     const Eigen::Vector3f gradk(grad_x * dx_kcam[0], grad_y * dx_kcam[2],
-                                grad_x * dx_kcam[1] + grad_y * dx_kcam[3])*0.05f;
+                                grad_x * dx_kcam[1] + grad_y * dx_kcam[3]);
 
     jacobian[ri][0] = gradk[0];
     jacobian[ri][1] = gradk[1];
@@ -215,12 +215,13 @@ void EstimateIntensityJacobian_cpu(
   FTB_CHECK(!jacobian.is_cuda(), "Expected a cpu tensor");
   FTB_CHECK(!residual.is_cuda(), "Expected a cpu tensor");
 
-  CPUIntensityPointGrid tgt(tgt_image, tgt_grad_image, tgt_points, tgt_normals,
-                            tgt_mask);
+  IntensityPointGrid<kCPU> tgt(tgt_image, tgt_grad_image, tgt_points,
+                               tgt_normals, tgt_mask);
   IntensityJacobianKernel estm_kern(
       tgt, src_points.accessor<float, 2>(), src_intensity.accessor<float, 1>(),
-      src_mask.accessor<uint8_t, 1>(), CPUKCamera(kcam), CPURTCamera(rt_cam),
-      jacobian.accessor<float, 2>(), residual.accessor<float, 1>());
+      src_mask.accessor<uint8_t, 1>(), KCamera<kCPU>(kcam),
+      RTCamera<kCPU>(rt_cam), jacobian.accessor<float, 2>(),
+      residual.accessor<float, 1>());
 
   estm_kern();
 }

@@ -16,7 +16,9 @@ cuda_add_library(fiontb
   kernel_indexmap.cu
   kernel_icp_jacobian.cu
   kernel_icp_jacobian.cpp
-  kernel_downsample.cu)
+  kernel_downsample.cu
+  kernel_dense_matcher.cu
+  )
 
 target_include_directories(fiontb
   PUBLIC
