@@ -7,43 +7,64 @@
 #include "cuda_utils.hpp"
 
 namespace fiontb {
-template <Device dev>
+
+template <Device dev, typename scalar_t>
 struct KCamera {
   KCamera(const torch::Tensor kcam_matrix)
-      : kcam_matrix(Accessor<dev, float, 2>::Get(kcam_matrix)) {}
-  FTB_DEVICE_HOST Eigen::Vector2i Project(const Eigen::Vector3f point) const {
-    const float img_x =
+      : kcam_matrix(Accessor<dev, scalar_t, 2>::Get(kcam_matrix)) {}
+  FTB_DEVICE_HOST Eigen::Vector2i Project(
+      const Vector<scalar_t, 3> point) const {
+    const scalar_t img_x =
         kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
-    const float img_y =
+    const scalar_t img_y =
         kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
 
     return Eigen::Vector2i(round(img_x), round(img_y));
   }
 
-  FTB_DEVICE_HOST void Project(const Eigen::Vector3f point, int &x,
-                               int &y) const {
-    const float img_x =
-        kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
-    const float img_y =
-        kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
+  FTB_DEVICE_HOST void Projecti(const Vector<scalar_t, 3> point, int &x,
+                                int &y) const {
+    scalar_t img_x, img_y;
+
+    Project(point, img_x, img_y);
 
     x = round(img_x);
     y = round(img_y);
   }
 
-  FTB_DEVICE_HOST Eigen::Matrix<float, 4, 1> Dx_Projection(
-      const Eigen::Vector3f point) const {
-    Eigen::Matrix<float, 4, 1> coeffs;
+  FTB_DEVICE_HOST void Project(const Vector<scalar_t, 3> point, scalar_t &x,
+                               scalar_t &y) const {
+    const scalar_t img_x =
+        kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
+    const scalar_t img_y =
+        kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
 
-    const float fx = kcam_matrix[0][0];
-    const float fy = kcam_matrix[1][1];
+    x = img_x;
+    y = img_y;
+  }
 
-    const float z = point[2];
-    const float z_sqr = z * z;
+  FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 4, 1> Dx_Projection(
+      const Vector<scalar_t, 3> point) const {
+    Eigen::Matrix<scalar_t, 4, 1> coeffs;
+
+    const scalar_t fx = kcam_matrix[0][0];
+    const scalar_t fy = kcam_matrix[1][1];
+
+    const scalar_t z = point[2];
+    const scalar_t z_sqr = z * z;
     coeffs << fx / z, -point[0] * fx / z_sqr, fy / z, -point[1] * fy / z_sqr;
     return coeffs;
   }
-  const typename Accessor<dev, float, 2>::T kcam_matrix;
+  const typename Accessor<dev, scalar_t, 2>::T kcam_matrix;
+};
+
+struct ProjectOp {
+  static torch::Tensor Forward(const torch::Tensor &points,
+                               const torch::Tensor &intrinsic_matrix);
+
+  static torch::Tensor Backward(const torch::Tensor &dy_grad,
+                                const torch::Tensor &points,
+                                const torch::Tensor &intrinsic_matrix);
 };
 
 template <Device dev>

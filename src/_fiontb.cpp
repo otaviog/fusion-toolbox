@@ -5,6 +5,8 @@
 #include <torch/python.h>
 #include <torch/torch.h>
 
+#include "camera.hpp"
+#include "se3.hpp"
 #include "dense_volume.hpp"
 #include "downsample.hpp"
 #include "filtering.hpp"
@@ -66,6 +68,12 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("icp_estimate_intensity_jacobian_cpu", &EstimateIntensityJacobian_cpu);
   m.def("calc_sobel_gradient_gpu", &CalcSobelGradient_gpu);
 
+  m.def("project_op_forward", &ProjectOp::Forward);
+  m.def("project_op_backward", &ProjectOp::Backward);
+
+  m.def("se3_exp_op_forward", &SE3ExpOp::Forward);
+  m.def("se3_exp_op_backward", &SE3ExpOp::Backward);
+  
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);
   m.def("downsample_xyz", &DownsampleXYZ);

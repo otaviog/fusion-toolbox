@@ -40,3 +40,9 @@ fiontb.pose.icp.multiscale-geometric:
 fiontb.pose.icp.intensity:
 	python3 -m fiontb.pose._test.test_icp intensity
 
+
+fiontb.pose.operators1:
+	python3 -m fiontb.pose.operators projection
+
+fiontb.pose.operators2:
+	python3 -m fiontb.pose.operators full_so3

@@ -11,7 +11,7 @@ struct GeometricJacobianKernel {
   PointGrid<kCPU> tgt;
   const torch::TensorAccessor<float, 2> src_points;
   const torch::TensorAccessor<uint8_t, 1> src_mask;
-  KCamera<kCPU> kcam;
+  KCamera<kCPU, float> kcam;
   RTCamera<kCPU> rt_cam;
 
   torch::TensorAccessor<float, 2> jacobian;
@@ -20,7 +20,7 @@ struct GeometricJacobianKernel {
   GeometricJacobianKernel(PointGrid<kCPU> tgt,
                           const torch::TensorAccessor<float, 2> src_points,
                           const torch::TensorAccessor<uint8_t, 1> src_mask,
-                          KCamera<kCPU> kcam, RTCamera<kCPU> rt_cam,
+                          KCamera<kCPU, float> kcam, RTCamera<kCPU> rt_cam,
                           torch::TensorAccessor<float, 2> jacobian,
                           torch::TensorAccessor<float, 1> residual)
       : tgt(tgt),
@@ -102,7 +102,7 @@ void EstimateJacobian_cpu(const torch::Tensor tgt_points,
   GeometricJacobianKernel estm_kern(
       PointGrid<kCPU>(tgt_points, tgt_normals, tgt_mask),
       src_points.accessor<float, 2>(), src_mask.accessor<uint8_t, 1>(),
-      KCamera<kCPU>(kcam), RTCamera<kCPU>(rt_cam),
+      KCamera<kCPU, float>(kcam), RTCamera<kCPU>(rt_cam),
       jacobian.accessor<float, 2>(), residual.accessor<float, 1>());
 
   estm_kern();
@@ -115,7 +115,7 @@ struct IntensityJacobianKernel {
   torch::TensorAccessor<float, 1> src_intensity;
   torch::TensorAccessor<uint8_t, 1> src_mask;
 
-  KCamera<kCPU> kcam;
+  KCamera<kCPU, float> kcam;
   RTCamera<kCPU> rt_cam;
 
   torch::TensorAccessor<float, 2> jacobian;
@@ -125,7 +125,7 @@ struct IntensityJacobianKernel {
                           const torch::TensorAccessor<float, 2> src_points,
                           const torch::TensorAccessor<float, 1> src_intensity,
                           const torch::TensorAccessor<uint8_t, 1> src_mask,
-                          KCamera<kCPU> kcam, RTCamera<kCPU> rt_cam,
+                          KCamera<kCPU, float> kcam, RTCamera<kCPU> rt_cam,
                           torch::TensorAccessor<float, 2> jacobian,
                           torch::TensorAccessor<float, 1> residual)
       : tgt(tgt),
@@ -162,7 +162,7 @@ struct IntensityJacobianKernel {
         rt_cam.Transform(to_vec3<float>(src_points[ri]));
 
     int proj_x, proj_y;
-    kcam.Project(Tsrc_point, proj_x, proj_y);
+    kcam.Projecti(Tsrc_point, proj_x, proj_y);
 
     if (proj_x < 0 || proj_x >= width || proj_y < 0 || proj_y >= height) return;
     if (tgt.empty(proj_y, proj_x)) return;
@@ -219,7 +219,7 @@ void EstimateIntensityJacobian_cpu(
                                tgt_normals, tgt_mask);
   IntensityJacobianKernel estm_kern(
       tgt, src_points.accessor<float, 2>(), src_intensity.accessor<float, 1>(),
-      src_mask.accessor<uint8_t, 1>(), KCamera<kCPU>(kcam),
+      src_mask.accessor<uint8_t, 1>(), KCamera<kCPU, float>(kcam),
       RTCamera<kCPU>(rt_cam), jacobian.accessor<float, 2>(),
       residual.accessor<float, 1>());
 

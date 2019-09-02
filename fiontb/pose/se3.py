@@ -5,6 +5,8 @@ import math
 import torch
 
 from fiontb.pose.so3 import hat, vee
+from fiontb._cfiontb import (se3_exp_op_forward as _se3_exp_op_forward,
+                             se3_exp_op_backward as _se3_exp_op_backward)
 
 # pylint: disable=invalid-name
 
@@ -14,43 +16,18 @@ _I3 = {
 }
 
 
-class SE3Box(torch.autograd.Function):
+class SE3Exp(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input):
-        device = input.device
-        dtype = input.dtype
+    def forward(ctx, upsilon_omega):
+        y_matrices = _se3_exp_op_forward(upsilon_omega)
 
-        omega = input[3:]
-        omega_skew = hat(omega)
-        omega_skew_sq = omega_skew @ omega_skew
-
-        theta = omega.norm()
-        theta_sq = theta*theta
-
-        so3 = torch.eye(3, dtype=dtype, device=device)
-        so3 += (torch.sin(theta) / theta)*omega_skew
-        so3 += ((1.0 - torch.cos(theta)) / theta_sq)*omega_skew_sq
-
-        theta_cu = theta_sq*theta
-
-        V = torch.eye(3)
-        V += (1 - torch.cos(theta)) / theta_sq * omega_skew
-        V += (theta - torch.sin(theta)) / theta_cu * omega_skew
-
-        se3 = torch.eye(4)
-        se3[:3, :3] = so3
-
-        rho = input[:3]
-        se3[:3, 3] = V@rho
-
-        return se3
+        ctx.save_for_backward(upsilon_omega, y_matrices)
+        return y_matrices
 
     @staticmethod
-    def backward(ctx, grad_output):
-        import ipdb; ipdb.set_trace()
-
-        J = torch.tensor()
-        pass
+    def backward(ctx, dy_matrices):
+        upsilon_omega, y_matrices = ctx.saved_tensors
+        return _se3_exp_op_backward(dy_matrices, upsilon_omega, y_matrices)
 
 
 def exp(twist):
@@ -113,7 +90,7 @@ class Tests:
         ep = torch.tensor([1, 2, 3, 4, 5, 6.0], requires_grad=True)
         T = torch.eye(4)
         K = torch.ones(3, 3)
-            
+
         n = torch.tensor([1, 2, 3.0, 4])
         p = torch.tensor([1, 2.0, 3, 4])
         print(box(ep))

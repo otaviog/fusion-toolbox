@@ -37,7 +37,7 @@ struct GeometricJacobianKernel {
   const CUDAFramebuffer tgt;
   const PackedAccessor<float, 2> src_points;
   const PackedAccessor<uint8_t, 1> src_mask;
-  KCamera<kCUDA> kcam;
+  KCamera<kCUDA, float> kcam;
   RTCamera<kCUDA> prev_rt_cam;
 
   PackedAccessor<float, 2> jacobian;
@@ -46,7 +46,7 @@ struct GeometricJacobianKernel {
   GeometricJacobianKernel(CUDAFramebuffer tgt,
                           const PackedAccessor<float, 2> src_points,
                           const PackedAccessor<uint8_t, 1> src_mask,
-                          KCamera<kCUDA> kcam, RTCamera<kCUDA> prev_rt_cam,
+                          KCamera<kCUDA, float> kcam, RTCamera<kCUDA> prev_rt_cam,
                           PackedAccessor<float, 2> jacobian,
                           PackedAccessor<float, 1> residual)
       : tgt(tgt),
@@ -124,7 +124,7 @@ void EstimateJacobian_gpu(const torch::Tensor tgt_points,
       CUDAFramebuffer(tgt_points, tgt_normals, tgt_mask),
       src_points.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       src_mask.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
-      KCamera<kCUDA>(kcam), RTCamera<kCUDA>(rt_cam),
+      KCamera<kCUDA, float>(kcam), RTCamera<kCUDA>(rt_cam),
       jacobian.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());
 
@@ -201,7 +201,7 @@ struct IntensityJacobianKernel {
   const PackedAccessor<float, 2> src_points;
   const PackedAccessor<float, 1> src_intensity;
   const PackedAccessor<uint8_t, 1> src_mask;
-  KCamera<kCUDA> kcam;
+  KCamera<kCUDA, float> kcam;
   RTCamera<kCUDA> rt_cam;
 
   PackedAccessor<float, 2> jacobian;
@@ -211,7 +211,7 @@ struct IntensityJacobianKernel {
                           const PackedAccessor<float, 2> src_points,
                           const PackedAccessor<float, 1> src_intensity,
                           const PackedAccessor<uint8_t, 1> src_mask,
-                          KCamera<kCUDA> kcam, RTCamera<kCUDA> rt_cam,
+                          KCamera<kCUDA, float> kcam, RTCamera<kCUDA> rt_cam,
                           PackedAccessor<float, 2> jacobian,
                           PackedAccessor<float, 1> residual)
       : tgt(tgt),
@@ -244,7 +244,7 @@ struct IntensityJacobianKernel {
         rt_cam.Transform(to_vec3<float>(src_points[ri]));
 
     int proj_x, proj_y;
-    kcam.Project(Tsrc_point, proj_x, proj_y);
+    kcam.Projecti(Tsrc_point, proj_x, proj_y);
 
     if (proj_x < 0 || proj_x >= width || proj_y < 0 || proj_y >= height) return;
     if (tgt.empty(proj_y, proj_x)) return;
@@ -315,7 +315,7 @@ void EstimateIntensityJacobian_gpu(
       src_intensity
           .packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>(),
       src_mask.packed_accessor<uint8_t, 1, torch::RestrictPtrTraits, size_t>(),
-      KCamera<kCUDA>(kcam), RTCamera<kCUDA>(rt_cam),
+      KCamera<kCUDA, float>(kcam), RTCamera<kCUDA>(rt_cam),
       jacobian.packed_accessor<float, 2, torch::RestrictPtrTraits, size_t>(),
       residual.packed_accessor<float, 1, torch::RestrictPtrTraits, size_t>());
 

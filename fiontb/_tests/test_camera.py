@@ -1,17 +1,12 @@
 import unittest
 
 import numpy as np
+import torch
 
-from fiontb.camera import Homogeneous, KCamera, RTCamera
+from fiontb.camera import Homogeneous, KCamera, RTCamera, Project
 
 
 class TestCamera(unittest.TestCase):
-    def _test_kcamera(self):
-        cam = KCamera.create_from_params()
-
-    def _test_rtcamera(self):
-        cam = RTcamera.create_from_params()
-
     def test_homogeneous(self):
         matrix = np.random.rand(4, 4)
         points = np.random.rand(100, 3)
@@ -23,3 +18,12 @@ class TestCamera(unittest.TestCase):
         points2 = np.delete(points2, 3, 1).squeeze()
 
         np.testing.assert_almost_equal(points1, points2)
+
+    def test_project(self):
+        proj = Project.apply
+        torch.manual_seed(10)
+        input = (torch.rand(3, dtype=torch.double, requires_grad=True),
+                 torch.tensor([[45.0, 0, 24],
+                               [0, 45, 24]], dtype=torch.double))
+
+        torch.autograd.gradcheck(proj, input, eps=1e-6, atol=1e-4)

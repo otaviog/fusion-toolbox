@@ -7,7 +7,7 @@ namespace fiontb {
 namespace {
 __global__ void MatchPointsDense_gpu_kernel(
     const PointGrid<kCUDA> target,
-    const Accessor<kCUDA, float, 2>::T src_points, const KCamera<kCUDA> kcam,
+    const Accessor<kCUDA, float, 2>::T src_points, const KCamera<kCUDA, float> kcam,
     const RTCamera<kCUDA> rt_cam, Accessor<kCUDA, int64_t, 1>::T out_index,
     Accessor<kCUDA, float, 2>::T out_point) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -22,7 +22,7 @@ __global__ void MatchPointsDense_gpu_kernel(
       rt_cam.Transform(to_vec3<float>(src_points[idx]));
 
   int x, y;
-  kcam.Project(Tsrc_point, x, y);
+  kcam.Projecti(Tsrc_point, x, y);
   if (x < 0 || x >= width || y < 0 || y >= height) return;
   if (target.empty(y, x)) return;
 
@@ -50,7 +50,7 @@ void MatchDensePoints_gpu(const torch::Tensor target_points,
 
   MatchPointsDense_gpu_kernel<<<kl.grid, kl.block>>>(
       PointGrid<kCUDA>(target_points, target_mask),
-      Accessor<kCUDA, float, 2>::Get(source_points), KCamera<kCUDA>(kcam),
+      Accessor<kCUDA, float, 2>::Get(source_points), KCamera<kCUDA, float>(kcam),
       RTCamera<kCUDA>(rt_cam), Accessor<kCUDA, int64_t, 1>::Get(out_index),
       Accessor<kCUDA, float, 2>::Get(out_point));
   CudaCheck();
