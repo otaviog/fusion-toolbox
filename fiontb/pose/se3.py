@@ -19,15 +19,18 @@ _I3 = {
 class SE3Exp(torch.autograd.Function):
     @staticmethod
     def forward(ctx, upsilon_omega):
-        y_matrices = _se3_exp_op_forward(upsilon_omega)
+        y_matrices = _se3_exp_op_forward(upsilon_omega.view(-1, 1))
 
         ctx.save_for_backward(upsilon_omega, y_matrices)
+
         return y_matrices
 
     @staticmethod
     def backward(ctx, dy_matrices):
         upsilon_omega, y_matrices = ctx.saved_tensors
-        return _se3_exp_op_backward(dy_matrices, upsilon_omega, y_matrices)
+        dx_upsilon_omega = _se3_exp_op_backward(
+            dy_matrices.view(-1, 3, 3), upsilon_omega, y_matrices)
+        return dx_upsilon_omega
 
 
 def exp(twist):

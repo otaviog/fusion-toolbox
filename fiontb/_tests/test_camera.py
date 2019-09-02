@@ -21,9 +21,11 @@ class TestCamera(unittest.TestCase):
 
     def test_project(self):
         proj = Project.apply
-        torch.manual_seed(10)
-        input = (torch.rand(3, dtype=torch.double, requires_grad=True),
-                 torch.tensor([[45.0, 0, 24],
-                               [0, 45, 24]], dtype=torch.double))
+        for dev in ["cpu:0", "cuda:0"]:
+            torch.manual_seed(10)
+            input = (torch.rand(3, dtype=torch.double, requires_grad=True),
+                     torch.tensor([[45.0, 0, 24],
+                                   [0, 45, 24]], dtype=torch.double))
 
-        torch.autograd.gradcheck(proj, input, eps=1e-6, atol=1e-4)
+            torch.autograd.gradcheck(proj, input, eps=1e-6, atol=1e-4,
+                                     raise_exception=True)

@@ -6,7 +6,7 @@
 namespace fiontb {
 #ifdef __CUDACC__
 template <typename Kernel>
-inline __global__ void Exec1DKernel(Kernel kern, int size) {
+static __global__ void Exec1DKernel(Kernel kern, int size) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
     kern(idx);

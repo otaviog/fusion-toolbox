@@ -2,9 +2,9 @@ import torch
 import torch.optim
 
 from fiontb.spatial.matching import DensePointMatcher
+from fiontb.pose.se3 import SE3Exp
+from fiontb.camera import Project
 
-
-from fiontb.pose.se3 import exp as lie_exp
 
 class LabICP:
     def __init__(self, num_iters):
@@ -13,19 +13,20 @@ class LabICP:
     def estimate(self, target_points, target_mask, target_normals,
                  src_points, kcam, transform):
 
+        exp = SE3Exp.apply
+
+        dtype = target_points.dtype
         device = target_points.device
 
         transform = torch.tensor([[1, 0, 0, 0],
                                   [0, 1, 0, 0],
-                                  [0, 0, 1.0, 0]],
-                                 device=device, requires_grad=True)
+                                  [0, 0, 1, 0]],
+                                 dtype=dtype, device=device,
+                                 requires_grad=True)
 
-        twist = torch.zeros(6, requires_grad=True, device=device)
-        optim = torch.optim.SGD([transform], 0.0001)
+        upsilon_omega = torch.zeros(1, 6, requires_grad=True, device=device)
+        optim = torch.optim.SGD([upsilon_omega], 0.0001)
         matcher = DensePointMatcher()
-
-        M = lie_exp(twist.cpu())
-        import ipdb; ipdb.set_trace()
 
         kcam = kcam.to(device)
         # transform = transform.to(device)
@@ -33,21 +34,25 @@ class LabICP:
         src_points = src_points.view(-1, 3)
         target_normals = target_normals.view(-1, 3)
 
+        
         for i in range(self.num_iters):
             mpoints, mindex = matcher.match(
                 target_points, target_mask,
                 src_points, kcam, transform)
 
             normals = target_normals[mindex]
-            diff = mpoints - (src_points @ transform)[:, :3]
+            import ipdb; ipdb.set_trace()
+
+            diff = mpoints - (src_points @ exp(upsilon_omega).squeeze())[:, :3]
+            #diff = mpoints - (src_points @ transform)[:, :3]
+
             cost = torch.bmm(normals.view(-1, 1, 3), diff.view(-1, 3, 1))
 
             cost = cost*cost
-            cost = cost.sum(0).sqrt()
-            # import ipdb; ipdb.set_trace()
+            cost = cost.sum(0)
+            cost.backward()
 
             optim.zero_grad()
-            cost.backward()
             optim.step()
 
             # transform = se3_lie_exp(twist)

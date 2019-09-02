@@ -14,13 +14,13 @@ struct ExpForwardKernel {
   const typename Accessor<dev, scalar_t, 2>::T x_upsilon_omegas;
   typename Accessor<dev, scalar_t, 3>::T y_matrix;
 
-  typedef Sophus::SE3<scalar_t> SE3;
 
   ExpForwardKernel(const torch::Tensor &x_upsilon_omega, torch::Tensor y_matrix)
       : x_upsilon_omegas(Accessor<dev, scalar_t, 2>::Get(x_upsilon_omega)),
         y_matrix(Accessor<dev, scalar_t, 3>::Get(y_matrix)) {}
 
-  void operator()(long idx) {
+  FTB_DEVICE_HOST void operator()(long idx) {
+	typedef Sophus::SE3<scalar_t> SE3;
     typename SE3::Tangent x_upsilon_omega;
     x_upsilon_omega << x_upsilon_omegas[idx][0], x_upsilon_omegas[idx][1],
         x_upsilon_omegas[idx][2], x_upsilon_omegas[idx][3],
@@ -38,10 +38,10 @@ struct ExpForwardKernel {
 }  // namespace
 
 torch::Tensor SE3ExpOp::Forward(torch::Tensor x_upsilon_omegas) {
-  torch::Tensor matrix = torch::empty(
-      {x_upsilon_omegas.size(0), 3, 4},
-      torch::TensorOptions(x_upsilon_omegas.type())
-      .device(x_upsilon_omegas.device()));
+  torch::Tensor matrix =
+      torch::empty({x_upsilon_omegas.size(0), 3, 4},
+                   torch::TensorOptions(x_upsilon_omegas.type())
+                       .device(x_upsilon_omegas.device()));
 
   AT_DISPATCH_FLOATING_TYPES(
       x_upsilon_omegas.scalar_type(), "ExpForward", ([&] {
@@ -76,28 +76,51 @@ struct ExpBackwardKernel {
   typedef Eigen::Matrix<scalar_t, 3, 3> Matrix3;
   typedef Eigen::Matrix<scalar_t, 3, 1> Vector3;
 
-  void operator()(long idx) {
+  FTB_DEVICE_HOST void operator()(long idx) {
     const Matrix3 R(to_matrix<scalar_t, 3, 3>(y_matrices[idx]));
     const Vector3 v(x_upsilon_omegas[idx][3], x_upsilon_omegas[idx][4],
                     x_upsilon_omegas[idx][5]);
     const Matrix3 dy_matrix(to_matrix<scalar_t, 3, 3>(dy_matrices[idx]));
-    const scalar_t v_norm = v.norm();
+    const scalar_t v_norm = v.squaredNorm();
 
     const Matrix3 Id_R = (Matrix3::Identity() - R);
-    const Matrix3 V = v * v.transpose();
+    const Matrix3 vv = v * v.transpose();
 
     for (int k = 0; k < 3; ++k) {
-      const Vector3 e(Id_R(k, 0), Id_R(k, 1), Id_R(k, 2));
+      const Vector3 e(Id_R(0, k), Id_R(1, k), Id_R(2, k));
+      Matrix3 skew;
 
-      const Matrix3 skew_v(v[k] * SkewMatrix(v));
-      const Vector3 vxe = v.cross(e);
-      const Matrix3 skew_vxe(SkewMatrix(vxe));
+      if (v_norm > 1E-12) {
+        const Vector3 v_cross_e = v.cross(e);  // vI row
 
-      const Matrix3 rdvk = ((skew_v + skew_vxe) / v_norm) * R;
+        const Vector3 vv_ve =
+            Vector3(vv(0, k) + v_cross_e[0], vv(1, k) + v_cross_e[1],
+                    vv(2, k) + v_cross_e[2]) /
+            v_norm;
+        skew = SkewMatrix(vv_ve);
+      } else {
+        switch (k) {
+          case 0:
+            skew = SkewMatrix(Vector3(1, 0, 0));
+            break;
+          case 1:
+            skew = SkewMatrix(Vector3(0, 1, 0));
+            break;
+          default:
+          case 2:
+            skew = SkewMatrix(Vector3(0, 0, 1));
+        }
+      }
+
+      const Matrix3 rdvk = skew * R;
 
       const Matrix3 grad = rdvk.array() * dy_matrix.array();
-      dx_upsilon_omegas[idx][k] = grad.sum();
+      dx_upsilon_omegas[idx][3 + k] = grad.sum();
     }
+
+    dx_upsilon_omegas[idx][0] = dy_matrices[idx][0][3];
+    dx_upsilon_omegas[idx][1] = dy_matrices[idx][1][3];
+    dx_upsilon_omegas[idx][2] = dy_matrices[idx][2][3];
   }
 };
 
