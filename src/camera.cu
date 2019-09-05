@@ -36,7 +36,7 @@ torch::Tensor ProjectOp::Forward(const torch::Tensor &points,
   auto bk_points = points.view({-1, 3});
 
   const torch::Tensor out_projection =
-      torch::empty(bk_points.sizes(),
+	torch::empty({bk_points.size(0), 2},
                    torch::TensorOptions(points.type()).device(points.device()));
 
   if (points.is_cuda()) {

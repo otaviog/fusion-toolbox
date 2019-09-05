@@ -12,7 +12,22 @@ static __global__ void Exec1DKernel(Kernel kern, int size) {
     kern(idx);
   }
 }
+
+template <typename Kernel>
+inline void Launch1DKernelCUDA(Kernel kern, int size) {
+  CudaKernelDims kl = Get1DKernelDims(size);
+  Exec1DKernel<<<kl.grid, kl.block>>>(kern, size);
+  CudaCheck();
+  CudaSafeCall(cudaDeviceSynchronize());
+}
 #endif
+
+template <typename Kernel>
+inline void Launch1DKernelCPU(Kernel kern, int size) {
+  for (int i = 0; i < size; ++i) {
+    kern(i);
+  }
+}
 
 template <Device dev, typename Kernel>
 inline void Launch1DKernel(Kernel kern, int size) {

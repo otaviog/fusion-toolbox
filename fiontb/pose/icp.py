@@ -138,7 +138,8 @@ class ICPOdometry:
                     icp_estimate_intensity_jacobian_cpu(
                         target_points, target_normals, target_image.to(device),
                         self.image_grad.to(device),
-                        target_mask, source_points, source_intensity.to(device),
+                        target_mask, source_points, source_intensity.to(
+                            device),
                         source_mask, kcam, transform, self.jacobian,
                         self.residual)
 #            import ipdb; ipdb.set_trace()
@@ -168,63 +169,6 @@ class ICPOdometry:
         return self.estimate(target_frame.points, target_frame.normals,
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform, target_image, source_intensity)
-
-
-class IntensityICPOdometry:
-    def __init__(self, num_iters, geom_weight=0.5, intensity_weight=0.5):
-        self.num_iters = num_iters
-        self.geom_weight = geom_weight
-        self.intensity_weight = intensity_weight
-
-        self._residual = None
-        self._jacobi = None
-
-    def estimate(self, target_points, target_normals, target_intensity, target_mask,
-                 source_points, source_intensity, source_mask,
-                 kcam, transform=None):
-        assert source_points.is_cuda, "At least source_points must be a cuda tensor."
-
-        device = source_points.device
-
-        kcam = kcam.matrix.to(device)
-        if transform is None:
-            transform = torch.eye(4, device=device)
-        else:
-            transform = transform.to(device)
-
-        source_points = source_points.view(-1, 3)
-        source_mask = source_mask.view(-1)
-
-        self._jacobian = empty_ensured_size(self._jacobian, source_points.size(0), 6,
-                                            device=device, dtype=torch.float)
-        self._residual = empty_ensured_size(self._residual, source_points.size(0),
-                                            device=device, dtype=torch.float)
-
-        for _ in range(self.num_iters):
-            icp_estimate_intensity_jacobian_gpu(
-                target_points, target_normals, target_mask,
-                source_points, source_mask, kcam, transform,
-                self._jacobian, self._residual)
-
-            Jt = self._jacobian.transpose(1, 0)
-            JtJ = Jt @ self._jacobian
-            upper_JtJ = torch.cholesky(JtJ.double())
-
-            Jr = Jt @ self._residual
-
-            update = torch.cholesky_solve(
-                Jr.view(-1, 1).double(), upper_JtJ).squeeze()
-
-            update_matrix = SE3.exp(
-                update.cpu()).to_matrix().to(device).float()
-            transform = update_matrix @ transform
-
-        return transform
-
-    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
-        return self.estimate(target_frame.points, target_frame.normals,
-                             target_frame.mask, source_frame.points, source_frame.mask,
-                             source_frame.kcam, transform)
 
 
 class MultiscaleICPOdometry:

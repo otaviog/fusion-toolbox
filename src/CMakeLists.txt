@@ -11,7 +11,7 @@ cuda_add_library(fiontb
   sparse_volume.cpp
   tsdf_fusion.cpp
   camera.cu
-  se3.cu
+  so3.cu
   kernel_surfel_intra_merge.cu
   kernel_surfel_live_merge.cu
   kernel_surfel_space_carving.cu

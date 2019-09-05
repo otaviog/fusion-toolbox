@@ -24,7 +24,7 @@ __global__ void MatchPointsDense_gpu_kernel(
   int x, y;
   kcam.Projecti(Tsrc_point, x, y);
   if (x < 0 || x >= width || y < 0 || y >= height) return;
-  if (target.empty(y, x)) return;
+  if (target.empty(x, y)) return;
 
   out_index[idx] = y*width + x;
   auto target_point = target.points[y][x];

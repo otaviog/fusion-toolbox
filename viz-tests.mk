@@ -13,8 +13,11 @@ fiontb.fusion.surfel.intra_merge:
 fiontb.viz.surfelrender:
 	python3 -m fiontb.viz.surfelrender
 
-fiontb.filtering:
-	python3 -m fiontb.filtering
+fiontb.filtering.bilateral:
+	python3 -m fiontb.filtering bilateral
+
+fiontb.filtering.image_gradient:
+	python3 -m fiontb.filtering image_gradient
 
 fiontb.spatial.indexmap:
 	python3 -m fiontb.spatial.indexmap

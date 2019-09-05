@@ -6,7 +6,6 @@
 #include <torch/torch.h>
 
 #include "camera.hpp"
-#include "se3.hpp"
 #include "dense_volume.hpp"
 #include "downsample.hpp"
 #include "filtering.hpp"
@@ -15,6 +14,7 @@
 #include "matching.hpp"
 #include "metrics.hpp"
 #include "normals.hpp"
+#include "so3.hpp"
 #include "sparse_volume.hpp"
 #include "surfel_fusion.hpp"
 #include "trigoctree.hpp"
@@ -71,9 +71,9 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("project_op_forward", &ProjectOp::Forward);
   m.def("project_op_backward", &ProjectOp::Backward);
 
-  m.def("se3_exp_op_forward", &SE3ExpOp::Forward);
-  m.def("se3_exp_op_backward", &SE3ExpOp::Backward);
-  
+  m.def("so3t_exp_op_forward", &SO3tExpOp::Forward);
+  m.def("so3t_exp_op_backward", &SO3tExpOp::Backward);
+
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);
   m.def("downsample_xyz", &DownsampleXYZ);
