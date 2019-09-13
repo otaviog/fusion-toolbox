@@ -44,14 +44,14 @@ torch::Tensor ProjectOp::Forward(const torch::Tensor &points,
     AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project", ([&] {
                             ProjectKernel<kCUDA, scalar_t> kernel(
                                 bk_points, intrinsics, out_projection);
-                            Launch1DKernel<kCUDA>(kernel, bk_points.size(0));
+                            Launch1DKernelCUDA(kernel, bk_points.size(0));
                           }));
   } else {
     FTB_CHECK(!intrinsics.is_cuda(), "Expected a CPU tensor");
     AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project", ([&] {
                             ProjectKernel<kCPU, scalar_t> kernel(
                                 bk_points, intrinsics, out_projection);
-                            Launch1DKernel<kCPU>(kernel, bk_points.size(0));
+                            Launch1DKernelCPU(kernel, bk_points.size(0));
                           }));
   }
 
@@ -105,17 +105,17 @@ torch::Tensor ProjectOp::Backward(const torch::Tensor &dy_grad,
 
   if (points.is_cuda()) {
     FTB_CHECK(intrinsics.is_cuda(), "Expected a CUDA tensor");
-    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project", ([&] {
+    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.backward", ([&] {
                             ProjectBackwardKernel<kCUDA, scalar_t> kernel(
                                 dy_grad, bk_points, intrinsics, dx_points);
-                            Launch1DKernel<kCUDA>(kernel, bk_points.size(0));
+                            Launch1DKernelCUDA(kernel, bk_points.size(0));
                           }));
   } else {
     FTB_CHECK(!intrinsics.is_cuda(), "Expected a CPU tensor");
-    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project", ([&] {
+    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.backward", ([&] {
                             ProjectBackwardKernel<kCPU, scalar_t> kernel(
                                 dy_grad, bk_points, intrinsics, dx_points);
-                            Launch1DKernel<kCPU>(kernel, bk_points.size(0));
+                            Launch1DKernelCPU(kernel, bk_points.size(0));
                           }));
   }
 

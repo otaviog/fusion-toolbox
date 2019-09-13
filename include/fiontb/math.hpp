@@ -1,9 +1,12 @@
 #pragma once
 
 #include <math_constants.h>
+#include <limits>
+
 #include <torch/torch.h>
 
 #include "cuda_utils.hpp"
+#include "device.hpp"
 #include "eigen_common.hpp"
 
 namespace fiontb {
@@ -26,5 +29,27 @@ inline FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 3, 3> SkewMatrix(
 
   return skew;
 }
+
+template <Device dev, typename scalar_t>
+struct NumericLimits {};
+
+#ifdef __CUDACC__
+template <>
+struct NumericLimits<kCUDA, float> {
+  static inline __device__ float infinity() noexcept { return CUDART_INF_F; }
+};
+
+template <>
+struct NumericLimits<kCUDA, double> {
+  static inline __device__ float infinity() noexcept { return CUDART_INF; }
+};
+#endif
+
+template <typename scalar_t>
+struct NumericLimits<kCPU, scalar_t> {
+  static constexpr scalar_t infinity() noexcept {
+    return std::numeric_limits<scalar_t>::infinity();
+  }
+};
 
 }  // namespace fiontb

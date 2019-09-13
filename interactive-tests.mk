@@ -16,8 +16,8 @@ fiontb.viz.surfelrender:
 fiontb.filtering.bilateral:
 	python3 -m fiontb.filtering bilateral
 
-fiontb.filtering.image_gradient:
-	python3 -m fiontb.filtering image_gradient
+fiontb.filtering.featuremap:
+	python3 -m fiontb.filtering featuremap
 
 fiontb.spatial.indexmap:
 	python3 -m fiontb.spatial.indexmap
@@ -43,9 +43,11 @@ fiontb.pose.icp.multiscale-geometric:
 fiontb.pose.icp.intensity:
 	python3 -m fiontb.pose._test.test_icp intensity
 
+fiontb.pose.autogradicp.geometric:
+	python3 -m fiontb.pose._test.test_autogradicp geometric
 
-fiontb.pose.operators1:
-	python3 -m fiontb.pose.operators projection
+fiontb.pose.autogradicp.color:
+	python3 -m fiontb.pose._test.test_autogradicp color
 
-fiontb.pose.operators2:
-	python3 -m fiontb.pose.operators full_so3
+fiontb.pose.autogradicp.hybrid:
+	python3 -m fiontb.pose._test.test_autogradicp hybrid

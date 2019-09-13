@@ -4,67 +4,7 @@ import torch.optim
 from fiontb.spatial.matching import DensePointMatcher
 from fiontb.pose.so3 import SO3tExp
 from fiontb.camera import Project, Homogeneous
-
-
-def _valid_projs(uv, width, height):
-    return ((uv[:, 0] >= 0) & (uv[:, 0] < width)
-            & (uv[:, 1] >= 0) & (uv[:, 1] < height))
-
-
-class Image(torch.nn.Module):
-    def forward(self, image, uv):
-        valid_uvs = _valid_projs(uv, image.size(2), image.size(3))
-        uv = uv[valid_uvs, :]
-        uv = uv.long()
-
-        return image[:, :, uv[:, 1], uv[:, 0]].squeeze(), valid_uvs
-
-
-class Image2(torch.nn.Module):
-    def forward(self, image, uv):
-        valid_uvs = _valid_projs(uv, image.size(1), image.size(0))
-        uv = uv[valid_uvs, :]
-        uv = uv.long()
-
-        return image[uv[:, 1], uv[:, 0]].squeeze(), valid_uvs
-
-
-class Image3(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, image, uv):
-        valid_uvs = _valid_projs(uv, image.size(1), image.size(0))
-        uv = uv[valid_uvs, :]
-        uv = uv.long()
-
-        ctx.save_for_backward(image, uv, valid_uvs)
-        return image[uv[:, 1], uv[:, 0]].squeeze(), valid_uvs
-
-    @staticmethod
-    def backward(ctx, dy_image, dy_uv):
-
-        image, uv, valid_uvs = ctx.saved_tensors
-        dtype = dy_image.dtype
-        device = dy_image.device
-        convx = torch.nn.Conv2d(1, 1, 3, stride=1, padding=1, bias=False)
-        convx.weight = torch.nn.Parameter(torch.tensor(
-            [[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=dtype, device=device).view(1, 1, 3, 3))
-
-        convy = torch.nn.Conv2d(1, 1, 3, stride=1, padding=1, bias=False)
-        convy.weight = torch.nn.Parameter(torch.tensor(
-            [[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=dtype, device=device).view(1, 1, 3, 3))
-
-        xgrad = convx(image.unsqueeze(0).unsqueeze(0)).squeeze().squeeze()
-        ygrad = convy(image.unsqueeze(0).unsqueeze(0)).squeeze().squeeze()
-
-        uv2 = torch.zeros(valid_uvs.size(0), 2, device=device)
-        # import ipdb; ipdb.set_trace()
-
-        xgrad = xgrad[uv[:, 1], uv[:, 0]]
-        ygrad = ygrad[uv[:, 1], uv[:, 0]]
-        uv2[valid_uvs, 0] = xgrad
-        uv2[valid_uvs, 1] = ygrad
-
-        return None, uv2.to("cuda:0")
+from fiontb.filtering import ImageGradient, MMImageGradient
 
 
 class LabICP:
@@ -79,7 +19,8 @@ class LabICP:
         device = target_points.device
 
         upsilon_omega = torch.zeros(1, 6, requires_grad=True, device=device)
-        optim = torch.optim.LBFGS([upsilon_omega], lr=0.05)
+        optim = torch.optim.LBFGS(
+            [upsilon_omega], lr=0.005, max_iter=self.num_iters)
         matcher = DensePointMatcher()
 
         kcam = kcam.to(device)
@@ -102,9 +43,8 @@ class LabICP:
 
             return loss
 
-        for i in range(self.num_iters):
-            optim.step(closure)
-            print(upsilon_omega)
+        optim.step(closure)
+        print(upsilon_omega)
 
         return exp(upsilon_omega).detach().squeeze(0)
 
@@ -117,13 +57,20 @@ class LabICP:
         device = target_img_points.device
 
         upsilon_omega = torch.zeros(1, 6, requires_grad=True, device=device)
-        optim = torch.optim.LBFGS([upsilon_omega], lr=0.05)
+        #upsilon_omega = torch.rand(1, 6, requires_grad=True, device=device)
+        # upsilon_omega = torch.tensor([[0.0017, -0.0015, -0.0009, 0.0027, -0.0029, -0.0004]],
+        # requires_grad=True, device=device)
+        # upsilon_omega = torch.tensor([[0.0015, -0.0015, -0.0009, 0.0027, -0.0019, -0.0004]],
+        # requires_grad=True, device=device)
+        optim = torch.optim.LBFGS([upsilon_omega], lr=0.01, max_iter=self.num_iters,
+                                  history_size=500, max_eval=4000)
 
         kcam = kcam.to(device)
         src_points = src_points.view(-1, 3)
         src_image = src_image.squeeze().view(-1)
-
-        image = Image3.apply
+        target_image = target_image.view(-1,
+                                         target_image.size(-2), target_image.size(-1))
+        image = MMImageGradient.apply
 
         def closure():
             optim.zero_grad()
@@ -136,58 +83,68 @@ class LabICP:
             match_src_feats = src_image[selected]
 
             res = torch.pow(tgt_feats - match_src_feats, 2)
-            loss = res.sum()
+            loss = res.mean()
 
-            loss.backward(retain_graph=True)
+            loss.backward()
             print(loss)
 
             return loss
 
-        for i in range(self.num_iters):
-            optim.step(closure)
-            print(upsilon_omega)
+        optim.step(closure)
 
         return exp(upsilon_omega).detach().squeeze(0)
 
     def estimate_feature(self, target_img_points, target_img_feats, target_mask, target_normals,
                          src_points, src_feats, kcam):
+        torch.backends.cudnn.enabled = False
+        #######################################
+        # Feature
+        #############
         exp = SO3tExp.apply
         proj = Project.apply
 
         device = target_img_points.device
 
         upsilon_omega = torch.zeros(1, 6, requires_grad=True, device=device)
-        optim = torch.optim.LBFGS([upsilon_omega], lr=0.05)
+        # upsilon_omega = torch.tensor([[ 0.0981,  0.1778, -0.0074, -0.7511,  0.2179, -0.2110]],
+        #                             requires_grad=True, device=device)
+        #upsilon_omega = torch.tensor(
+        #    [[-6.7892e-04, -1.3931e-03,  6.4001e-05,  2.7329e-03, -2.2463e-03,
+        #      -4.1050e-04]],
+        #    requires_grad=True, device=device)
+        optim = torch.optim.LBFGS([upsilon_omega], lr=0.01, max_iter=self.num_iters,
+                                  history_size=500, max_eval=4000)
 
         kcam = kcam.to(device)
         src_points = src_points.view(-1, 3)
-        src_feats = src_feats.squeeze().view(64, -1)
+        src_feats = src_feats.squeeze().view(-1, src_points.size(0))
 
-        image = Image()
+        image = MMImageGradient.apply
 
         def closure():
             optim.zero_grad()
             transform = exp(upsilon_omega).squeeze()
-
             tgt_uv = proj(Homogeneous(transform) @ src_points, kcam.matrix)
 
             tgt_feats, selected = image(target_img_feats, tgt_uv)
-
             match_src_feats = src_feats[:, selected]
 
+            import ipdb; ipdb.set_trace()
             res = torch.norm(tgt_feats - match_src_feats, 2, dim=0)
-            loss = res.sum()
 
-            loss.backward(retain_graph=True)
+            #res = (tgt_feats - match_src_feats).sum(dim=0)
+            #import ipdb; ipdb.set_trace()
+            #res = torch.norm(tgt_uv, 2, dim=0)
+            #res = torch.norm(target_img_points.view(-1, 3) - Homogeneous(transform) @ src_points, 2, dim=0)
+            loss = res.mean()
+
+            loss.backward()
             print(loss)
-            import ipdb
-            ipdb.set_trace()
 
             return loss
 
-        for i in range(self.num_iters):
-            optim.step(closure)
-            print(upsilon_omega)
+        optim.step(closure)
+        print(upsilon_omega)
 
         return exp(upsilon_omega).detach().squeeze(0)
 
@@ -210,10 +167,10 @@ def _main():
     from fiontb.viz.show import show_pcls
 
     device = "cuda:0"
-    lab = LabICP(5)
+    lab = LabICP(500)
 
     _TEST_DATA = Path(__file__).parent
-    dataset = load_ftb(_TEST_DATA / "_test/sample1")
+    dataset = load_ftb(_TEST_DATA / "_test/sample2")
 
     frame = _prepare_frame(dataset[0])
     next_frame = _prepare_frame(dataset[1])

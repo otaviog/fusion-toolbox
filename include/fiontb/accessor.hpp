@@ -2,9 +2,9 @@
 
 #include <torch/torch.h>
 
-namespace fiontb {
+#include "device.hpp"
 
-enum Device { kCPU = 0, kCUDA = 1 };
+namespace fiontb {
 
 template <Device dev, typename scalar_t, unsigned long dims>
 struct Accessor {
@@ -30,11 +30,13 @@ struct Accessor<kCUDA, scalar_t, dims> {
       T;
 
   static T Get(torch::Tensor &tensor) {
-    return tensor.packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
+    return tensor
+        .packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
   }
 
   static T Get(const torch::Tensor &tensor) {
-    return tensor.packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
+    return tensor
+        .packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
   }
 };
 template <typename scalar_t, unsigned long dims>

@@ -8,6 +8,7 @@
 #include "camera.hpp"
 #include "dense_volume.hpp"
 #include "downsample.hpp"
+#include "featuremap.hpp"
 #include "filtering.hpp"
 #include "icpodometry.hpp"
 #include "indexmap.hpp"
@@ -31,7 +32,7 @@ PYBIND11_MODULE(_cfiontb, m) {
       .value("CentralDifferences", EstimateNormalsMethod::kCentralDifferences)
       .value("Average8", EstimateNormalsMethod::kAverage8);
 
-  m.def("bilateral_filter_depth_image", &BilateralFilterDepthImage);
+  m.def("bilateral_depth_filter", &BilateralDepthFilter);
 
   py::class_<TrigOctree>(m, "TrigOctree")
       .def(py::init<torch::Tensor, torch::Tensor, int>())
@@ -50,7 +51,7 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("fuse_dense_volume", &FuseDenseVolume);
   m.def("fuse_sparse_volume", &FuseSparseVolume);
 
-  m.def("match_dense_points_gpu", &MatchDensePoints_gpu);
+  m.def("match_dense_points", &MatchDensePoints);
 
   m.def("query_closest_points", &QueryClosestPoints);
 
@@ -73,6 +74,9 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   m.def("so3t_exp_op_forward", &SO3tExpOp::Forward);
   m.def("so3t_exp_op_backward", &SO3tExpOp::Backward);
+
+  m.def("featuremap_op_forward", &FeatureMapOp::Forward);
+  m.def("featuremap_op_backward", &FeatureMapOp::Backward);
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);

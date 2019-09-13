@@ -10,8 +10,6 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-
-
 namespace fiontb {
 namespace {
 template <Device dev, typename scalar_t>
@@ -19,18 +17,18 @@ struct ExpForwardKernel {
   const typename Accessor<dev, scalar_t, 2>::T x_upsilon_omegas;
   typename Accessor<dev, scalar_t, 3>::T y_matrix;
 
-
   ExpForwardKernel(const torch::Tensor &x_upsilon_omega, torch::Tensor y_matrix)
       : x_upsilon_omegas(Accessor<dev, scalar_t, 2>::Get(x_upsilon_omega)),
         y_matrix(Accessor<dev, scalar_t, 3>::Get(y_matrix)) {}
 
+#pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(long idx) {
-	// Note: this does not implement the real SE3. The translation is
-	// not multiplied by the rotation as expected.
-	typedef Sophus::SO3<scalar_t> SO3;
+    // Note: this does not implement the real SE3. The translation is
+    // not multiplied by the rotation as expected.
+    typedef Sophus::SO3<scalar_t> SO3;
     typename SO3::Tangent x_omega;
-    x_omega << x_upsilon_omegas[idx][3],
-	  x_upsilon_omegas[idx][4], x_upsilon_omegas[idx][5];
+    x_omega << x_upsilon_omegas[idx][3], x_upsilon_omegas[idx][4],
+        x_upsilon_omegas[idx][5];
     SO3 so3 = SO3::exp(x_omega);
     Eigen::Matrix<scalar_t, 3, 3> matrix = so3.matrix();
     for (int i = 0; i < 3; ++i) {
@@ -86,6 +84,7 @@ struct ExpBackwardKernel {
   typedef Eigen::Matrix<scalar_t, 3, 3> Matrix3;
   typedef Eigen::Matrix<scalar_t, 3, 1> Vector3;
 
+#pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(long idx) {
     const Matrix3 R(to_matrix<scalar_t, 3, 3>(y_matrices[idx]));
     const Vector3 v(x_upsilon_omegas[idx][3], x_upsilon_omegas[idx][4],
@@ -128,9 +127,9 @@ struct ExpBackwardKernel {
       dx_upsilon_omegas[idx][3 + k] = grad.sum();
     }
 
-	dx_upsilon_omegas[idx][0] = dy_matrices[idx][0][3];
-	dx_upsilon_omegas[idx][1] = dy_matrices[idx][1][3];
-	dx_upsilon_omegas[idx][2] = dy_matrices[idx][2][3];
+    dx_upsilon_omegas[idx][0] = dy_matrices[idx][0][3];
+    dx_upsilon_omegas[idx][1] = dy_matrices[idx][1][3];
+    dx_upsilon_omegas[idx][2] = dy_matrices[idx][2][3];
   }
 };
 

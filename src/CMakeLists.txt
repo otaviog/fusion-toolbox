@@ -3,7 +3,8 @@ include_directories(${PYTHON_INCLUDE_DIR})
 cuda_add_library(fiontb
   cuda_utils.cpp
   normals.cpp normals.cu
-  filtering.cpp filtering.cu
+  bilateralfilter.cu
+  feature_map.cu
   aabb.cpp
   sat.cpp metrics.cpp
   trigoctree.cpp 
@@ -18,8 +19,8 @@ cuda_add_library(fiontb
   kernel_indexmap.cu
   kernel_icp_jacobian.cu
   kernel_icp_jacobian.cpp
-  kernel_downsample.cu
-  kernel_dense_matcher.cu
+  downsample.cu
+  dense_matcher.cu
   )
 
 target_include_directories(fiontb
