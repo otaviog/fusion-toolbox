@@ -8,7 +8,6 @@
 #include "camera.hpp"
 #include "dense_volume.hpp"
 #include "downsample.hpp"
-#include "featuremap.hpp"
 #include "filtering.hpp"
 #include "icpodometry.hpp"
 #include "indexmap.hpp"
@@ -63,11 +62,11 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   m.def("raster_indexmap", &RasterIndexmap);
 
-  m.def("icp_estimate_jacobian_gpu", &EstimateJacobian_gpu);
-  m.def("icp_estimate_jacobian_cpu", &EstimateJacobian_cpu);
-  m.def("icp_estimate_intensity_jacobian_gpu", &EstimateIntensityJacobian_gpu);
-  m.def("icp_estimate_intensity_jacobian_cpu", &EstimateIntensityJacobian_cpu);
-  m.def("calc_sobel_gradient_gpu", &CalcSobelGradient_gpu);
+  py::class_<ICPJacobian>(m, "ICPJacobian")
+      .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)
+      .def_static("estimate_intensity", &ICPJacobian::EstimateIntensity);
+
+  m.def("calc_sobel_gradient", &CalcSobelGradient);
 
   m.def("project_op_forward", &ProjectOp::Forward);
   m.def("project_op_backward", &ProjectOp::Backward);

@@ -3,7 +3,7 @@ import torch
 from fiontb.spatial.matching import DensePointMatcher
 from fiontb.pose.so3 import SO3tExp
 from fiontb.camera import Project, Homogeneous
-from fiontb.filtering import ImageMap, FeatureMap
+from fiontb.filtering import FeatureMap
 
 
 class AutogradICP:
@@ -18,7 +18,6 @@ class AutogradICP:
 
         exp = SO3tExp.apply
         proj = Project.apply
-        # image_map = ImageMap.apply
         image_map = FeatureMap.apply
 
         has_geom = not (

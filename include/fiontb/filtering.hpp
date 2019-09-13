@@ -18,4 +18,6 @@ struct FeatureMapOp {
                        const torch::Tensor dl_value, torch::Tensor dl_uv);
 };
 
+void CalcSobelGradient(const torch::Tensor image, torch::Tensor out_grad);
+
 }  // namespace fiontb

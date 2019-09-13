@@ -5,7 +5,7 @@ from torchvision.transforms import ToTensor
 import cv2
 
 from fiontb.data.ftb import load_ftb
-from fiontb.filtering import bilateral_filter_depth_image
+from fiontb.filtering import bilateral_depth_filter
 from fiontb.frame import FramePointCloud
 from fiontb.viz.show import show_pcls
 
@@ -19,7 +19,7 @@ torch.set_printoptions(precision=10)
 def _prepare_frame(frame, bi_filter=True):
 
     if bi_filter:
-        frame.depth_image = bilateral_filter_depth_image(
+        frame.depth_image = bilateral_depth_filter(
             frame.depth_image,
             frame.depth_image > 0,
             depth_scale=frame.info.depth_scale)

@@ -17,6 +17,13 @@ inline FTB_DEVICE_HOST float GetVectorsAngle(const Eigen::Vector3f &v0,
 }
 
 template <typename scalar_t>
+inline FTB_DEVICE_HOST Vector<scalar_t, 3> GetNormal(
+    const Vector<scalar_t, 3> &p0, const Vector<scalar_t, 3> &p1,
+    const Vector<scalar_t, 3> &p2) {
+  return (p1 - p0).cross(p2 - p0).normalized();
+}
+
+template <typename scalar_t>
 inline FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 3, 3> SkewMatrix(
     const Vector<scalar_t, 3> &v) {
   Eigen::Matrix<scalar_t, 3, 3> skew;

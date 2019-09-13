@@ -7,11 +7,8 @@ from tenviz.pose import SE3
 
 from fiontb.downsample import (
     downsample_xyz, downsample, DownsampleXYZMethod, DownsampleMethod)
-from fiontb._cfiontb import (icp_estimate_jacobian_gpu,
-                             icp_estimate_jacobian_cpu,
-                             icp_estimate_intensity_jacobian_gpu,
-                             icp_estimate_intensity_jacobian_cpu,
-                             calc_sobel_gradient_gpu)
+from fiontb._cfiontb import (ICPJacobian as _ICPJacobian,
+                             calc_sobel_gradient)
 from fiontb._utils import empty_ensured_size
 
 # pylint: disable=invalid-name
@@ -96,13 +93,13 @@ class ICPOdometry:
         geom_only = target_image is None or source_intensity is None
 
         if not geom_only:
-            import matplotlib.pyplot as plt
             self.image_grad = empty_ensured_size(self.image_grad, target_image.size(0),
                                                  target_image.size(1), 2,
                                                  device="cuda:0", dtype=torch.float)
 
-            calc_sobel_gradient_gpu(target_image, self.image_grad)
+            calc_sobel_gradient(target_image, self.image_grad)
             if False:
+                import matplotlib.pyplot as plt
                 plt.figure()
                 plt.imshow(self.image_grad[:, :, 0].cpu())
                 plt.figure()
@@ -118,31 +115,17 @@ class ICPOdometry:
 
         for _ in range(self.num_iters):
             if geom_only:
-                if not self.use_cpu:
-                    icp_estimate_jacobian_gpu(target_points, target_normals, target_mask,
-                                              source_points, source_mask, kcam, transform,
-                                              self.jacobian, self.residual)
-                else:
-                    icp_estimate_jacobian_cpu(target_points, target_normals, target_mask,
-                                              source_points, source_mask, kcam, transform,
-                                              self.jacobian, self.residual)
+                _ICPJacobian.estimate_geometric(target_points, target_normals, target_mask,
+                                                source_points, source_mask, kcam, transform,
+                                                self.jacobian, self.residual)
             else:
-                if not self.use_cpu:
-                    icp_estimate_intensity_jacobian_gpu(
-                        target_points, target_normals, target_image,
-                        self.image_grad,
-                        target_mask, source_points, source_intensity,
-                        source_mask, kcam, transform, self.jacobian,
-                        self.residual)
-                else:
-                    icp_estimate_intensity_jacobian_cpu(
-                        target_points, target_normals, target_image.to(device),
-                        self.image_grad.to(device),
-                        target_mask, source_points, source_intensity.to(
-                            device),
-                        source_mask, kcam, transform, self.jacobian,
-                        self.residual)
-#            import ipdb; ipdb.set_trace()
+                _ICPJacobian.estimate_intensity(
+                    target_points, target_normals, target_image,
+                    self.image_grad,
+                    target_mask, source_points, source_intensity,
+                    source_mask, kcam, transform, self.jacobian,
+                    self.residual)
+
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
             upper_JtJ = torch.cholesky(JtJ.double())
@@ -150,7 +133,6 @@ class ICPOdometry:
             Jr = Jt @ self.residual
 
             loss = (self.residual*self.residual).mean().item()
-            print(loss)
 
             update = torch.cholesky_solve(
                 Jr.view(-1, 1).double(), upper_JtJ).squeeze()
@@ -162,7 +144,6 @@ class ICPOdometry:
         return transform
 
     def estimate_frame_to_frame(self, target_frame, source_frame, transform=None, use_color=False):
-
         target_image = None
         source_intensity = None
 

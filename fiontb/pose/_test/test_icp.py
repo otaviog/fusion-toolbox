@@ -3,12 +3,11 @@ import argparse
 
 import cv2
 import torch
-import tenviz
 import matplotlib.pyplot as plt
 
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
-from fiontb.filtering import bilateral_filter_depth_image
+from fiontb.filtering import bilateral_depth_filter
 from fiontb.viz.show import show_pcls
 
 from fiontb.pose.icp import (ICPOdometry, MultiscaleICPOdometry)
@@ -19,9 +18,8 @@ torch.set_printoptions(precision=10)
 
 
 def _prepare_frame(frame, bi_filter=True):
-
     if bi_filter:
-        frame.depth_image = bilateral_filter_depth_image(
+        frame.depth_image = bilateral_depth_filter(
             frame.depth_image,
             frame.depth_image > 0,
             depth_scale=frame.info.depth_scale)
@@ -38,7 +36,7 @@ def _test_geometric1():
     dataset.get_info(0).rt_cam.matrix = torch.eye(4)
 
     frame = dataset[0]
-    next_frame = dataset[1]
+    next_frame = dataset[5]
 
     frame = _prepare_frame(frame)
     next_frame = _prepare_frame(next_frame)

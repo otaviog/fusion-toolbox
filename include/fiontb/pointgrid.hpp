@@ -10,13 +10,13 @@ template <Device dev>
 class BasePointGrid {
  public:
   BasePointGrid(const torch::Tensor mask)
-      : mask(Accessor<dev, uint8_t, 2>::Get(mask)) {}
+      : mask(Accessor<dev, bool, 2>::Get(mask)) {}
 
   FTB_DEVICE_HOST bool empty(int row, int col) const {
-    return mask[row][col] == 0;
+    return !mask[row][col];
   }
 
-  const typename Accessor<dev, uint8_t, 2>::T mask;
+  const typename Accessor<dev, bool, 2>::T mask;
 };
 
 }  // namespace fiontb

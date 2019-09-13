@@ -187,10 +187,10 @@ class FramePointCloud:
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
-        mask = (depth_image > 0).byte()
+        mask = depth_image > 0
         if frame.fg_mask is not None:
             mask = torch.logical_and(
-                torch.from_numpy(frame.fg_mask), mask).byte()
+                torch.from_numpy(frame.fg_mask), mask)
 
         colors = None
         if frame.rgb_image is not None:
@@ -279,7 +279,7 @@ def estimate_normals(depth_image, frame_info, mask,
         out_tensor = torch.empty(xyz_img.size(0), xyz_img.size(1), 3, dtype=xyz_img.dtype,
                                  device=xyz_img.device)
 
-    _estimate_normals(xyz_img, ensure_torch(mask, dtype=torch.uint8),
+    _estimate_normals(xyz_img, ensure_torch(mask, dtype=torch.bool),
                       out_tensor, method)
 
     return out_tensor
