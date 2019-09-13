@@ -8,7 +8,7 @@ CudaKernelDims Get2DKernelDims(int width, int height) {
 }
 
 CudaKernelDims Get1DKernelDims(int size) {
-  const int block_size = 128;
+  const int block_size = 200;
   const int num_blocks = size / block_size + 1;
 
   return CudaKernelDims(dim3(num_blocks), dim3(block_size));

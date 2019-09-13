@@ -1,42 +1,62 @@
 #pragma once
 
 #include <math_constants.h>
+#include <limits>
+
 #include <torch/torch.h>
 
+#include "cuda_utils.hpp"
+#include "device.hpp"
 #include "eigen_common.hpp"
 
 namespace fiontb {
 
-#ifdef __CUDACC__
-#define FTB_CUDA_HOST_DEVICE __host__ __device__
-#else
-#define FTB_CUDA_HOST_DEVICE
-#endif
-
-inline FTB_CUDA_HOST_DEVICE float GetVectorsAngle(const Eigen::Vector3f &v0,
-                                                  const Eigen::Vector3f &v1) {
+inline FTB_DEVICE_HOST float GetVectorsAngle(const Eigen::Vector3f &v0,
+                                             const Eigen::Vector3f &v1) {
   return acos(v0.dot(v1) / (v0.norm() * v1.norm()));
 }
 
-template <typename scalar_t, int size>
-using Vector = Eigen::Matrix<scalar_t, size, 1>;
-
-template <typename scalar_t, typename Accessor>
-inline FTB_CUDA_HOST_DEVICE Eigen::Matrix<scalar_t, 2, 1> to_vec2(
-    const Accessor acc) {
-  return Eigen::Matrix<scalar_t, 2, 1>(acc[0], acc[1], acc[2]);
+template <typename scalar_t>
+inline FTB_DEVICE_HOST Vector<scalar_t, 3> GetNormal(
+    const Vector<scalar_t, 3> &p0, const Vector<scalar_t, 3> &p1,
+    const Vector<scalar_t, 3> &p2) {
+  return (p1 - p0).cross(p2 - p0).normalized();
 }
 
-template <typename scalar_t, typename Accessor>
-inline FTB_CUDA_HOST_DEVICE Eigen::Matrix<scalar_t, 3, 1> to_vec3(
-    const Accessor acc) {
-  return Eigen::Matrix<scalar_t, 3, 1>(acc[0], acc[1], acc[2]);
+template <typename scalar_t>
+inline FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 3, 3> SkewMatrix(
+    const Vector<scalar_t, 3> &v) {
+  Eigen::Matrix<scalar_t, 3, 3> skew;
+  // clang-format off
+  skew << 
+      0, -v[2], v[1],
+      v[2], 0, -v[0],
+      -v[1], v[0], 0;
+  // clang-format on
+
+  return skew;
 }
 
-template <typename scalar_t, typename Accessor>
-inline FTB_CUDA_HOST_DEVICE Eigen::Matrix<scalar_t, 4, 1> to_vec4(
-    const Accessor acc) {
-  return Eigen::Matrix<scalar_t, 4, 1>(acc[0], acc[1], acc[2], acc[3]);
-}
+template <Device dev, typename scalar_t>
+struct NumericLimits {};
+
+#ifdef __CUDACC__
+template <>
+struct NumericLimits<kCUDA, float> {
+  static inline __device__ float infinity() noexcept { return CUDART_INF_F; }
+};
+
+template <>
+struct NumericLimits<kCUDA, double> {
+  static inline __device__ float infinity() noexcept { return CUDART_INF; }
+};
+#endif
+
+template <typename scalar_t>
+struct NumericLimits<kCPU, scalar_t> {
+  static constexpr scalar_t infinity() noexcept {
+    return std::numeric_limits<scalar_t>::infinity();
+  }
+};
 
 }  // namespace fiontb

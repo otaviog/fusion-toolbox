@@ -22,9 +22,6 @@ fiontb.data.sens.write:
 view.fiontb.data.sens:
 	python3 -m fiontb.data._tests.test_sens
 
-fiontb.datatypes:
-	python3 -m unittest fiontb._tests.test_datatypes
-
 fiontb.camera:
 	python3 -m unittest fiontb._tests.test_camera
 
@@ -40,8 +37,8 @@ fiontb.spatial.trigoctree:
 fiontb.filtering:
 	python3 -m unittest fiontb._tests.test_filtering
 
-fiontb.pose.se3:
-	python3 -m unittest fiontb.pose._test.test_se3
+fiontb.filtering.featuremap:
+	python3 -m unittest fiontb._tests.test_filtering.TestFiltering.test_featuremap
 
 fiontb.pose.so3:
 	python3 -m unittest fiontb.pose._test.test_so3

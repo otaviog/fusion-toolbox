@@ -11,6 +11,11 @@ def ensure_torch(x, dtype=None):
 
 
 def empty_ensured_size(tensor, *sizes, dtype=torch.float, device=None):
+    """Returns an empty allocated tensor if the input tensor is None or
+    if its sizes are different than input.
+
+    """
+
     if tensor is None or tensor.size() != sizes:
         return torch.empty(sizes, dtype=dtype, device=device)
 

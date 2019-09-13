@@ -17,6 +17,7 @@ set(Torch_DIR ${FOUND_TORCH_DIR})
 find_package(Torch REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PythonLibs 3 REQUIRED)
+find_package(Sophus REQUIRED)
 find_package(OpenMP)
 
 if (NOT WIN32)

@@ -187,10 +187,10 @@ class FramePointCloud:
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
-        mask = (depth_image > 0).byte()
+        mask = depth_image > 0
         if frame.fg_mask is not None:
             mask = torch.logical_and(
-                torch.from_numpy(frame.fg_mask), mask).byte()
+                torch.from_numpy(frame.fg_mask), mask)
 
         colors = None
         if frame.rgb_image is not None:
@@ -237,11 +237,14 @@ class FramePointCloud:
     def normals(self, normals):
         self._normals = normals
 
-    def unordered_point_cloud(self, world_space=True):
+    def unordered_point_cloud(self, world_space=True, compute_normals=True):
         mask = self.mask.flatten()
 
-        normals = self.normals.reshape(-1, 3)
-        normals = normals[mask]
+        if compute_normals:
+            normals = self.normals.reshape(-1, 3)
+            normals = normals[mask]
+        else:
+            normals = None
 
         pcl = PointCloud(self.points.reshape(-1, 3)[mask],
                          self.colors.reshape(-1, 3)[mask]
@@ -276,7 +279,7 @@ def estimate_normals(depth_image, frame_info, mask,
         out_tensor = torch.empty(xyz_img.size(0), xyz_img.size(1), 3, dtype=xyz_img.dtype,
                                  device=xyz_img.device)
 
-    _estimate_normals(xyz_img, ensure_torch(mask, dtype=torch.uint8),
+    _estimate_normals(xyz_img, ensure_torch(mask, dtype=torch.bool),
                       out_tensor, method)
 
     return out_tensor

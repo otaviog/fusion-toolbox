@@ -40,12 +40,16 @@ class PointCloud:
         if self.points.size == 0:
             return
 
-        self.points = Homogeneous(matrix) @ self.points
+        points = Homogeneous(matrix) @ self.points
         normal_matrix = normal_transform_matrix(matrix)
 
         if self.normals is not None:
-            self.normals = (
+            normals = (
                 normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
+        else:
+            normals = None
+
+        return PointCloud(points, self.colors, normals)
 
     def index_select(self, index):
         return PointCloud(

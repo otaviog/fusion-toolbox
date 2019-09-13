@@ -2,20 +2,26 @@ include_directories(${PYTHON_INCLUDE_DIR})
 
 cuda_add_library(fiontb
   cuda_utils.cpp
-  normals.cpp normals.cu
-  filtering.cpp filtering.cu
+  normals.cu
+  bilateralfilter.cu
+  feature_map.cu
   aabb.cpp
   sat.cpp metrics.cpp
   trigoctree.cpp 
   dense_volume.cpp
   sparse_volume.cpp
   tsdf_fusion.cpp
+  camera.cu
+  so3.cu
   kernel_surfel_intra_merge.cu
   kernel_surfel_live_merge.cu
   kernel_surfel_space_carving.cu
-  kernel_indexmap.cu
-  kernel_icp_estimate.cu
-  kernel_downsample.cu)
+  kernel_indexmap.cu  
+  icp_jacobian.cu
+  sobel_gradient.cu
+  downsample.cu
+  dense_matcher.cu
+  )
 
 target_include_directories(fiontb
   PUBLIC
@@ -23,7 +29,7 @@ target_include_directories(fiontb
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/fiontb>
   )
 
-target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX)
+target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX Sophus::Sophus)
 
 set_target_properties(fiontb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
