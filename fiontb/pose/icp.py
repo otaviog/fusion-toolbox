@@ -7,7 +7,8 @@ from tenviz.pose import SE3
 
 from fiontb.downsample import (
     downsample_xyz, downsample, DownsampleXYZMethod, DownsampleMethod)
-from fiontb._cfiontb import icp_estimate_jacobian_gpu
+from fiontb._cfiontb import (ICPJacobian as _ICPJacobian,
+                             calc_sobel_gradient)
 from fiontb._utils import empty_ensured_size
 
 # pylint: disable=invalid-name
@@ -24,14 +25,17 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters):
+    def __init__(self, num_iters, use_cpu=False):
         self.num_iters = num_iters
 
         self.jacobian = None
         self.residual = None
+        self.image_grad = None
+        self.use_cpu = use_cpu
 
     def estimate(self, target_points, target_normals, target_mask,
-                 source_points, source_mask, kcam, transform=None):
+                 source_points, source_mask, kcam, transform=None,
+                 target_image=None, source_intensity=None):
         """Estimate the ICP odometry between a target points and normals in a
         grid against source points using the point-to-plane geometric
         error.
@@ -65,9 +69,12 @@ class ICPOdometry:
             that aligns source points to target points.
 
         """
-        assert source_points.is_cuda, "At least source_points must be a cuda tensor."
+        # assert source_points.is_cuda, "At least source_points must be a cuda tensor."
 
-        device = source_points.device
+        if not self.use_cpu:
+            device = source_points.device
+        else:
+            device = "cpu"
 
         kcam = kcam.matrix.to(device)
         if transform is None:
@@ -83,16 +90,49 @@ class ICPOdometry:
         self.residual = empty_ensured_size(self.residual, source_points.size(0),
                                            device=device, dtype=torch.float)
 
+        geom_only = target_image is None or source_intensity is None
+
+        if not geom_only:
+            self.image_grad = empty_ensured_size(self.image_grad, target_image.size(0),
+                                                 target_image.size(1), 2,
+                                                 device="cuda:0", dtype=torch.float)
+
+            calc_sobel_gradient(target_image, self.image_grad)
+            if False:
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.imshow(self.image_grad[:, :, 0].cpu())
+                plt.figure()
+                plt.imshow(self.image_grad[:, :, 1].cpu())
+                plt.show()
+
+        if self.use_cpu:
+            target_points = target_points.to(device)
+            target_normals = target_normals.to(device)
+            target_mask = target_mask.to(device)
+            source_points = source_points.to(device)
+            source_mask = source_mask.to(device)
+
         for _ in range(self.num_iters):
-            icp_estimate_jacobian_gpu(target_points, target_normals, target_mask,
-                                      source_points, source_mask, kcam, transform,
-                                      self.jacobian, self.residual)
+            if geom_only:
+                _ICPJacobian.estimate_geometric(target_points, target_normals, target_mask,
+                                                source_points, source_mask, kcam, transform,
+                                                self.jacobian, self.residual)
+            else:
+                _ICPJacobian.estimate_intensity(
+                    target_points, target_normals, target_image,
+                    self.image_grad,
+                    target_mask, source_points, source_intensity,
+                    source_mask, kcam, transform, self.jacobian,
+                    self.residual)
 
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
             upper_JtJ = torch.cholesky(JtJ.double())
 
             Jr = Jt @ self.residual
+
+            loss = (self.residual*self.residual).mean().item()
 
             update = torch.cholesky_solve(
                 Jr.view(-1, 1).double(), upper_JtJ).squeeze()
@@ -103,10 +143,13 @@ class ICPOdometry:
 
         return transform
 
-    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
+    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None, use_color=False):
+        target_image = None
+        source_intensity = None
+
         return self.estimate(target_frame.points, target_frame.normals,
                              target_frame.mask, source_frame.points, source_frame.mask,
-                             source_frame.kcam, transform)
+                             source_frame.kcam, transform, target_image, source_intensity)
 
 
 class MultiscaleICPOdometry:
@@ -205,171 +248,3 @@ class MultiscaleICPOdometry:
         return self.estimate(target_frame.points, target_frame.normals,
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform)
-
-
-def _show_pcl(pcls):
-    import tenviz
-
-    ctx = tenviz.Context(640, 480)
-
-    with ctx.current():
-        pcls = [tenviz.create_point_cloud(pcl.points, pcl.colors)
-                for pcl in pcls]
-
-    viewer = ctx.viewer(pcls, tenviz.CameraManipulator.WASD)
-    while True:
-        key = viewer.wait_key(1)
-        if key < 0:
-            break
-        key = chr(key & 0xff)
-
-        try:
-            pcls[int(key)-1].visible = not pcls[int(key)-1].visible
-        except:
-            pass
-
-
-def _prepare_frame(frame):
-    from fiontb.filtering import bilateral_filter_depth_image
-
-    frame.depth_image = bilateral_filter_depth_image(
-        frame.depth_image,
-        frame.depth_image > 0,
-        depth_scale=frame.info.depth_scale)
-
-    return frame
-
-
-def _test_geom1():
-    from pathlib import Path
-
-    from fiontb.data.ftb import load_ftb
-    from fiontb.frame import FramePointCloud
-
-    _TEST_DATA = Path(__file__).parent / "_test"
-    dataset = load_ftb(_TEST_DATA / "sample1")
-
-    icp = ICPOdometry(15)
-    device = "cuda:0"
-
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
-
-    frame = dataset[0]
-    next_frame = dataset[1]
-
-    frame = _prepare_frame(frame)
-    next_frame = _prepare_frame(next_frame)
-
-    fpcl = FramePointCloud.from_frame(frame)
-    next_fpcl = FramePointCloud.from_frame(next_frame)
-
-    relative_rt = icp.estimate(fpcl.points.to(device),
-                               fpcl.normals.to(device),
-                               fpcl.mask.to(device),
-                               next_fpcl.points.to(device),
-                               next_fpcl.mask.to(device),
-                               next_fpcl.kcam)
-
-    pcl0 = fpcl.unordered_point_cloud(world_space=True)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl2 = pcl1.clone()
-    pcl2.transform(relative_rt.cpu())
-    _show_pcl([pcl0, pcl1, pcl2])
-
-
-def _test_geom2():
-    from pathlib import Path
-
-    from fiontb.data.ftb import load_ftb
-    from fiontb.frame import FramePointCloud
-    from fiontb.viz.datasetviewer import DatasetViewer
-
-    torch.set_printoptions(precision=10)
-
-    _TEST_DATA = Path(__file__).parent / "_test"
-    dataset = load_ftb(_TEST_DATA / "sample1")
-
-    icp = ICPOdometry(15)
-    device = "cuda:0"
-
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
-    prev_frame = _prepare_frame(dataset[0])
-    prev_fpcl = FramePointCloud.from_frame(prev_frame)
-
-    for i in range(1, len(dataset)):
-        frame = _prepare_frame(dataset[i])
-        fpcl = FramePointCloud.from_frame(frame)
-
-        relative_rt = icp.estimate(prev_fpcl.points.to(device),
-                                   prev_fpcl.normals.to(device),
-                                   prev_fpcl.mask.to(device),
-                                   fpcl.points.to(device),
-                                   fpcl.mask.to(device),
-                                   fpcl.kcam)
-        relative_rt = relative_rt.cpu()
-        dataset.get_info(
-            i).rt_cam = dataset[i-1].info.rt_cam.integrate(relative_rt)
-
-        prev_frame = frame
-        prev_fpcl = fpcl
-
-    viewer = DatasetViewer(dataset)
-    viewer.run()
-
-
-def _test_multiscale_geom():
-    from pathlib import Path
-
-    from fiontb.data.ftb import load_ftb
-    from fiontb.frame import FramePointCloud
-
-    _TEST_DATA = Path(__file__).parent / "_test"
-    dataset = load_ftb(_TEST_DATA / "sample1")
-
-    icp = MultiscaleICPOdometry([(0.25, 15), (0.5, 10), (1.0, 5)])
-    device = "cuda:0"
-
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
-
-    frame = dataset[0]
-    next_frame = dataset[1]
-
-    frame = _prepare_frame(frame)
-    next_frame = _prepare_frame(next_frame)
-
-    fpcl = FramePointCloud.from_frame(frame)
-    next_fpcl = FramePointCloud.from_frame(next_frame)
-
-    relative_rt = icp.estimate(fpcl.points.to(device),
-                               fpcl.normals.to(device),
-                               fpcl.mask.to(device),
-                               next_fpcl.points.to(device),
-                               next_fpcl.mask.to(device),
-                               next_fpcl.kcam)
-
-    pcl0 = fpcl.unordered_point_cloud(world_space=True)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl1.transform(relative_rt.cpu())
-    _show_pcl([pcl0, pcl1])
-
-
-def _main():
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("test", choices=[
-        'geometric1', 'geometric2',
-        'multiscale-geometric'])
-
-    args = parser.parse_args()
-
-    if args.test == 'geometric1':
-        _test_geom1()
-    elif args.test == 'geometric2':
-        _test_geom2()
-    elif args.test == 'multiscale-geometric':
-        _test_multiscale_geom()
-
-
-if __name__ == '__main__':
-    _main()

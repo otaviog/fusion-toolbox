@@ -5,13 +5,16 @@
 #include <torch/python.h>
 #include <torch/torch.h>
 
+#include "camera.hpp"
 #include "dense_volume.hpp"
 #include "downsample.hpp"
 #include "filtering.hpp"
 #include "icpodometry.hpp"
 #include "indexmap.hpp"
+#include "matching.hpp"
 #include "metrics.hpp"
 #include "normals.hpp"
+#include "so3.hpp"
 #include "sparse_volume.hpp"
 #include "surfel_fusion.hpp"
 #include "trigoctree.hpp"
@@ -28,7 +31,7 @@ PYBIND11_MODULE(_cfiontb, m) {
       .value("CentralDifferences", EstimateNormalsMethod::kCentralDifferences)
       .value("Average8", EstimateNormalsMethod::kAverage8);
 
-  m.def("bilateral_filter_depth_image", &BilateralFilterDepthImage);
+  m.def("bilateral_depth_filter", &BilateralDepthFilter);
 
   py::class_<TrigOctree>(m, "TrigOctree")
       .def(py::init<torch::Tensor, torch::Tensor, int>())
@@ -47,6 +50,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("fuse_dense_volume", &FuseDenseVolume);
   m.def("fuse_sparse_volume", &FuseSparseVolume);
 
+  m.def("match_dense_points", &MatchDensePoints);
+
   m.def("query_closest_points", &QueryClosestPoints);
 
   m.def("surfel_cave_free_space", &CarveSpace);
@@ -57,7 +62,20 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   m.def("raster_indexmap", &RasterIndexmap);
 
-  m.def("icp_estimate_jacobian_gpu", &EstimateJacobian_gpu);
+  py::class_<ICPJacobian>(m, "ICPJacobian")
+      .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)
+      .def_static("estimate_intensity", &ICPJacobian::EstimateIntensity);
+
+  m.def("calc_sobel_gradient", &CalcSobelGradient);
+
+  m.def("project_op_forward", &ProjectOp::Forward);
+  m.def("project_op_backward", &ProjectOp::Backward);
+
+  m.def("so3t_exp_op_forward", &SO3tExpOp::Forward);
+  m.def("so3t_exp_op_backward", &SO3tExpOp::Backward);
+
+  m.def("featuremap_op_forward", &FeatureMapOp::Forward);
+  m.def("featuremap_op_backward", &FeatureMapOp::Backward);
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);

@@ -1,37 +1,28 @@
 """Lie algebra operators for SO3 group.
 """
 
-import math
-
 import torch
+
+from fiontb._cfiontb import (so3t_exp_op_forward as _so3t_exp_op_forward,
+                             so3t_exp_op_backward as _so3t_exp_op_backward)
 
 # pylint: disable=invalid-name
 
 
-def hat(vector3):
-    """Hat operator: return a skew matrix representing the cross product
-    with a given vector.
+class SO3tExp(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, upsilon_omega):
+        y_matrices = _so3t_exp_op_forward(upsilon_omega.view(-1, 6))
 
-    """
-    return torch.tensor([[0.0, -vector3[2], vector3[1]],
-                         [vector3[2], 0.0, -vector3[0]],
-                         [-vector3[1], vector3[0], 0.0]],
-                        dtype=vector3.dtype)
+        ctx.save_for_backward(upsilon_omega, y_matrices)
+        return y_matrices
 
+    @staticmethod
+    def backward(ctx, dy_matrices):
+        upsilon_omega, y_matrices = ctx.saved_tensors
 
-def vee(mat3):
-    return torch.tensor([mat3[1, 2],
-                         mat3[0, 2],
-                         mat3[1, 0]], dtype=mat3.dtype)
+        dx_upsilon_omega = _so3t_exp_op_backward(
+            dy_matrices.view(-1, 3, 4), upsilon_omega.view(-1, 6),
+            y_matrices.view(-1, 3, 4))
 
-
-_I3 = torch.eye(3)
-
-
-def exp(twist):
-    theta = twist.norm()
-    omega = hat(twist)
-    so3 = (_I3
-           + (math.sin(theta) / theta) * omega
-           + (1.0 - math.cos(theta)) / (theta*theta) * omega @ omega)
-    return so3
+        return dx_upsilon_omega

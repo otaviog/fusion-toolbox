@@ -1,5 +1,5 @@
 [pylint]
-good-names = i,j,k,ex,Run,_,x,y,X,Y,x1,x2,y1,y2,g,p,xs,ys,z,u,v,tx,ty,tz,qx,qy,qz,qw,fx,fy,cx,cy,v0,v1,v2,i0,i1,i2,p0,p1,p2
+good-names = i,j,k,ex,Run,_,x,y,X,Y,x1,x2,y1,y2,g,p,xs,ys,z,u,v,tx,ty,tz,qx,qy,qz,qw,fx,fy,cx,cy,v0,v1,v2,i0,i1,i2,p0,p1,p2,J,uv
 output-format = colorized
 max-line-length = 100
 extension-pkg-whitelist = PyQt5,torch,cv2,numpy

@@ -8,6 +8,9 @@ import torch
 
 from fiontb._utils import ensure_torch
 
+from fiontb._cfiontb import (project_op_forward as _project_op_forward,
+                             project_op_backward as _project_op_backward)
+
 _GL_HAND_MTX = torch.eye(4, dtype=torch.float)
 _GL_HAND_MTX[2, 2] = -1
 
@@ -177,6 +180,18 @@ class KCamera:
                 and (self.undist_coeff == other.undist_coeff)
                 and (self.depth_radial_distortion == other.depth_radial_distortion)
                 and (self.image_size == other.image_size))
+
+
+class Project(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, points, intrinsics):
+        ctx.save_for_backward(points, intrinsics)
+        return _project_op_forward(points, intrinsics)
+
+    @staticmethod
+    def backward(ctx, dy_grad):
+        points, intrinsics = ctx.saved_tensors
+        return _project_op_backward(dy_grad, points, intrinsics), None
 
 
 class Homogeneous:

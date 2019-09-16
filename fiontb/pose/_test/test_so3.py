@@ -4,14 +4,14 @@ import torch
 
 import fiontb.pose.so3 as so3
 
-from ._data import get_rand_se3_mat
-
 
 class TestSO3(unittest.TestCase):
-    def test_vee_hat(self):
-        mtx = get_rand_se3_mat()[:3, :3]
-        import ipdb; ipdb.set_trace()
 
-        vee = so3.vee(mtx)
-        hat = so3.hat(vee)
-        torch.testing.assert_allclose(mtx, hat)
+    def test_exp_op(self):
+        exp = so3.SO3tExp.apply
+        torch.manual_seed(10)
+        for dev in ["cpu:0"]:
+            input = (torch.rand(1, 6, dtype=torch.double,
+                                requires_grad=True, device=dev),)
+            torch.autograd.gradcheck(exp, input, eps=1e-6, atol=1e-4,
+                                     raise_exception=True)
