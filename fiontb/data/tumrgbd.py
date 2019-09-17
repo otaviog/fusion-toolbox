@@ -121,7 +121,7 @@ def write_trajectory(filepath, rt_cams):
 
         filepath (str): Output file
 
-        rt_cams (List[(float, RTCamera)]): List of timestamps and RTCameras.
+        rt_cams (Dict[(float, RTCamera)]): List of timestamps and RTCameras.
 
     """
 

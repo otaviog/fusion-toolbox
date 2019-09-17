@@ -108,7 +108,7 @@ def stack_pcl(pcl_list):
     point_count = sum((pcl.points.size(0) for pcl in pcl_list))
     normal_count = sum((pcl.normals.size(0) for pcl in pcl_list
                         if pcl.normals is not None))
-    color_count = sum((pcl.colors.shape(0) for pcl in pcl_list
+    color_count = sum((pcl.colors.size(0) for pcl in pcl_list
                        if pcl.colors is not None))
 
     if normal_count > 0 and normal_count != point_count:

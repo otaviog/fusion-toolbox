@@ -17,7 +17,6 @@ from fiontb.camera import Homogeneous
 class DatasetViewer:
     """Viewer of RGB-D datasets. It shows the image, depth, camera point
     cloud and accumulated world points.
-
     """
 
     def __init__(self, dataset, title="Dataset", max_pcls=50):

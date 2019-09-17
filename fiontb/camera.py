@@ -308,6 +308,9 @@ class RTCamera:
                                                     [0, 0, 1, tz],
                                                     [0, 0, 0, 1]]))
 
+    def clone(self):
+        return RTCamera(self.matrix.clone())
+    
     @property
     def center(self):
         return self.matrix[:3, 3]
