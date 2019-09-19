@@ -44,7 +44,7 @@ fiontb.pose.icp.intensity:
 	python3 -m fiontb.pose._test.test_icp intensity
 
 fiontb.pose.autogradicp.geometric:
-	python3 -m fiontb.pose._test.test_autogradicp geometric
+	python3 -m fiontb.pose._test.test_autogradicp geometric --profile=True
 
 fiontb.pose.autogradicp.color:
 	python3 -m fiontb.pose._test.test_autogradicp color
