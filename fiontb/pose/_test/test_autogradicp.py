@@ -88,7 +88,7 @@ class _Tests:
         show_pcls([pcl0, pcl1, pcl2])
 
     def hybrid(self):
-        device = "cpu:0"
+        device = "cuda:0"
         icp = AutogradICP(100, 0.05)
 
         dataset = load_ftb(_TEST_DATA / "sample2")
