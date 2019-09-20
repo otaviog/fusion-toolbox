@@ -11,11 +11,10 @@ class AutogradICP:
         self.num_iters = num_iters
         self.learning_rate = learning_rate
 
-    def estimate(self, kcam, src_points, tgt_image_p3d=None, tgt_mask=None, tgt_normals=None,
+    def estimate(self, kcam, src_points, tgt_image_p3d=None,
+                 tgt_mask=None, tgt_normals=None,
                  tgt_image_feat=None, src_image_feat=None,
                  geom_weight=0.5, feat_weight=0.5):
-        torch.backends.cudnn.enabled = False
-
         exp = SO3tExp.apply
         proj = Project.apply
         image_map = FeatureMap.apply
@@ -46,19 +45,17 @@ class AutogradICP:
         kcam = kcam.to(device)
         upsilon_omega = torch.zeros(
             1, 6, requires_grad=True, device=device, dtype=dtype)
-        optim = torch.optim.LBFGS([upsilon_omega], lr=self.learning_rate, max_iter=self.num_iters,
+        optim = torch.optim.LBFGS([upsilon_omega], lr=self.learning_rate,
+                                  max_iter=self.num_iters,
                                   history_size=500, max_eval=4000)
 
         total_weight = geom_weight + feat_weight
         geom_weight = geom_weight / total_weight
         feat_weight = feat_weight / total_weight
 
-        recompute_grad = True
-
         def closure():
             optim.zero_grad()
             transform = exp(upsilon_omega).squeeze()
-            nonlocal recompute_grad
 
             geom_loss = 0
             feat_loss = 0
@@ -86,7 +83,6 @@ class AutogradICP:
                 tgt_feats, bound_mask = image_map(
                     tgt_image_feat, tgt_uv)
                 bound_mask = bound_mask.detach()
-                recompute_grad = False
 
                 tgt_feats = tgt_feats[:, bound_mask]
                 match_src_feats = src_image_feat[:, bound_mask]
@@ -98,7 +94,6 @@ class AutogradICP:
 
             loss.backward()
             print(loss)
-
             return loss
 
         optim.step(closure)

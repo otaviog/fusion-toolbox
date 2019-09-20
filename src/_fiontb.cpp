@@ -60,6 +60,23 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("surfel_find_live_to_model_merges", &FindLiveToModelMerges);
   m.def("surfel_find_feat_live_to_model_merges", &FindFeatLiveToModelMerges);
 
+  py::class_<IndexMapParams>(m, "IndexMapParams")
+      .def_readwrite("position_confidence",
+                     &IndexMapParams::position_confidence)
+      .def_readwrite("normal_radius", &IndexMapParams::normal_radius)
+      .def_readwrite("color", &IndexMapParams::color)
+      .def_readwrite("indexmap", &IndexMapParams::indexmap);
+
+  py::class_<SurfelModelParams>(m, "SurfelModelParams")
+      .def_readwrite("positions", &SurfelModelParams::positions)
+      .def_readwrite("confidences", &SurfelModelParams::confidences)
+      .def_readwrite("normals", &SurfelModelParams::normals)
+      .def_readwrite("radii", &SurfelModelParams::radii)
+      .def_readwrite("colors", &SurfelModelParams::colors);
+
+  py::class_<FeatSurfel>(m, "FeatSurfel")
+      .def_static("merge_live", &FeatSurfel::MergeLive);
+
   m.def("raster_indexmap", &RasterIndexmap);
 
   py::class_<ICPJacobian>(m, "ICPJacobian")

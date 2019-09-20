@@ -202,7 +202,7 @@ class Homogeneous:
         self.matrix = matrix
 
     def __matmul__(self, points):
-        points = self.matrix[:3, :3] @ points.reshape(-1, 3, 1)
+        points = self.matrix[:3, :3].matmul(points.reshape(-1, 3, 1))
         points += self.matrix[:3, 3].reshape(3, 1)
 
         return points.squeeze()
@@ -308,6 +308,12 @@ class RTCamera:
                                                     [0, 0, 1, tz],
                                                     [0, 0, 0, 1]]))
 
+    def inverse(self):
+        return RTCamera(self.world_to_cam)
+
+    def clone(self):
+        return RTCamera(self.matrix.clone())
+
     @property
     def center(self):
         return self.matrix[:3, 3]
@@ -317,3 +323,6 @@ class RTCamera:
 
     def __repr__(self):
         return str(self.__dict__)
+
+    def __matmul__(self, other):
+        return RTCamera(self.matrix @ other.matrix)

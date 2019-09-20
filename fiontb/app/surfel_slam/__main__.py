@@ -13,7 +13,7 @@ from fiontb.sensor import Sensor, PresetIntrinsics
 from fiontb.camera import RTCamera
 from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
 from fiontb.frame import FramePointCloud, estimate_normals
-from fiontb.filtering import bilateral_filter_depth_image
+from fiontb.filtering import bilateral_depth_filter
 from fiontb.pose.icp import ICPOdometry, MultiscaleICPOdometry
 from fiontb.fusion.surfel import SurfelModel, SurfelFusion
 
@@ -49,7 +49,7 @@ def _main():
 
         live_fpcl = FramePointCloud.from_frame(frame).to(device)
 
-        filtered_depth_image = bilateral_filter_depth_image(
+        filtered_depth_image = bilateral_depth_filter(
             torch.from_numpy(frame.depth_image).to(device),
             live_fpcl.mask, depth_scale=frame.info.depth_scale)
 

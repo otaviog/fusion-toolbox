@@ -35,14 +35,20 @@ class TUMRGBDDataset:
         rgb_img = cv2.imread(str(self.base_path / self.rgbs[rgb_ts][0]))
         rgb_img = cv2.cvtColor(rgb_img, cv2.COLOR_BGR2RGB)
 
-        rt_cam = self.depth_gt_traj[depth_ts]
-        info = FrameInfo(kcam=KCAMERA, depth_scale=self.depth_scale, depth_bias=0.0,
-                         timestamp=depth_ts, rt_cam=rt_cam)
+        info = self.get_info(idx)
 
         return Frame(info, depth_img.astype(np.int32), rgb_img)
 
     def __len__(self):
         return len(self.depth_rgb_assoc)
+
+    def get_info(self, idx):
+        depth_ts, _ = self.depth_rgb_assoc[idx]
+        rt_cam = self.depth_gt_traj[depth_ts]
+        info = FrameInfo(kcam=KCAMERA, depth_scale=self.depth_scale, depth_bias=0.0,
+                         timestamp=depth_ts, rt_cam=rt_cam)
+
+        return info
 
 
 def read_trajectory(gt_filepath):
@@ -121,7 +127,7 @@ def write_trajectory(filepath, rt_cams):
 
         filepath (str): Output file
 
-        rt_cams (List[(float, RTCamera)]): List of timestamps and RTCameras.
+        rt_cams (Dict[(float, RTCamera)]): List of timestamps and RTCameras.
 
     """
 
@@ -130,9 +136,12 @@ def write_trajectory(filepath, rt_cams):
             pos = rt_cam.matrix[0:3, 3]
             rot = rt_cam.matrix[0:3, 0:3]
 
-            rot = quaternion.from_rotation_matrix(rot)
+            try:
+                rot = quaternion.from_rotation_matrix(rot)
+            except:
+                rot = quaternion.from_euler_angles(0.0, 0.0, 0.0)
 
-            gt_txt.write('{} {} {} {} {} {} {} {}\n'.format(
+            gt_txt.write('{} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}\n'.format(
                 timestamp,
                 pos[0], pos[1], pos[2],
                 rot.x, rot.y, rot.z, rot.w))

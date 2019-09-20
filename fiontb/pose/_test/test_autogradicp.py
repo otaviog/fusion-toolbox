@@ -1,4 +1,5 @@
 from pathlib import Path
+from cProfile import Profile
 
 import torch
 from torchvision.transforms import ToTensor
@@ -30,7 +31,7 @@ def _prepare_frame(frame, bi_filter=True):
 
 
 class _Tests:
-    def geometric(self):
+    def geometric(self, profile=False):
         device = "cuda:0"
         icp = AutogradICP(100, 0.05)
 
@@ -42,11 +43,19 @@ class _Tests:
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
+        if profile:
+            prof = Profile()
+            prof.enable()
+
         relative_rt = icp.estimate(next_fpcl.kcam,
                                    tgt_image_p3d=fpcl.points,
                                    tgt_mask=fpcl.mask,
                                    tgt_normals=fpcl.normals,
                                    src_points=next_fpcl.points)
+
+        if profile:
+            prof.disable()
+            prof.dump_stats("cprofile.prof")
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
         pcl1 = next_fpcl.unordered_point_cloud(world_space=False)

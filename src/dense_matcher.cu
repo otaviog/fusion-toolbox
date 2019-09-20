@@ -1,11 +1,20 @@
-#include "kernel_dense_matcher.hpp"
-
 #include "camera.hpp"
 #include "error.hpp"
 #include "kernel.hpp"
+#include "pointgrid.hpp"
 
 namespace fiontb {
 namespace {
+
+template <Device dev>
+class PointGrid : public BasePointGrid<dev> {
+ public:
+  PointGrid(const torch::Tensor &points, const torch::Tensor &mask)
+      : BasePointGrid<dev>(mask),
+        points(Accessor<dev, float, 3>::Get(points)) {}
+
+  typename Accessor<dev, float, 3>::T points;
+};
 
 template <Device dev, typename scalar_t>
 struct MatchPointsDenseKernel {
@@ -28,7 +37,7 @@ struct MatchPointsDenseKernel {
         src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
         out_points(Accessor<dev, scalar_t, 2>::Get(out_points)),
         out_index(Accessor<dev, int64_t, 1>::Get(out_index)) {}
-  
+
   FTB_DEVICE_HOST void operator()(int idx) {
     if (idx >= src_points.size(0)) return;
 
@@ -104,10 +113,10 @@ void MatchDensePoints(const torch::Tensor target_points,
   } else {
     FTB_CHECK(!source_points.is_cuda(), "Expected a cpu tensor");
     FTB_CHECK(!kcam.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!rt_cam.is_cuda(), "Expected a cuda tensor");    
+    FTB_CHECK(!rt_cam.is_cuda(), "Expected a cuda tensor");
     FTB_CHECK(!out_point.is_cuda(), "Expected a cuda tensor");
     FTB_CHECK(!out_index.is_cuda(), "Expected a cuda tensor");
-    
+
     AT_DISPATCH_ALL_TYPES(
         target_points.scalar_type(), "MatchDensePoints", ([&] {
           MatchPointsDenseKernel<kCPU, scalar_t> kernel(

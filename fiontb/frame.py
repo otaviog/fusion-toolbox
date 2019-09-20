@@ -1,4 +1,4 @@
-"""Frame data types.
+"""Data types from frames.
 """
 
 import torch
@@ -12,16 +12,21 @@ from .pointcloud import PointCloud
 
 
 class FrameInfo:
-    """Frame information data.
+    """Basic header kind information of frame.
 
     Attributes:
 
-        kcam (:obj:`fiontb.camera.KCamera`): Intrinsic camera information.
-        depth_scale (float): Scaling of depth values.
+        kcam (:obj:`fiontb.camera.KCamera`): The intrinsic camera parameters.
+
+        depth_scale (float): Specifies the amount that depth values should be multiplied.
+
         depth_bias (float): Constant added to depth values.
-        depth_max (float): Max depth value.
-        rt_cam (:obj:`fiontb.camera.RTCamera`): Camera to world matrix.
-        timestamps (float or int): Sensor's timestamp
+
+        depth_max (float): Sensor's maximum depth value.
+
+        rt_cam (:obj:`fiontb.camera.RTCamera`): The extrinsic camera parameters.
+
+        timestamps (float or int): The frame timestamp.
     """
 
     def __init__(self, kcam=None, depth_scale=1.0, depth_bias=0.0, depth_max=4500.0,
@@ -59,9 +64,9 @@ class FrameInfo:
                    rgb_kcam, rt_cam)
 
     def to_json(self):
-        """Converts the frame info to its json dict representation.
+        """Converts the frame info to its json dictionary representation.
 
-        Returns: (dict): Dict ready for json dump.
+        Returns: (dict): Dictionary ready for json dump.
         """
         json = {}
         for name, value in vars(self).items():
@@ -82,7 +87,10 @@ class FrameInfo:
 
 
 class Frame:
-    """Frame data:
+    """A sensor frame.
+
+    Contains the frame data used all along the project. Device and
+     datasets output should be converted to this class instance.
 
     Attributes:
 
@@ -94,8 +102,9 @@ class Frame:
         rgb_image (:obj:`numpy.ndarray`, optional): RGB image [WxHx3]
          uint8.
 
-        fg_mask (:obj:`ndarray.ndarray`, optional): Mask image [WxH]
+        fg_mask (:obj:`ndarray.ndarray`, optional): Foreground mask image [WxH]
          bool or uint8.
+
     """
 
     def __init__(self, info: FrameInfo, depth_image, rgb_image=None,
@@ -142,21 +151,25 @@ class _DepthImagePointCloud:
         return self._points
 
 
-class DepthXYZImage:
-    def __init__(self, depth_image, finfo):
+def depth_image_to_uvz(depth_image, finfo):
+    """Converts an depth image to a meshgrid of u (columns), v (rows) an z
+     coordinates.
 
-        if finfo.kcam is None:
-            raise RuntimeError("Frame doesn't have intrinsics camera")
+    Args:
 
-        self.points = finfo.kcam.backproject(
-            self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
+        depth_image (:obj:`torch.Tensor`): [WxH] depth image.
 
+        finfo (:obj:`FrameInfo`): The source frame description.
 
-def depth_image_to_uvz(depth_image, finfo, dtype=torch.float):
+    Returns: (:obj:`torch.Tensor`): [WxHx3] the depth image with the u
+     and v pixel coordinates.
+
+    """
+
     depth_image = (depth_image.float()*finfo.depth_scale +
                    finfo.depth_bias)
     device = depth_image.device
-
+    dtype = depth_image.dtype
     ys, xs = torch.meshgrid(torch.arange(depth_image.size(0), dtype=dtype),
                             torch.arange(depth_image.size(1), dtype=dtype))
 
@@ -167,7 +180,12 @@ def depth_image_to_uvz(depth_image, finfo, dtype=torch.float):
 
 
 class FramePointCloud:
-    """A point cloud ordered by image positions.
+    """A framed point cloud: point, normal or color can be retrivied by
+     pixel coordinates.
+
+    Attributes:
+
+
     """
 
     def __init__(self, image_points, mask, kcam, rt_cam=None, points=None,
@@ -182,7 +200,6 @@ class FramePointCloud:
 
     @classmethod
     def from_frame(cls, frame: Frame):
-
         depth_image = ensure_torch(frame.depth_image)
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
@@ -198,7 +215,7 @@ class FramePointCloud:
 
         normals = None
         if frame.normal_image is not None:
-            normals = frame.normal_image
+            normals = ensure_torch(frame.normal_image)
         return FramePointCloud(image_points, mask, frame.info.kcam, frame.info.rt_cam,
                                normals=normals, colors=colors)
 
@@ -227,6 +244,7 @@ class FramePointCloud:
         if self._normals is None:
             self._normals = torch.empty(self.points.size(0), self.points.size(1), 3,
                                         dtype=self.points.dtype, device=self.points.device)
+
             _estimate_normals(
                 self.points, self.mask, self._normals,
                 EstimateNormalsMethod.CentralDifferences)

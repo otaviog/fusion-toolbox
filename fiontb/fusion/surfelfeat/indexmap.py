@@ -31,6 +31,7 @@ class LiveIndexMap:
             self.normals = tenviz.buffer_create()
 
             self.program['in_point'] = self.points
+            self.program['in_color'] = self.colors
             self.program['in_normal'] = self.normals
 
             self.program['Modelview'] = tenviz.MatPlaceholder.Modelview
