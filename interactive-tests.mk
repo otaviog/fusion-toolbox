@@ -51,3 +51,6 @@ fiontb.pose.autogradicp.color:
 
 fiontb.pose.autogradicp.hybrid:
 	python3 -m fiontb.pose._test.test_autogradicp hybrid
+
+fiontb.fusion.surfelfeat.merge_live:
+	python3 -m fiontb.fusion.surfelfeat._test.test_merge_live

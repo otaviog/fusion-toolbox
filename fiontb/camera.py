@@ -5,9 +5,9 @@ import math
 import numpy as np
 import quaternion
 import torch
+import tenviz
 
 from fiontb._utils import ensure_torch
-
 from fiontb._cfiontb import (project_op_forward as _project_op_forward,
                              project_op_backward as _project_op_backward)
 
@@ -180,6 +180,10 @@ class KCamera:
                 and (self.undist_coeff == other.undist_coeff)
                 and (self.depth_radial_distortion == other.depth_radial_distortion)
                 and (self.image_size == other.image_size))
+
+    def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
+        return torch.from_numpy(tenviz.projection_from_kcam(
+            self.matrix, near, far).to_matrix()).to(dtype)
 
 
 class Project(torch.autograd.Function):

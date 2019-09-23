@@ -9,49 +9,84 @@ import matplotlib.pyplot as plt
 import tenviz
 
 from fiontb.frame import Frame
-from fiontb._cfiontb import IndexMapParams
+from fiontb._cfiontb import IndexMap
 
 _SHADER_DIR = Path(__file__).parent / "shaders"
 
 
-class LiveIndexMap:
+class _BaseIndexMapRaster:
+    def __init__(self, context):
+        self.context = context
+
+        with context.current():
+            self.framebuffer = tenviz.create_framebuffer({
+                0: tenviz.FramebufferTarget.RGBAFloat,
+                1: tenviz.FramebufferTarget.RGBAFloat,
+                2: tenviz.FramebufferTarget.RGBUint8,
+                3: tenviz.FramebufferTarget.RGBInt32
+            })
+
+    def get(self, device=None):
+        indexmap = IndexMap()
+        indexmap.position_confidence = self.framebuffer[0].to_tensor()
+        indexmap.normal_radius = self.framebuffer[1].to_tensor()
+        indexmap.color = self.framebuffer[2].to_tensor()
+        indexmap.indexmap = self.framebuffer[3].to_tensor()
+
+        if device is not None:
+            indexmap = indexmap.to(str(device))
+
+        return indexmap
+
+    def to_frame(self, frame_info):
+        indexmap = self.get()
+
+        depth = indexmap.position_confidence[:, :, 2]
+        color = indexmap.color.to_tensor()
+
+        depth = (depth*(1.0 / frame_info.depth_scale)
+                 + frame_info.depth_bias).round().int().cpu().numpy()
+        color = color.cpu().numpy()
+
+        return Frame(frame_info, depth, color)
+
+
+class LiveIndexMapRaster(_BaseIndexMapRaster):
     """Rasterizer of :obj:`fiontb.fusion.surfel.model.SurfelCloud` that
     writes position, normal and the the surfels' index to
     framebuffers.
     """
 
     def __init__(self, context):
-
         with context.current():
             self.program = tenviz.DrawProgram(
                 tenviz.DrawMode.Points, _SHADER_DIR / "live_indexmap.vert",
                 _SHADER_DIR / "indexmap.frag")
 
-            self.points = tenviz.buffer_create()
+            self.positions = tenviz.buffer_create()
+            self.confidences = tenviz.buffer_create()
             self.normals = tenviz.buffer_create()
+            self.radii = tenviz.buffer_create()
+            self.colors = tenviz.buffer_create()
 
-            self.program['in_point'] = self.points
-            self.program['in_color'] = self.colors
+            self.program['in_point'] = self.positions
+            self.program['in_conf'] = self.confidences
             self.program['in_normal'] = self.normals
+            self.program['in_radius'] = self.radii
+            self.program['in_color'] = self.colors
 
             self.program['Modelview'] = tenviz.MatPlaceholder.Modelview
             self.program['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
             self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-            self.framebuffer = tenviz.create_framebuffer({
-                0: tenviz.FramebufferTarget.RGBFloat,
-                1: tenviz.FramebufferTarget.RGBAFloat,
-                2: tenviz.FramebufferTarget.RGBInt32
-            })
+        super(LiveIndexMapRaster, self).__init__(context)
 
-        self.context = context
-
-    def raster(self, surfel_cloud, proj_matrix, width, height):
+    def raster(self, live_surfels, proj_matrix, width, height):
         """Raster the surfelcloud to the framebuffers.
 
         Args:
 
-            surfel_cloud
+            live_surfels
              (:obj:`fiontb.fusion.surfel.model.SurfelCloud`): Camera's
              surfel cloud.
 
@@ -68,75 +103,18 @@ class LiveIndexMap:
         view_mtx[2, 2] = -1
 
         with self.context.current():
-            self.points.from_tensor(surfel_cloud.points)
-            self.normals.from_tensor(surfel_cloud.normals)
+            self.positions.from_tensor(live_surfels.positions)
+            self.confidences.from_tensor(live_surfels.confidences)
+            self.normals.from_tensor(live_surfels.normals)
+            self.radii.from_tensor(live_surfels.radii)
+            self.colors.from_tensor(live_surfels.colors)
 
         self.context.set_clear_color(0, 0, 0, 0)
         self.context.render(proj_matrix, view_mtx, self.framebuffer,
                             [self.program], width, height)
 
-    @property
-    def pos_tex(self):
-        """Texture from the last raster position framebuffer.
 
-        Returns: (:obj:`tenviz.Texture`): RGB float texture
-        """
-        return self.framebuffer[0]
-
-    @property
-    def normal_rad_tex(self):
-        """Texture from the last raster normal and radius framebuffer.
-
-        Returns: (:obj:`tenviz.Texture`): RGBA float texture, `A` is
-        the radius value.
-        """
-
-        return self.framebuffer[1]
-
-    @property
-    def idx_tex(self):
-        """Texture from the last raster index framebuffer.
-
-        Returns: (:obj:`tenviz.Texture`): RGB int32 texture, `R` is
-        the surfel index, and `B` is equal 1 if it's a valid position,
-        0 otherwise.
-
-        """
-        return self.framebuffer[2]
-
-    def show_debug(self, title, debug=True):
-        """Helper function for quickly display the framebuffers in pyplot.
-
-        Args:
-
-            title (str): The plot's base title.
-
-            debug (bool): Are you really serious about debugging?
-        """
-        if not debug:
-            return
-
-        with self.context.current():
-            pos = self.pos_tex.to_tensor()
-            normals = self.normal_rad_tex.to_tensor()
-            idxs = self.idx_tex.to_tensor()
-
-        plt.figure()
-        plt.title("{} - Positions".format(title))
-        plt.imshow(pos[:, :, 2].cpu())
-
-        plt.figure()
-        plt.title("{} - Normals".format(title))
-        plt.imshow(normals.cpu())
-
-        plt.figure()
-        plt.title("{} - Indices".format(title))
-        plt.imshow(idxs[:, :, 0].cpu())
-
-        plt.show()
-
-
-class ModelIndexMap:
+class ModelIndexMapRaster(_BaseIndexMapRaster):
     """Rasterizer of :obj:`fiontb.fusion.surfel.model.SurfelModel` that
     writes position, normal and the the surfels' index to
     framebuffers.
@@ -158,34 +136,23 @@ class ModelIndexMap:
                 # ignore_missing=True
             )
 
-            self.render_surfels_prg['in_point'] = surfel_model.points
+            self.render_surfels_prg['in_point'] = surfel_model.positions
             self.render_surfels_prg['in_normal'] = surfel_model.normals
             self.render_surfels_prg['in_color'] = surfel_model.colors
-            self.render_surfels_prg['in_conf'] = surfel_model.confs
+            self.render_surfels_prg['in_conf'] = surfel_model.confidences
             self.render_surfels_prg['in_radius'] = surfel_model.radii
-            self.render_surfels_prg['in_time'] = surfel_model.times
             self.render_surfels_prg['in_mask'] = surfel_model.active_mask_gl
 
             self.render_surfels_prg['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
             self.render_surfels_prg['Modelview'] = tenviz.MatPlaceholder.Modelview
             self.render_surfels_prg['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
 
-            self.framebuffer = tenviz.create_framebuffer({
-                0: tenviz.FramebufferTarget.RGBAFloat,  # pos + conf
-                1: tenviz.FramebufferTarget.RGBAFloat,  # normal + radius
-                2: tenviz.FramebufferTarget.RGBInt32,  # index + existence
-                3: tenviz.FramebufferTarget.RGBUint8  # debug
-            })
+        super(ModelIndexMapRaster, self).__init__(surfel_model.context)
 
         self.surfel_model = surfel_model
-        self.is_rasterized = False
-
-    @property
-    def context(self):
-        return self.surfel_model.context
 
     def raster(self, proj_matrix, rt_cam, width, height,
-               stable_conf_thresh=None, time=None):
+               stable_conf_thresh=None):
         """Raster the surfel model to the framebuffers.
 
         Args:
@@ -207,97 +174,35 @@ class ModelIndexMap:
             self.render_surfels_prg['StableThresh'] = (
                 float(stable_conf_thresh)
                 if stable_conf_thresh is not None else -1.0)
-            self.render_surfels_prg['Time'] = (
-                int(time) if time is not None else -1)
 
         context.set_clear_color(0, 0, 0, 0)
         context.render(proj_matrix, rt_cam.opengl_view_cam,
                        self.framebuffer,
                        [self.render_surfels_prg], width, height)
-        self.is_rasterized = True
 
-    @property
-    def position_confidence_tex(self):
-        """Texture from the last raster position framebuffer.
 
-        Returns: (:obj:`tenviz.Texture`): RGB float texture
-        """
+def show_indexmap(indexmap, title, debug=True):
+    """Helper function for quickly display the framebuffers in pyplot.
 
-        return self.framebuffer[0]
+    Args:
 
-    @property
-    def normal_radius_tex(self):
-        """Texture from the last raster normal and radius framebuffer.
+        title (str): The plot's base title.
 
-        Returns: (:obj:`tenviz.Texture`): RGBA float texture, `A` is
-        the radius value.
-        """
+        debug (bool): Are you really serious about debugging?
+    """
+    if not debug:
+        return
 
-        return self.framebuffer[1]
+    plt.figure()
+    plt.title("{} - Positions".format(title))
+    plt.imshow(indexmap.position_confidence[:, :, 2].cpu())
 
-    @property
-    def index_tex(self):
-        """Texture from the last raster index framebuffer.
+    plt.figure()
+    plt.title("{} - Normals".format(title))
+    plt.imshow(indexmap.normal_radius.cpu())
 
-        Returns: (:obj:`tenviz.Texture`): RGB int32 texture, `R` is
-        the surfel index, and `B` is equal 1 if it's a valid position,
-        0 otherwise.
+    plt.figure()
+    plt.title("{} - Indices".format(title))
+    plt.imshow(indexmap.indexmap[:, :, 0].cpu())
 
-        """
-
-        return self.framebuffer[2]
-
-    @property
-    def color_tex(self):
-        return self.framebuffer[3]
-
-    def to_params(self):
-        params = IndexMapParams()
-        params.position_confidence = self.position_confidence_tex.to_tensor()
-        params.normal_radius = self.normal_radius_tex.to_tensor()
-        params.color = self.color_tex.to_tensor()
-        params.indexmap = self.index_tex.to_tensor()
-        return params
-
-    def to_frame(self, frame_info):
-        with self.surfel_model.context.current():
-            depth = self.position_confidence_tex.to_tensor()[:, :, 2]
-            color = self.color_tex.to_tensor()
-
-        depth = (depth*(1.0 / frame_info.depth_scale)
-                 + frame_info.depth_bias).round().int().cpu().numpy()
-        color = color.cpu().numpy()
-
-        return Frame(frame_info, depth, color)
-
-    def show_debug(self, title, debug=True):
-        """Helper function for quickly display the framebuffers in pyplot.
-
-        Args:
-
-            title (str): The plot's base title.
-
-            debug (bool): Are you really serious about debugging?
-        """
-
-        if not debug:
-            return
-
-        with self.surfel_model.context.current():
-            pos = self.position_confidence_tex.to_tensor()
-            normals = self.normal_radius_tex.to_tensor()
-            idxs = self.index_tex.to_tensor()
-
-        plt.figure()
-        plt.title("{} - pos".format(title))
-        plt.imshow(pos[:, :, 2].cpu())
-
-        plt.figure()
-        plt.title("{} - normals".format(title))
-        plt.imshow(normals.cpu())
-
-        plt.figure()
-        plt.title("{} - indices".format(title))
-        plt.imshow(idxs[:, :, 0].cpu())
-
-        plt.show()
+    plt.show()

@@ -60,19 +60,25 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("surfel_find_live_to_model_merges", &FindLiveToModelMerges);
   m.def("surfel_find_feat_live_to_model_merges", &FindFeatLiveToModelMerges);
 
-  py::class_<IndexMapParams>(m, "IndexMapParams")
-      .def_readwrite("position_confidence",
-                     &IndexMapParams::position_confidence)
-      .def_readwrite("normal_radius", &IndexMapParams::normal_radius)
-      .def_readwrite("color", &IndexMapParams::color)
-      .def_readwrite("indexmap", &IndexMapParams::indexmap);
+  py::class_<IndexMap>(m, "IndexMap")
+      .def(py::init())
+      .def("to", &IndexMap::To)
+      .def_readwrite("position_confidence", &IndexMap::position_confidence)
+      .def_readwrite("normal_radius", &IndexMap::normal_radius)
+      .def_readwrite("color", &IndexMap::color)
+      .def_readwrite("indexmap", &IndexMap::indexmap)
+      .def_property("width", &IndexMap::get_width, nullptr)
+      .def_property("height", &IndexMap::get_height, nullptr)
+      .def_property("device", &IndexMap::get_device, nullptr);
+      
 
-  py::class_<SurfelModelParams>(m, "SurfelModelParams")
-      .def_readwrite("positions", &SurfelModelParams::positions)
-      .def_readwrite("confidences", &SurfelModelParams::confidences)
-      .def_readwrite("normals", &SurfelModelParams::normals)
-      .def_readwrite("radii", &SurfelModelParams::radii)
-      .def_readwrite("colors", &SurfelModelParams::colors);
+  py::class_<MappedSurfelModel>(m, "MappedSurfelModel")
+      .def(py::init())
+      .def_readwrite("positions", &MappedSurfelModel::positions)
+      .def_readwrite("confidences", &MappedSurfelModel::confidences)
+      .def_readwrite("normals", &MappedSurfelModel::normals)
+      .def_readwrite("radii", &MappedSurfelModel::radii)
+      .def_readwrite("colors", &MappedSurfelModel::colors);
 
   py::class_<FeatSurfel>(m, "FeatSurfel")
       .def_static("merge_live", &FeatSurfel::MergeLive);

@@ -8,25 +8,30 @@ namespace {
 
 template <Device dev>
 struct LiveMergeKernel {
-  const IndexMap<dev> target_indexmap;
-  const IndexMap<dev> live_indexmap;
-  SurfelModel<dev> surfel_model;
+  const IndexMapAccessor<dev> target_indexmap;
+  const IndexMapAccessor<dev> live_indexmap;
+  SurfelModelAccessor<dev> surfel_model;
 
   int scale, search_size;
   float max_normal_angle;
 
-  LiveMergeKernel(IndexMap<dev> target_indexmap, IndexMap<dev> live_indexmap,
-                  SurfelModel<dev> surfel_model, int search_size,
-                  float max_normal_angle)
+  typename Accessor<dev, int64_t, 2>::T new_surfel_map;
+
+  LiveMergeKernel(IndexMapAccessor<dev> target_indexmap,
+                  IndexMapAccessor<dev> live_indexmap,
+                  SurfelModelAccessor<dev> surfel_model, int search_size,
+                  float max_normal_angle, torch::Tensor new_surfel_map)
       : target_indexmap(target_indexmap),
         live_indexmap(live_indexmap),
         surfel_model(surfel_model),
-        max_normal_angle(max_normal_angle) {
+        max_normal_angle(max_normal_angle),
+        new_surfel_map(Accessor<dev, int64_t, 2>::Get(new_surfel_map)) {
     scale = int(float(target_indexmap.height()) / live_indexmap.height());
     search_size = int(scale * search_size);
   }
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
+    new_surfel_map[row][col] = -1;
     if (live_indexmap.empty(row, col)) return;
 
     const Vector<float, 3> ray(live_indexmap.position(row, col));
@@ -66,52 +71,56 @@ struct LiveMergeKernel {
       }
     }
 
-    const float live_conf = live_indexmap.confidence(row, col);
-    const float model_conf = surfel_model.confidences[best];
-    const float conf_total = live_conf + model_conf;
+    if (best >= 0) {
+      const float live_conf = live_indexmap.confidence(row, col);
+      const float model_conf = surfel_model.confidences[best];
+      const float conf_total = live_conf + model_conf;
 
-    surfel_model.set_position(
-        best, (surfel_model.position(best) * model_conf + ray * conf_total) /
-                  conf_total);
-    surfel_model.set_normal(best, (surfel_model.normal(best) * model_conf +
-                                   view_normal * live_conf) /
-                                      conf_total);
-    surfel_model.set_color(best, (surfel_model.color(best) * model_conf +
-                                  view_normal * live_conf) /
-                                     conf_total);
-    surfel_model.confidences[best] = conf_total;
+      surfel_model.set_position(
+          best, (surfel_model.position(best) * model_conf + ray * conf_total) /
+                    conf_total);
+      surfel_model.set_normal(best, (surfel_model.normal(best) * model_conf +
+                                     view_normal * live_conf) /
+                                        conf_total);
+      surfel_model.set_color(best, (surfel_model.color(best) * model_conf +
+                                    view_normal * live_conf) /
+                                       conf_total);
+      surfel_model.confidences[best] = conf_total;
+    } else {
+      new_surfel_map[row][col] = live_indexmap.index(row, col);
+    }
   }
 };
 
 }  // namespace
 
-void FeatSurfel::MergeLive(const IndexMapParams &target_indexmap_params,
-                           const IndexMapParams &live_indexmap_params,
-                           const SurfelModelParams &model_params,
-                           int search_size, float max_normal_angle) {
-  if (live_indexmap_params.IsCuda()) {
-    live_indexmap_params.CheckCuda();
-    target_indexmap_params.CheckCuda();
-    model_params.CheckCuda();
+void FeatSurfel::MergeLive(const IndexMap &target_indexmap_params,
+                           const IndexMap &live_indexmap_params,
+                           const MappedSurfelModel &model_params,
+                           int search_size, float max_normal_angle,
+                           torch::Tensor new_surfels_map) {
+  auto reference_dev = target_indexmap_params.get_device();
+  live_indexmap_params.CheckDevice(reference_dev);
+  target_indexmap_params.CheckDevice(reference_dev);
+  model_params.CheckDevice(reference_dev);
 
-    IndexMap<kCUDA> live_indexmap(live_indexmap_params);
-    IndexMap<kCUDA> target_indexmap(target_indexmap_params);
-    SurfelModel<kCUDA> model(model_params);
+  if (reference_dev.is_cuda()) {
+    IndexMapAccessor<kCUDA> live_indexmap(live_indexmap_params);
+    IndexMapAccessor<kCUDA> target_indexmap(target_indexmap_params);
+    SurfelModelAccessor<kCUDA> model(model_params);
 
     LiveMergeKernel<kCUDA> kernel(target_indexmap, live_indexmap, model,
-                                  search_size, max_normal_angle);
+                                  search_size, max_normal_angle,
+                                  new_surfels_map);
     Launch2DKernelCUDA(kernel, live_indexmap.width(), live_indexmap.height());
   } else {
-    live_indexmap_params.CheckCpu();
-    target_indexmap_params.CheckCpu();
-    model_params.CheckCpu();
-
-    IndexMap<kCPU> live_indexmap(live_indexmap_params);
-    IndexMap<kCPU> target_indexmap(target_indexmap_params);
-    SurfelModel<kCPU> model(model_params);
+    IndexMapAccessor<kCPU> live_indexmap(live_indexmap_params);
+    IndexMapAccessor<kCPU> target_indexmap(target_indexmap_params);
+    SurfelModelAccessor<kCPU> model(model_params);
 
     LiveMergeKernel<kCPU> kernel(target_indexmap, live_indexmap, model,
-                                 search_size, max_normal_angle);
+                                 search_size, max_normal_angle,
+                                 new_surfels_map);
     Launch2DKernelCPU(kernel, live_indexmap.width(), live_indexmap.height());
   }
 }

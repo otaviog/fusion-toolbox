@@ -31,12 +31,13 @@ class SurfelRender(tenviz.DrawProgram):
 
             self['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-            self['in_pos'] = surfel_model.points
+            self['in_pos'] = surfel_model.positions
             self['in_normal'] = surfel_model.normals
             self['in_color'] = surfel_model.colors
             self['in_radius'] = surfel_model.radii
-            self['in_conf'] = surfel_model.confs
-            self['in_time'] = surfel_model.times
+            self['in_conf'] = surfel_model.confidences
+            if surfel_model.times is not None:
+                self['in_time'] = surfel_model.times
             self['in_mask'] = surfel_model.active_mask_gl
             self._max_conf = 0
 

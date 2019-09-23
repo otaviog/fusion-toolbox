@@ -5,14 +5,14 @@
 
 namespace fiontb {
 template <Device dev>
-struct SurfelModel {
+struct SurfelModelAccessor {
   typename Accessor<dev, float, 2>::T positions;
   typename Accessor<dev, float, 1>::T confidences;
   typename Accessor<dev, float, 2>::T normals;
   typename Accessor<dev, float, 1>::T radii;
   typename Accessor<dev, uint8_t, 2>::T colors;
 
-  SurfelModel(const SurfelModelParams &params)
+  SurfelModelAccessor(const MappedSurfelModel &params)
       : positions(Accessor<dev, float, 2>::Get(params.positions)),
         confidences(Accessor<dev, float, 1>::Get(params.confidences)),
         normals(Accessor<dev, float, 2>::Get(params.normals)),
@@ -48,21 +48,20 @@ struct SurfelModel {
     colors[idx][1] = uint8_t(value[1]);
     colors[idx][2] = uint8_t(value[2]);
   }
-
 };
 
 template <Device dev>
-struct IndexMap {
+struct IndexMapAccessor {
   typename Accessor<dev, float, 3>::T position_confidence;
   typename Accessor<dev, float, 3>::T normal_radius;
-  typename Accessor<dev, float, 3>::T color;
+  typename Accessor<dev, uint8_t, 3>::T color;
   typename Accessor<dev, int32_t, 3>::T indexmap;
 
-  IndexMap(const IndexMapParams &params)
+  IndexMapAccessor(const IndexMap &params)
       : position_confidence(
             Accessor<dev, float, 3>::Get(params.position_confidence)),
         normal_radius(Accessor<dev, float, 3>::Get(params.normal_radius)),
-        color(Accessor<dev, float, 3>::Get(params.color)),
+        color(Accessor<dev, uint8_t, 3>::Get(params.color)),
         indexmap(Accessor<dev, int32_t, 3>::Get(params.indexmap)) {}
 
   FTB_DEVICE_HOST inline bool empty(int row, int col) const {
@@ -72,7 +71,7 @@ struct IndexMap {
   FTB_DEVICE_HOST inline int32_t index(int row, int col) const {
     return indexmap[row][col][0];
   }
-  
+
   FTB_DEVICE_HOST inline Vector<float, 3> position(int row, int col) const {
     const auto acc = position_confidence[row][col];
     return Vector<float, 3>(acc[0], acc[1], acc[2]);

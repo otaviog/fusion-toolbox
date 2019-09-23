@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import tenviz
 
 from fiontb.frame import Frame
-from fiontb._cfiontb import IndexMapParams
 
 _SHADER_DIR = Path(__file__).parent / "shaders"
 
