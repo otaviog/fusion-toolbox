@@ -40,8 +40,8 @@ fiontb.pose.icp.geometric2:
 fiontb.pose.icp.multiscale-geometric:
 	python3 -m fiontb.pose._test.test_icp multiscale-geometric
 
-fiontb.pose.icp.intensity:
-	python3 -m fiontb.pose._test.test_icp intensity
+fiontb.pose.icp.color:
+	python3 -m fiontb.pose._test.test_icp color
 
 fiontb.pose.autogradicp.geometric:
 	python3 -m fiontb.pose._test.test_autogradicp geometric --profile=True

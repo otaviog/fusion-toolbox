@@ -15,12 +15,13 @@ struct ICPJacobian {
                                 const torch::Tensor params,
                                 torch::Tensor jacobian, torch::Tensor residual);
 
-  static void EstimateIntensity(
+  static void EstimateHybrid(
       const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
       const torch::Tensor tgt_image, const torch::Tensor tgt_grad_image,
       const torch::Tensor tgt_mask, const torch::Tensor src_points,
       const torch::Tensor src_intensity, const torch::Tensor src_mask,
       const torch::Tensor kcam, const torch::Tensor rt_cam,
+      float geom_weight, float feat_weight,
       torch::Tensor jacobian, torch::Tensor residual);
 };
 }  // namespace fiontb

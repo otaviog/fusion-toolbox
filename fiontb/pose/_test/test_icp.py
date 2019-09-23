@@ -3,13 +3,14 @@ import argparse
 
 import cv2
 import torch
-import matplotlib.pyplot as plt
+from torchvision.transforms import ToTensor
+import fire
 
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
 from fiontb.filtering import bilateral_depth_filter
 from fiontb.viz.show import show_pcls
-
+from fiontb.viz.datasetviewer import DatasetViewer
 from fiontb.pose.icp import (ICPOdometry, MultiscaleICPOdometry)
 
 _TEST_DATA = Path(__file__).parent
@@ -27,162 +28,136 @@ def _prepare_frame(frame, bi_filter=True):
     return frame
 
 
-def _test_geometric1():
-    dataset = load_ftb(_TEST_DATA / "sample1")
+class Tests:
+    def geometric1(self):
+        dataset = load_ftb(_TEST_DATA / "sample1")
 
-    icp = ICPOdometry(15)
-    device = "cuda:0"
+        icp = ICPOdometry(15)
+        device = "cuda:0"
 
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
+        dataset.get_info(0).rt_cam.matrix = torch.eye(4)
 
-    frame = dataset[0]
-    next_frame = dataset[5]
+        frame = dataset[0]
+        next_frame = dataset[5]
 
-    frame = _prepare_frame(frame)
-    next_frame = _prepare_frame(next_frame)
+        frame = _prepare_frame(frame)
+        next_frame = _prepare_frame(next_frame)
 
-    fpcl = FramePointCloud.from_frame(frame)
-    next_fpcl = FramePointCloud.from_frame(next_frame)
-
-    relative_rt = icp.estimate(fpcl.points.to(device),
-                               fpcl.normals.to(device),
-                               fpcl.mask.to(device),
-                               next_fpcl.points.to(device),
-                               next_fpcl.mask.to(device),
-                               next_fpcl.kcam)
-
-    pcl0 = fpcl.unordered_point_cloud(world_space=False)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl2 = pcl1.clone()
-    pcl2 = pcl2.transform(relative_rt.cpu())
-    show_pcls([pcl0, pcl1, pcl2])
-
-
-def _test_geometric2():
-    from fiontb.viz.datasetviewer import DatasetViewer
-
-    dataset = load_ftb(_TEST_DATA / "sample1")
-
-    icp = ICPOdometry(15)
-    device = "cuda:0"
-
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
-    prev_frame = _prepare_frame(dataset[0])
-    prev_fpcl = FramePointCloud.from_frame(prev_frame)
-
-    for i in range(1, len(dataset)):
-        frame = _prepare_frame(dataset[i])
         fpcl = FramePointCloud.from_frame(frame)
+        next_fpcl = FramePointCloud.from_frame(next_frame)
 
-        relative_rt = icp.estimate(prev_fpcl.points.to(device),
-                                   prev_fpcl.normals.to(device),
-                                   prev_fpcl.mask.to(device),
-                                   fpcl.points.to(device),
+        relative_rt = icp.estimate(fpcl.points.to(device),
+                                   fpcl.normals.to(device),
                                    fpcl.mask.to(device),
-                                   fpcl.kcam)
-        relative_rt = relative_rt.cpu()
-        dataset.get_info(
-            i).rt_cam = dataset[i-1].info.rt_cam.integrate(relative_rt)
+                                   next_fpcl.points.to(device),
+                                   next_fpcl.mask.to(device),
+                                   next_fpcl.kcam)
 
-        prev_frame = frame
-        prev_fpcl = fpcl
+        pcl0 = fpcl.unordered_point_cloud(world_space=False)
+        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
+        pcl2 = pcl1.clone()
+        pcl2 = pcl2.transform(relative_rt.cpu())
+        show_pcls([pcl0, pcl1, pcl2])
 
-    viewer = DatasetViewer(dataset)
-    viewer.run()
+    def geometric2(self):
+        dataset = load_ftb(_TEST_DATA / "sample1")
 
+        icp = ICPOdometry(15)
+        device = "cuda:0"
 
-def _test_multiscale_geometric():
-    dataset = load_ftb(_TEST_DATA / "sample1")
+        dataset.get_info(0).rt_cam.matrix = torch.eye(4)
+        prev_frame = _prepare_frame(dataset[0])
+        prev_fpcl = FramePointCloud.from_frame(prev_frame)
 
-    icp = MultiscaleICPOdometry([(0.25, 15), (0.5, 10), (1.0, 5)])
-    device = "cuda:0"
+        for i in range(1, len(dataset)):
+            frame = _prepare_frame(dataset[i])
+            fpcl = FramePointCloud.from_frame(frame)
 
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
+            relative_rt = icp.estimate(prev_fpcl.points.to(device),
+                                       prev_fpcl.normals.to(device),
+                                       prev_fpcl.mask.to(device),
+                                       fpcl.points.to(device),
+                                       fpcl.mask.to(device),
+                                       fpcl.kcam)
+            relative_rt = relative_rt.cpu()
+            dataset.get_info(
+                i).rt_cam = dataset[i-1].info.rt_cam.integrate(relative_rt)
 
-    frame = dataset[0]
-    next_frame = dataset[1]
+            prev_frame = frame
+            prev_fpcl = fpcl
 
-    frame = _prepare_frame(frame)
-    next_frame = _prepare_frame(next_frame)
+        viewer = DatasetViewer(dataset)
+        viewer.run()
 
-    fpcl = FramePointCloud.from_frame(frame)
-    next_fpcl = FramePointCloud.from_frame(next_frame)
+    def multiscale_geometric(self):
+        dataset = load_ftb(_TEST_DATA / "sample1")
 
-    relative_rt = icp.estimate(fpcl.points.to(device),
-                               fpcl.normals.to(device),
-                               fpcl.mask.to(device),
-                               next_fpcl.points.to(device),
-                               next_fpcl.mask.to(device),
-                               next_fpcl.kcam)
+        icp = MultiscaleICPOdometry([(0.25, 15), (0.5, 10), (1.0, 5)])
+        device = "cuda:0"
 
-    pcl0 = fpcl.unordered_point_cloud(world_space=True)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl1.transform(relative_rt.cpu())
-    show_pcls([pcl0, pcl1])
+        dataset.get_info(0).rt_cam.matrix = torch.eye(4)
 
+        frame = dataset[0]
+        next_frame = dataset[1]
 
-def _test_intensity():
-    dataset = load_ftb(_TEST_DATA / "sample2")
+        frame = _prepare_frame(frame)
+        next_frame = _prepare_frame(next_frame)
 
-    device = "cuda:0"
+        fpcl = FramePointCloud.from_frame(frame)
+        next_fpcl = FramePointCloud.from_frame(next_frame)
 
-    dataset.get_info(0).rt_cam.matrix = torch.eye(4)
+        relative_rt = icp.estimate(fpcl.points.to(device),
+                                   fpcl.normals.to(device),
+                                   fpcl.mask.to(device),
+                                   next_fpcl.points.to(device),
+                                   next_fpcl.mask.to(device),
+                                   next_fpcl.kcam)
 
-    frame = dataset[0]
-    next_frame = dataset[1]
+        pcl0 = fpcl.unordered_point_cloud(world_space=True)
+        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
+        pcl1.transform(relative_rt.cpu())
+        show_pcls([pcl0, pcl1])
 
-    frame = _prepare_frame(frame, False)
-    next_frame = _prepare_frame(next_frame, False)
+    def color(self):
+        dataset = load_ftb(_TEST_DATA / "sample2")
 
-    fpcl = FramePointCloud.from_frame(frame)
-    next_fpcl = FramePointCloud.from_frame(next_frame)
+        device = "cuda:0"
 
-    image = torch.from_numpy(cv2.cvtColor(
-        frame.rgb_image, cv2.COLOR_RGB2GRAY)).float() / 255.0
-    next_image = torch.from_numpy(cv2.cvtColor(
-        next_frame.rgb_image, cv2.COLOR_RGB2GRAY)).float() / 255.0
+        dataset.get_info(0).rt_cam.matrix = torch.eye(4)
 
-    if False:
-        plt.figure()
-        plt.imshow(next_image)
-        plt.figure()
-        plt.imshow(image)
-        plt.show()
+        frame = dataset[0]
+        next_frame = dataset[1]
 
-    image = image.to(device)
-    next_image = next_image.to(device)
+        frame = _prepare_frame(frame, False)
+        next_frame = _prepare_frame(next_frame, False)
 
-    icp = ICPOdometry(15, use_cpu=True)
-    relative_rt = icp.estimate(fpcl.points.to(device),
-                               fpcl.normals.to(device),
-                               fpcl.mask.to(device),
-                               next_fpcl.points.to(device),
-                               next_fpcl.mask.to(device),
-                               next_fpcl.kcam,
-                               target_image=image,
-                               source_intensity=next_image.flatten()
-                               )
+        fpcl = FramePointCloud.from_frame(frame)
+        next_fpcl = FramePointCloud.from_frame(next_frame)
 
-    pcl0 = fpcl.unordered_point_cloud(world_space=False)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl2 = pcl1.clone()
-    pcl2.transform(relative_rt.cpu())
-    show_pcls([pcl0, pcl1, pcl2])
+        to_tensor = ToTensor()
+        image = to_tensor(cv2.cvtColor(frame.rgb_image, cv2.COLOR_RGB2GRAY))
+        next_image = to_tensor(cv2.cvtColor(next_frame.rgb_image, cv2.COLOR_RGB2GRAY))
 
+        image = image.to(device)
+        next_image = next_image.to(device)
 
-def _main():
-    parser = argparse.ArgumentParser()
-    tests = {
-        'geometric1': _test_geometric1,
-        'geometric2': _test_geometric2,
-        'multiscale-geometric': _test_multiscale_geometric,
-        'intensity': _test_intensity
-    }
-    parser.add_argument("test", choices=list(tests.keys()))
-    args = parser.parse_args()
+        icp = ICPOdometry(15, use_cpu=True)
+        relative_rt = icp.estimate(fpcl.points.to(device),
+                                   fpcl.normals.to(device),
+                                   fpcl.mask.to(device),
+                                   next_fpcl.points.to(device),
+                                   next_fpcl.mask.to(device),
+                                   next_fpcl.kcam,
+                                   target_image=image,
+                                   source_intensity=next_image.flatten()
+                                   )
 
-    tests[args.test]()
+        pcl0 = fpcl.unordered_point_cloud(world_space=False)
+        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
+        pcl2 = pcl1.clone()
+        pcl2.transform(relative_rt.cpu())
+        show_pcls([pcl0, pcl1, pcl2])
 
 
 if __name__ == '__main__':
-    _main()
+    fire.Fire(Tests)

@@ -1,3 +1,5 @@
+#include "matching.hpp"
+
 #include "camera.hpp"
 #include "error.hpp"
 #include "kernel.hpp"
@@ -89,18 +91,20 @@ void LaunchCPU(MatchPointsDenseKernel<kCPU, scalar_t> kernel, int size) {
 
 }  // namespace
 
-void MatchDensePoints(const torch::Tensor target_points,
+void Matching::MatchDensePoints(const torch::Tensor target_points,
                       const torch::Tensor target_mask,
                       const torch::Tensor source_points,
                       const torch::Tensor kcam, const torch::Tensor rt_cam,
                       torch::Tensor out_point, torch::Tensor out_index) {
-  if (target_points.is_cuda()) {
-    FTB_CHECK(source_points.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(kcam.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(rt_cam.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(out_point.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(out_index.is_cuda(), "Expected a cuda tensor");
+  const auto reference_dev = target_points.device();
+  FTB_CHECK_DEVICE(reference_dev, target_points);
+  FTB_CHECK_DEVICE(reference_dev, source_points);
+  FTB_CHECK_DEVICE(reference_dev, kcam);
+  FTB_CHECK_DEVICE(reference_dev, rt_cam);
+  FTB_CHECK_DEVICE(reference_dev, out_point);
+  FTB_CHECK_DEVICE(reference_dev, out_index);
 
+  if (target_points.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(
         target_points.scalar_type(), "MatchDensePoints", ([&] {
           MatchPointsDenseKernel<kCUDA, scalar_t> kernel(
@@ -111,12 +115,6 @@ void MatchDensePoints(const torch::Tensor target_points,
           LaunchCUDA(kernel, source_points.size(0));
         }));
   } else {
-    FTB_CHECK(!source_points.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!kcam.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!rt_cam.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(!out_point.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(!out_index.is_cuda(), "Expected a cuda tensor");
-
     AT_DISPATCH_ALL_TYPES(
         target_points.scalar_type(), "MatchDensePoints", ([&] {
           MatchPointsDenseKernel<kCPU, scalar_t> kernel(

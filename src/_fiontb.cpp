@@ -9,6 +9,7 @@
 #include "dense_volume.hpp"
 #include "downsample.hpp"
 #include "filtering.hpp"
+#include "fsf.hpp"
 #include "icpodometry.hpp"
 #include "indexmap.hpp"
 #include "matching.hpp"
@@ -17,7 +18,6 @@
 #include "so3.hpp"
 #include "sparse_volume.hpp"
 #include "surfel_fusion.hpp"
-#include "fsf.hpp"
 #include "trigoctree.hpp"
 #include "tsdf_fusion.hpp"
 
@@ -51,7 +51,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("fuse_dense_volume", &FuseDenseVolume);
   m.def("fuse_sparse_volume", &FuseSparseVolume);
 
-  m.def("match_dense_points", &MatchDensePoints);
+  py::class_<Matching>(m, "Matching")
+      .def_static("match_dense_points", &Matching::MatchDensePoints);
 
   m.def("query_closest_points", &QueryClosestPoints);
 
@@ -71,7 +72,6 @@ PYBIND11_MODULE(_cfiontb, m) {
       .def_property("width", &IndexMap::get_width, nullptr)
       .def_property("height", &IndexMap::get_height, nullptr)
       .def_property("device", &IndexMap::get_device, nullptr);
-      
 
   py::class_<MappedSurfelModel>(m, "MappedSurfelModel")
       .def(py::init())
@@ -81,14 +81,13 @@ PYBIND11_MODULE(_cfiontb, m) {
       .def_readwrite("radii", &MappedSurfelModel::radii)
       .def_readwrite("colors", &MappedSurfelModel::colors);
 
-  py::class_<FSFOp>(m, "FSFOp")
-      .def_static("merge_live", &FSFOp::MergeLive);
+  py::class_<FSFOp>(m, "FSFOp").def_static("merge_live", &FSFOp::MergeLive);
 
   m.def("raster_indexmap", &RasterIndexmap);
 
   py::class_<ICPJacobian>(m, "ICPJacobian")
       .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)
-      .def_static("estimate_intensity", &ICPJacobian::EstimateIntensity);
+      .def_static("estimate_intensity", &ICPJacobian::EstimateHybrid);
 
   m.def("calc_sobel_gradient", &CalcSobelGradient);
 
