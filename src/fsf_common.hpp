@@ -1,4 +1,4 @@
-#include "surfel_fusion.hpp"
+#include "fsf.hpp"
 
 #include "accessor.hpp"
 #include "eigen_common.hpp"

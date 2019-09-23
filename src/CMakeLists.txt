@@ -16,7 +16,7 @@ cuda_add_library(fiontb
   kernel_surfel_intra_merge.cu
   kernel_surfel_live_merge.cu
   kernel_surfel_space_carving.cu
-  featsurfel_live_merge.cu
+  fsf_live_merge.cu
   kernel_indexmap.cu  
   icp_jacobian.cu
   sobel_gradient.cu

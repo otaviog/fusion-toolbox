@@ -1,6 +1,7 @@
 #pragma once
 
 #include <torch/torch.h>
+#include "accessor.hpp"
 
 namespace fiontb {
 torch::Tensor BilateralDepthFilter(const torch::Tensor &input,

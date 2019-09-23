@@ -196,18 +196,15 @@ void _EstimateNormals(const torch::Tensor xyz_image,
 void EstimateNormals(const torch::Tensor xyz_image,
                      const torch::Tensor mask_image, torch::Tensor out_normals,
                      EstimateNormalsMethod method) {
+  FTB_CHECK_DEVICE(xyz_image.device(), mask_image);
+  FTB_CHECK_DEVICE(xyz_image.device(), out_normals);
+  
   if (xyz_image.is_cuda()) {
-    FTB_CHECK(mask_image.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(out_normals.is_cuda(), "Expected a cuda tensor");
-
     AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "EstimateNormals", [&] {
       _EstimateNormals<kCUDA, scalar_t>(xyz_image, mask_image, out_normals,
                                         method);
     });
   } else {
-    FTB_CHECK(!mask_image.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!out_normals.is_cuda(), "Expected a cpu tensor");
-
     AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "EstimateNormals", [&] {
       _EstimateNormals<kCPU, scalar_t>(xyz_image, mask_image, out_normals,
                                        method);

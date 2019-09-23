@@ -17,6 +17,7 @@
 #include "so3.hpp"
 #include "sparse_volume.hpp"
 #include "surfel_fusion.hpp"
+#include "fsf.hpp"
 #include "trigoctree.hpp"
 #include "tsdf_fusion.hpp"
 
@@ -80,8 +81,8 @@ PYBIND11_MODULE(_cfiontb, m) {
       .def_readwrite("radii", &MappedSurfelModel::radii)
       .def_readwrite("colors", &MappedSurfelModel::colors);
 
-  py::class_<FeatSurfel>(m, "FeatSurfel")
-      .def_static("merge_live", &FeatSurfel::MergeLive);
+  py::class_<FSFOp>(m, "FSFOp")
+      .def_static("merge_live", &FSFOp::MergeLive);
 
   m.def("raster_indexmap", &RasterIndexmap);
 

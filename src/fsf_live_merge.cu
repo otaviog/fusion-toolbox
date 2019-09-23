@@ -1,4 +1,4 @@
-#include "featsurfel.hpp"
+#include "fsf_common.hpp"
 
 #include "kernel.hpp"
 #include "math.hpp"
@@ -94,11 +94,10 @@ struct LiveMergeKernel {
 
 }  // namespace
 
-void FeatSurfel::MergeLive(const IndexMap &target_indexmap_params,
-                           const IndexMap &live_indexmap_params,
-                           const MappedSurfelModel &model_params,
-                           int search_size, float max_normal_angle,
-                           torch::Tensor new_surfels_map) {
+void FSFOp::MergeLive(const IndexMap &target_indexmap_params,
+                      const IndexMap &live_indexmap_params,
+                      const MappedSurfelModel &model_params, int search_size,
+                      float max_normal_angle, torch::Tensor new_surfels_map) {
   auto reference_dev = target_indexmap_params.get_device();
   live_indexmap_params.CheckDevice(reference_dev);
   target_indexmap_params.CheckDevice(reference_dev);

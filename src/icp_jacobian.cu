@@ -94,6 +94,7 @@ void ICPJacobian::EstimateGeometric(
     const torch::Tensor src_mask, const torch::Tensor kcam,
     const torch::Tensor rt_cam, torch::Tensor jacobian,
     torch::Tensor residual) {
+  
   if (src_points.is_cuda()) {
     FTB_CHECK(tgt_points.is_cuda(), "Expected a cuda tensor");
     FTB_CHECK(tgt_normals.is_cuda(), "Expected a cuda tensor");

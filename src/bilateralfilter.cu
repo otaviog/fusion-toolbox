@@ -84,10 +84,10 @@ torch::Tensor BilateralDepthFilter(const torch::Tensor &input,
   const float inv_sigma_color_sqr = 1.0 / (sigma_color * sigma_color);
   const float inv_sigma_space_sqr = 1.0 / (sigma_space * sigma_space);
 
+  FTB_CHECK_DEVICE(input.device(), mask);
+  FTB_CHECK_DEVICE(input.device(), result);
+  
   if (input.is_cuda()) {
-    FTB_CHECK(mask.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(result.is_cuda(), "Expected a cuda tensor");
-
     AT_DISPATCH_ALL_TYPES(
         input.scalar_type(), "BilateralFilterDepthImage_gpu", ([&] {
           BilateralDepthFilterKernel<kCUDA, scalar_t> kernel(
@@ -96,9 +96,6 @@ torch::Tensor BilateralDepthFilter(const torch::Tensor &input,
           Launch2DKernelCUDA(kernel, input.size(1), input.size(0));
         }));
   } else {
-    FTB_CHECK(!mask.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!result.is_cuda(), "Expected a cpu tensor");
-
     AT_DISPATCH_ALL_TYPES(
         input.scalar_type(), "BilateralFilterDepthImage_cpu", ([&] {
           BilateralDepthFilterKernel<kCPU, scalar_t> kernel(

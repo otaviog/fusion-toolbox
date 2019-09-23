@@ -70,11 +70,11 @@ struct ForwardKernel {
 void FeatureMapOp::Forward(const torch::Tensor feature_map,
                            const torch::Tensor uv, torch::Tensor out_features,
                            torch::Tensor out_bound_mask) {
-  if (feature_map.is_cuda()) {
-    FTB_CHECK(uv.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(out_features.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(out_bound_mask.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK_DEVICE(feature_map.device(), uv);
+  FTB_CHECK_DEVICE(feature_map.device(), out_features);
+  FTB_CHECK_DEVICE(feature_map.device(), out_bound_mask);
 
+  if (feature_map.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
         feature_map.scalar_type(), "MatchDensePoints", ([&] {
           ForwardKernel<kCUDA, scalar_t> kernel(feature_map, uv, out_features,
@@ -82,10 +82,6 @@ void FeatureMapOp::Forward(const torch::Tensor feature_map,
           Launch1DKernelCUDA(kernel, uv.size(0));
         }));
   } else {
-    FTB_CHECK(!uv.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!out_features.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!out_bound_mask.is_cuda(), "Expected a cpu tensor");
-
     AT_DISPATCH_FLOATING_TYPES(
         feature_map.scalar_type(), "MatchDensePoints", ([&] {
           ForwardKernel<kCPU, scalar_t> kernel(feature_map, uv, out_features,
@@ -109,6 +105,7 @@ struct BackwardKernel {
         uv(Accessor<dev, scalar_t, 2>::Get(uv)),
         dl_value(Accessor<dev, scalar_t, 2>::Get(dl_value)),
         dl_uv(Accessor<dev, scalar_t, 2>::Get(dl_uv)) {}
+
 #pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(int idx) {
     const scalar_t u = uv[idx][0];
@@ -154,11 +151,11 @@ struct BackwardKernel {
 void FeatureMapOp::Backward(const torch::Tensor feature_map,
                             const torch::Tensor uv,
                             const torch::Tensor dl_value, torch::Tensor dl_uv) {
-  if (feature_map.is_cuda()) {
-    FTB_CHECK(uv.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(dl_value.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(dl_uv.is_cuda(), "Expected a cuda tensor");
+  FTB_CHECK_DEVICE(feature_map.device(), uv);
+  FTB_CHECK_DEVICE(feature_map.device(), dl_value);
+  FTB_CHECK_DEVICE(feature_map.device(), dl_uv);
 
+  if (feature_map.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(feature_map.scalar_type(), "MatchDensePoints",
                                ([&] {
                                  BackwardKernel<kCUDA, scalar_t> kernel(
@@ -166,10 +163,6 @@ void FeatureMapOp::Backward(const torch::Tensor feature_map,
                                  Launch1DKernelCUDA(kernel, uv.size(0));
                                }));
   } else {
-    FTB_CHECK(!uv.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!dl_value.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!dl_uv.is_cuda(), "Expected a cpu tensor");
-
     AT_DISPATCH_FLOATING_TYPES(feature_map.scalar_type(), "MatchDensePoints",
                                ([&] {
                                  BackwardKernel<kCPU, scalar_t> kernel(
