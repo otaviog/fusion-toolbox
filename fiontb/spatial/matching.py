@@ -1,7 +1,7 @@
 import torch
 
 from fiontb._utils import empty_ensured_size
-from fiontb._cfiontb import match_dense_points
+from fiontb._cfiontb import Matching
 
 
 class DensePointMatcher:
@@ -17,8 +17,8 @@ class DensePointMatcher:
         self.out_index = empty_ensured_size(self.out_index, source_points.size(0),
                                             dtype=torch.int64, device=device)
 
-        match_dense_points(target_points, target_mask, source_points,
-                           kcam.matrix, rt_cam,
-                           self.out_point, self.out_index)
+        Matching.match_dense_points(target_points, target_mask, source_points,
+                                    kcam.matrix, rt_cam,
+                                    self.out_point, self.out_index)
 
         return self.out_point, self.out_index

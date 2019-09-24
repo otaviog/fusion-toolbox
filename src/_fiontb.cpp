@@ -87,7 +87,7 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   py::class_<ICPJacobian>(m, "ICPJacobian")
       .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)
-      .def_static("estimate_intensity", &ICPJacobian::EstimateHybrid);
+      .def_static("estimate_hybrid", &ICPJacobian::EstimateHybrid);
 
   m.def("calc_sobel_gradient", &CalcSobelGradient);
 

@@ -144,7 +144,10 @@ template <typename scalar_t>
 FTB_DEVICE_HOST scalar_t DxEuclideanDistance(scalar_t lhs_nth_feat,
                                              scalar_t rhs_nth_feat,
                                              scalar_t forward_result) {
-  return (rhs_nth_feat - lhs_nth_feat) / forward_result;
+  if (forward_result > 0) 
+	return (rhs_nth_feat - lhs_nth_feat) / forward_result;
+  else
+	return 0;
 }
 
 template <Device dev, typename scalar_t>
@@ -172,7 +175,7 @@ struct HybridJacobianKernel {
       scalar_t feat_weight, torch::Tensor jacobian, torch::Tensor residual)
       : tgt(tgt),
         tgt_featmap(tgt_featmap),
-        src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
+	src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
         src_feats(Accessor<dev, scalar_t, 2>::Get(src_feats)),
         src_mask(Accessor<dev, bool, 1>::Get(src_mask)),
         kcam(kcam),
@@ -183,11 +186,8 @@ struct HybridJacobianKernel {
         residual(Accessor<dev, scalar_t, 1>::Get(residual)) {}
 
   FTB_DEVICE_HOST void ComputeGeometricTerm(
-      const Vector<scalar_t, 3> &Tsrc_point, scalar_t u, scalar_t v,
+      const Vector<scalar_t, 3> &Tsrc_point, int ui, int vi,
       scalar_t out_jacobian[6], scalar_t &out_residual) {
-    const int ui = int(u + 0.5);
-    const int vi = int(v + 0.5);
-
     const Vector<scalar_t, 3> point0(to_vec3<scalar_t>(tgt.points[vi][ui]));
     const Vector<scalar_t, 3> normal0(to_vec3<scalar_t>(tgt.normals[vi][ui]));
 
@@ -265,16 +265,18 @@ struct HybridJacobianKernel {
     scalar_t u, v;
     kcam.Project(Tsrc_point, u, v);
 
-    const int ui = int(u);
-    const int vi = int(v);
+    const int ui = int(round(u));
+    const int vi = int(round(v));
     if (ui < 0 || ui >= width || vi < 0 || vi >= height) return;
     if (tgt.empty(vi, ui)) return;
-
+	
     scalar_t feat_jacobian[6], feat_residual;
-    ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
-
+	feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] = feat_jacobian[4] = feat_jacobian[5] = 0;
+	feat_residual = 0;
+	//ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
+	
     scalar_t geom_jacobian[6], geom_residual;
-    ComputeGeometricTerm(Tsrc_point, u, v, geom_jacobian, geom_residual);
+    ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);
 
 #pragma unroll
     for (int k = 0; k < 6; ++k) {
@@ -290,16 +292,15 @@ struct HybridJacobianKernel {
 
 void ICPJacobian::EstimateHybrid(
     const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
-    const torch::Tensor tgt_feats, const torch::Tensor tgt_grad_image,
-    const torch::Tensor tgt_mask, const torch::Tensor src_points,
-    const torch::Tensor src_feats, const torch::Tensor src_mask,
-    const torch::Tensor kcam, const torch::Tensor rt_cam, float geom_weight,
-    float feat_weight, torch::Tensor jacobian, torch::Tensor residual) {
+    const torch::Tensor tgt_feats, const torch::Tensor tgt_mask,
+    const torch::Tensor src_points, const torch::Tensor src_feats,
+    const torch::Tensor src_mask, const torch::Tensor kcam,
+    const torch::Tensor rt_cam, float geom_weight, float feat_weight,
+    torch::Tensor jacobian, torch::Tensor residual) {
   const auto reference_dev = src_points.device();
   FTB_CHECK_DEVICE(reference_dev, tgt_points);
   FTB_CHECK_DEVICE(reference_dev, tgt_normals);
   FTB_CHECK_DEVICE(reference_dev, tgt_feats);
-  FTB_CHECK_DEVICE(reference_dev, tgt_grad_image);
   FTB_CHECK_DEVICE(reference_dev, tgt_mask);
 
   FTB_CHECK_DEVICE(reference_dev, src_feats);
@@ -323,7 +324,7 @@ void ICPJacobian::EstimateHybrid(
         }));
   } else {
     AT_DISPATCH_FLOATING_TYPES(src_points.scalar_type(), "EstimateHybrid", [&] {
-      PointGrid<kCPU, scalar_t> tgt(tgt_points, tgt_normals, tgt_mask);
+		PointGrid<kCPU, scalar_t> tgt(tgt_points, tgt_normals, tgt_mask);
       HybridJacobianKernel<kCPU, scalar_t> kernel(
           tgt, FeatureMap<kCPU, scalar_t>(tgt_feats), src_points, src_feats,
           src_mask, KCamera<kCPU, scalar_t>(kcam),

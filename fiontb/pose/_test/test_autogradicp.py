@@ -37,8 +37,8 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / "sample2")
 
-        frame = _prepare_frame(dataset[0])
-        next_frame = _prepare_frame(dataset[2])
+        frame = _prepare_frame(dataset[0], bi_filter=False)
+        next_frame = _prepare_frame(dataset[2], bi_filter=False)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)

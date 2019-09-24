@@ -23,8 +23,8 @@ struct ChannelInterpolator {
   }
 
   FTB_DEVICE_HOST scalar_t Get(int channel) const {
-    const int width = feature_map.size(1);
-    const int height = feature_map.size(0);
+    const int width = feature_map.size(2);
+    const int height = feature_map.size(1);
 
     const auto channel_map = feature_map[channel];
 

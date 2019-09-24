@@ -30,18 +30,18 @@ def _prepare_frame(frame, bi_filter=True):
 
 class Tests:
     def geometric1(self):
-        dataset = load_ftb(_TEST_DATA / "sample1")
+        dataset = load_ftb(_TEST_DATA / "sample2")
 
-        icp = ICPOdometry(15)
+        icp = ICPOdometry(25)
         device = "cuda:0"
 
         dataset.get_info(0).rt_cam.matrix = torch.eye(4)
 
         frame = dataset[0]
-        next_frame = dataset[5]
+        next_frame = dataset[1]
 
-        frame = _prepare_frame(frame)
-        next_frame = _prepare_frame(next_frame)
+        frame = _prepare_frame(frame, False)
+        next_frame = _prepare_frame(next_frame, False)
 
         fpcl = FramePointCloud.from_frame(frame)
         next_fpcl = FramePointCloud.from_frame(next_frame)
@@ -121,7 +121,7 @@ class Tests:
     def color(self):
         dataset = load_ftb(_TEST_DATA / "sample2")
 
-        device = "cuda:0"
+        device = "cpu:0"
 
         dataset.get_info(0).rt_cam.matrix = torch.eye(4)
 
@@ -135,27 +135,26 @@ class Tests:
         next_fpcl = FramePointCloud.from_frame(next_frame)
 
         to_tensor = ToTensor()
-        image = to_tensor(cv2.cvtColor(frame.rgb_image, cv2.COLOR_RGB2GRAY))
-        next_image = to_tensor(cv2.cvtColor(next_frame.rgb_image, cv2.COLOR_RGB2GRAY))
+        image = to_tensor(cv2.cvtColor(frame.rgb_image, cv2.COLOR_RGB2HSV))
+        next_image = to_tensor(cv2.cvtColor(next_frame.rgb_image, cv2.COLOR_RGB2HSV))
 
         image = image.to(device)
         next_image = next_image.to(device)
 
-        icp = ICPOdometry(15, use_cpu=True)
+        icp = ICPOdometry(15)
         relative_rt = icp.estimate(fpcl.points.to(device),
                                    fpcl.normals.to(device),
                                    fpcl.mask.to(device),
                                    next_fpcl.points.to(device),
                                    next_fpcl.mask.to(device),
                                    next_fpcl.kcam,
-                                   target_image=image,
-                                   source_intensity=next_image.flatten()
+                                   target_feats=image,
+                                   source_feats=next_image.flatten()
                                    )
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
         pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-        pcl2 = pcl1.clone()
-        pcl2.transform(relative_rt.cpu())
+        pcl2 = pcl1.transform(relative_rt.cpu())
         show_pcls([pcl0, pcl1, pcl2])
 
 

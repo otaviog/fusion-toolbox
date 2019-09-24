@@ -25,17 +25,16 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters, use_cpu=False):
+    def __init__(self, num_iters):
         self.num_iters = num_iters
 
         self.jacobian = None
         self.residual = None
         self.image_grad = None
-        self.use_cpu = use_cpu
 
     def estimate(self, target_points, target_normals, target_mask,
                  source_points, source_mask, kcam, transform=None,
-                 target_image=None, source_intensity=None):
+                 target_feats=None, source_feats=None):
         """Estimate the ICP odometry between a target points and normals in a
         grid against source points using the point-to-plane geometric
         error.
@@ -71,11 +70,7 @@ class ICPOdometry:
         """
         # assert source_points.is_cuda, "At least source_points must be a cuda tensor."
 
-        if not self.use_cpu:
-            device = source_points.device
-        else:
-            device = "cpu"
-
+        device = target_points.device
         kcam = kcam.matrix.to(device)
         if transform is None:
             transform = torch.eye(4, device=device)
@@ -90,41 +85,25 @@ class ICPOdometry:
         self.residual = empty_ensured_size(self.residual, source_points.size(0),
                                            device=device, dtype=torch.float)
 
-        geom_only = target_image is None or source_intensity is None
+        geom_only = target_feats is None or source_feats is None
 
         if not geom_only:
-            self.image_grad = empty_ensured_size(self.image_grad, target_image.size(0),
-                                                 target_image.size(1), 2,
-                                                 device="cuda:0", dtype=torch.float)
-
-            calc_sobel_gradient(target_image, self.image_grad)
-            if False:
-                import matplotlib.pyplot as plt
-                plt.figure()
-                plt.imshow(self.image_grad[:, :, 0].cpu())
-                plt.figure()
-                plt.imshow(self.image_grad[:, :, 1].cpu())
-                plt.show()
-
-        if self.use_cpu:
-            target_points = target_points.to(device)
-            target_normals = target_normals.to(device)
-            target_mask = target_mask.to(device)
-            source_points = source_points.to(device)
-            source_mask = source_mask.to(device)
+            source_feats = source_feats.view(-1, source_points.size(0))
 
         for _ in range(self.num_iters):
             if geom_only:
-                _ICPJacobian.estimate_geometric(target_points, target_normals, target_mask,
-                                                source_points, source_mask, kcam, transform,
-                                                self.jacobian, self.residual)
+                _ICPJacobian.estimate_geometric(
+                    target_points, target_normals, target_mask,
+                    source_points, source_mask, kcam, transform,
+                    self.jacobian, self.residual)
             else:
-                _ICPJacobian.estimate_intensity(
-                    target_points, target_normals, target_image,
-                    self.image_grad,
-                    target_mask, source_points, source_intensity,
-                    source_mask, kcam, transform, self.jacobian,
-                    self.residual)
+                _ICPJacobian.estimate_hybrid(
+                    target_points, target_normals, target_feats,
+                    target_mask, source_points, source_feats,
+                    source_mask, kcam, transform, 0.5, 0.5,
+                    self.jacobian, self.residual)
+
+            # import ipdb; ipdb.set_trace()
 
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
@@ -133,7 +112,7 @@ class ICPOdometry:
             Jr = Jt @ self.residual
 
             loss = (self.residual*self.residual).mean().item()
-
+            print(_, loss)
             update = torch.cholesky_solve(
                 Jr.view(-1, 1).double(), upper_JtJ).squeeze()
 
