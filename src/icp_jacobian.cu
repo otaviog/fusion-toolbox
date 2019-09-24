@@ -64,26 +64,27 @@ struct GeometricJacobianKernel {
 
     const Vector<scalar_t, 3> Tsrc_point =
         rt_cam.Transform(to_vec3<scalar_t>(src_points[ri]));
-    Eigen::Vector2i p1_proj = kcam.Project(Tsrc_point);
-    if (p1_proj[0] < 0 || p1_proj[0] >= width || p1_proj[1] < 0 ||
-        p1_proj[1] >= height)
+    Eigen::Vector2i src_uv = kcam.Project(Tsrc_point);
+    if (src_uv[0] < 0 || src_uv[0] >= width || src_uv[1] < 0 ||
+        src_uv[1] >= height)
       return;
-    if (tgt.empty(p1_proj[1], p1_proj[0])) return;
-    const Vector<scalar_t, 3> point0(
-        to_vec3<scalar_t>(tgt.points[p1_proj[1]][p1_proj[0]]));
-    const Vector<scalar_t, 3> normal0(
-        to_vec3<scalar_t>(tgt.normals[p1_proj[1]][p1_proj[0]]));
 
-    jacobian[ri][0] = normal0[0];
-    jacobian[ri][1] = normal0[1];
-    jacobian[ri][2] = normal0[2];
+    if (tgt.empty(src_uv[1], src_uv[0])) return;
+    const Vector<scalar_t, 3> tgt_point(
+        to_vec3<scalar_t>(tgt.points[src_uv[1]][src_uv[0]]));
+    const Vector<scalar_t, 3> tgt_normal(
+        to_vec3<scalar_t>(tgt.normals[src_uv[1]][src_uv[0]]));
 
-    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(normal0);
+    jacobian[ri][0] = tgt_normal[0];
+    jacobian[ri][1] = tgt_normal[1];
+    jacobian[ri][2] = tgt_normal[2];
+
+    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(tgt_normal);
     jacobian[ri][3] = rot_twist[0];
     jacobian[ri][4] = rot_twist[1];
     jacobian[ri][5] = rot_twist[2];
 
-    residual[ri] = (point0 - Tsrc_point).dot(normal0);
+    residual[ri] = (tgt_point - Tsrc_point).dot(tgt_normal);
   }
 };
 
@@ -144,10 +145,10 @@ template <typename scalar_t>
 FTB_DEVICE_HOST scalar_t DxEuclideanDistance(scalar_t lhs_nth_feat,
                                              scalar_t rhs_nth_feat,
                                              scalar_t forward_result) {
-  if (forward_result > 0) 
-	return (rhs_nth_feat - lhs_nth_feat) / forward_result;
+  if (forward_result > 0)
+    return (rhs_nth_feat - lhs_nth_feat) / forward_result;
   else
-	return 0;
+    return 0;
 }
 
 template <Device dev, typename scalar_t>
@@ -175,7 +176,7 @@ struct HybridJacobianKernel {
       scalar_t feat_weight, torch::Tensor jacobian, torch::Tensor residual)
       : tgt(tgt),
         tgt_featmap(tgt_featmap),
-	src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
+        src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
         src_feats(Accessor<dev, scalar_t, 2>::Get(src_feats)),
         src_mask(Accessor<dev, bool, 1>::Get(src_mask)),
         kcam(kcam),
@@ -269,12 +270,13 @@ struct HybridJacobianKernel {
     const int vi = int(round(v));
     if (ui < 0 || ui >= width || vi < 0 || vi >= height) return;
     if (tgt.empty(vi, ui)) return;
-	
+
     scalar_t feat_jacobian[6], feat_residual;
-	feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] = feat_jacobian[4] = feat_jacobian[5] = 0;
-	feat_residual = 0;
-	//ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
-	
+    feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] =
+        feat_jacobian[4] = feat_jacobian[5] = 0;
+    feat_residual = 0;
+    // ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
+
     scalar_t geom_jacobian[6], geom_residual;
     ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);
 
@@ -324,7 +326,7 @@ void ICPJacobian::EstimateHybrid(
         }));
   } else {
     AT_DISPATCH_FLOATING_TYPES(src_points.scalar_type(), "EstimateHybrid", [&] {
-		PointGrid<kCPU, scalar_t> tgt(tgt_points, tgt_normals, tgt_mask);
+      PointGrid<kCPU, scalar_t> tgt(tgt_points, tgt_normals, tgt_mask);
       HybridJacobianKernel<kCPU, scalar_t> kernel(
           tgt, FeatureMap<kCPU, scalar_t>(tgt_feats), src_points, src_feats,
           src_mask, KCamera<kCPU, scalar_t>(kcam),

@@ -103,7 +103,7 @@ class ICPOdometry:
                     source_mask, kcam, transform, 0.5, 0.5,
                     self.jacobian, self.residual)
 
-            # import ipdb; ipdb.set_trace()
+            import ipdb; ipdb.set_trace()
 
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
@@ -111,7 +111,7 @@ class ICPOdometry:
 
             Jr = Jt @ self.residual
 
-            loss = (self.residual*self.residual).mean().item()
+            loss = torch.pow(self.residual, 2).mean().item()
             print(_, loss)
             update = torch.cholesky_solve(
                 Jr.view(-1, 1).double(), upper_JtJ).squeeze()
