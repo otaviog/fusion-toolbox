@@ -31,8 +31,8 @@ struct KCamera {
 
     Project(point, img_x, img_y);
 
-    x = round(img_x);
-    y = round(img_y);
+    x = int(round(img_x));
+    y = int(round(img_y));
   }
 
 #ifdef __CUDACC__
@@ -87,12 +87,9 @@ struct RTCamera {
   FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 3, 1> Transform(
       const Eigen::Matrix<scalar_t, 3, 1> point) const {
     const auto mtx = rt_matrix;
-    const scalar_t px = mtx[0][0] * point[0] + mtx[0][1] * point[1] +
-                        mtx[0][2] * point[2] + mtx[0][3];
-    const scalar_t py = mtx[1][0] * point[0] + mtx[1][1] * point[1] +
-                        mtx[1][2] * point[2] + mtx[1][3];
-    const scalar_t pz = mtx[2][0] * point[0] + mtx[2][1] * point[1] +
-                        mtx[2][2] * point[2] + mtx[2][3];
+    const scalar_t px = mtx[0][0] * point[0] + mtx[0][1] * point[1] + mtx[0][2] * point[2] + mtx[0][3];
+    const scalar_t py = mtx[1][0] * point[0] + mtx[1][1] * point[1] + mtx[1][2] * point[2] + mtx[1][3];
+    const scalar_t pz = mtx[2][0] * point[0] + mtx[2][1] * point[1] + mtx[2][2] * point[2] + mtx[2][3];
 
     return Eigen::Matrix<scalar_t, 3, 1>(px, py, pz);
   }

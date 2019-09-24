@@ -15,12 +15,12 @@ struct DownsampleXYZNearestKernel {
   scalar_t inv_scale;
   typename Accessor<dev, scalar_t, 3>::T dst;
 
-  DownsampleXYZNearestKernel(const torch::Tensor xyz_img,
-                             const torch::Tensor mask, scalar_t inv_scale,
+  DownsampleXYZNearestKernel(const torch::Tensor &xyz_img,
+                             const torch::Tensor &mask, scalar_t scale,
                              torch::Tensor dst)
       : xyz_img(Accessor<dev, scalar_t, 3>::Get(xyz_img)),
         mask(Accessor<dev, bool, 2>::Get(mask)),
-        inv_scale(inv_scale),
+        inv_scale(scalar_t(1) / scale),
         dst(Accessor<dev, scalar_t, 3>::Get(dst)) {}
 
   FTB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
@@ -77,29 +77,61 @@ struct DownsampleXYZNearestKernel {
 };
 }  // namespace
 
-void DownsampleXYZ(const torch::Tensor xyz_image, const torch::Tensor mask,
-                   float scale, torch::Tensor dst, bool normalize,
-                   DownsampleXYZMethod method) {
-  if (xyz_image.is_cuda()) {
-    FTB_CHECK(mask.is_cuda(), "Expected a cuda tensor");
-    FTB_CHECK(dst.is_cuda(), "Expected a cuda tensor");
+void Downsample::DownsampleXYZ(const torch::Tensor &xyz_image,
+                               const torch::Tensor &mask, float scale,
+                               torch::Tensor dst, bool normalize,
+                               DownsampleXYZMethod method) {
+  const auto reference_dev = xyz_image.device();
+  FTB_CHECK_DEVICE(reference_dev, mask);
+  FTB_CHECK_DEVICE(reference_dev, dst);
 
-    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "Downsamble_gpu", [&] {
-      const scalar_t inv_scale = 1.0f / scale;
-      DownsampleXYZNearestKernel<kCUDA, scalar_t> kernel(xyz_image, mask,
-                                                         inv_scale, dst);
-      Launch2DKernelCUDA(kernel, xyz_image.size(1), xyz_image.size(0));
+  if (reference_dev.is_cuda()) {
+    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", [&] {
+      DownsampleXYZNearestKernel<kCUDA, scalar_t> kernel(xyz_image, mask, scale,
+                                                         dst);
+      Launch2DKernelCUDA(kernel, dst.size(1), dst.size(0));
     });
   } else {
-    FTB_CHECK(!mask.is_cuda(), "Expected a cpu tensor");
-    FTB_CHECK(!dst.is_cuda(), "Expected a cpu tensor");
-
-    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "Downsamble_gpu", [&] {
-      const scalar_t inv_scale = 1.0f / scale;
-      DownsampleXYZNearestKernel<kCPU, scalar_t> kernel(xyz_image, mask,
-                                                        inv_scale, dst);
-      Launch2DKernelCPU(kernel, xyz_image.size(1), xyz_image.size(0));
+    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", [&] {
+      DownsampleXYZNearestKernel<kCPU, scalar_t> kernel(xyz_image, mask, scale,
+                                                        dst);
+      Launch2DKernelCPU(kernel, dst.size(1), dst.size(0));
     });
+  }
+}
+
+namespace {
+template <Device dev>
+struct DownsampleMaskKernel {
+  const typename Accessor<dev, bool, 2>::T mask;
+  const float inv_scale;
+  typename Accessor<dev, bool, 2>::T dst;
+
+  DownsampleMaskKernel(const torch::Tensor &mask, float scale,
+                       torch::Tensor dst)
+      : mask(Accessor<dev, bool, 2>::Get(mask)),
+        inv_scale(1.0f / scale),
+        dst(Accessor<dev, bool, 2>::Get(dst)) {}
+
+  FTB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
+    const int src_row = int(dst_row * inv_scale),
+              src_col = int(dst_col * inv_scale);
+    dst[dst_row][dst_col] = mask[src_row][src_col];
+  }
+};
+}  // namespace
+
+void Downsample::DownsampleMask(const torch::Tensor &mask, float scale,
+                                torch::Tensor dst) {
+  const auto reference_dev = mask.device();
+  FTB_CHECK_DEVICE(reference_dev, dst);
+
+  if (reference_dev.is_cuda()) {
+    DownsampleMaskKernel<kCUDA> kernel(mask, scale, dst);
+    Launch2DKernelCUDA(kernel, dst.size(1), dst.size(0));
+  } else {
+    DownsampleMaskKernel<kCPU> kernel(mask, scale, dst);
+    Launch2DKernelCPU(kernel, dst.size(1), dst.size(0));
   }
 }
 }  // namespace fiontb

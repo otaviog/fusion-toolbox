@@ -145,8 +145,9 @@ template <typename scalar_t>
 FTB_DEVICE_HOST scalar_t DxEuclideanDistance(scalar_t lhs_nth_feat,
                                              scalar_t rhs_nth_feat,
                                              scalar_t forward_result) {
+  // TODO: Check result
   if (forward_result > 0)
-    return (rhs_nth_feat - lhs_nth_feat) / forward_result;
+    return (lhs_nth_feat - rhs_nth_feat) / forward_result;
   else
     return 0;
 }
@@ -189,19 +190,20 @@ struct HybridJacobianKernel {
   FTB_DEVICE_HOST void ComputeGeometricTerm(
       const Vector<scalar_t, 3> &Tsrc_point, int ui, int vi,
       scalar_t out_jacobian[6], scalar_t &out_residual) {
-    const Vector<scalar_t, 3> point0(to_vec3<scalar_t>(tgt.points[vi][ui]));
-    const Vector<scalar_t, 3> normal0(to_vec3<scalar_t>(tgt.normals[vi][ui]));
+    const Vector<scalar_t, 3> tgt_point(to_vec3<scalar_t>(tgt.points[vi][ui]));
+    const Vector<scalar_t, 3> tgt_normal(
+        to_vec3<scalar_t>(tgt.normals[vi][ui]));
 
-    out_jacobian[0] = normal0[0];
-    out_jacobian[1] = normal0[1];
-    out_jacobian[2] = normal0[2];
+    out_jacobian[0] = tgt_normal[0];
+    out_jacobian[1] = tgt_normal[1];
+    out_jacobian[2] = tgt_normal[2];
 
-    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(normal0);
+    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(tgt_normal);
     out_jacobian[3] = rot_twist[0];
     out_jacobian[4] = rot_twist[1];
     out_jacobian[5] = rot_twist[2];
 
-    out_residual = (point0 - Tsrc_point).dot(normal0);
+    out_residual = tgt_normal.dot(tgt_point - Tsrc_point);
   }
 
   FTB_DEVICE_HOST void ComputeFeatTerm(int ri,
@@ -230,10 +232,24 @@ struct HybridJacobianKernel {
       d_euc_v += dx_dist * dv;
     }
 
-    const Eigen::Matrix<scalar_t, 4, 1> dx_kcam(kcam.Dx_Projection(Tsrc_point));
-    const Vector<scalar_t, 3> gradk(
-        d_euc_u * dx_kcam[0], d_euc_v * dx_kcam[2],
-        d_euc_u * dx_kcam[1] + d_euc_v * dx_kcam[3]);
+	d_euc_v *= -1;
+    const Eigen::Matrix<scalar_t, 4, 1> dx_proj(kcam.Dx_Projection(Tsrc_point));
+	Vector<scalar_t, 3> gradk(
+        d_euc_u * dx_proj[0], d_euc_v * dx_proj[2],
+        d_euc_u * dx_proj[1] + d_euc_v * dx_proj[3]);
+	
+	gradk[0] = kcam.kcam_matrix[0][0]*gradk[0]
+	  + kcam.kcam_matrix[0][1]*gradk[1]
+	  + kcam.kcam_matrix[0][2]*gradk[2];
+
+	gradk[1] = kcam.kcam_matrix[1][0]*gradk[0]
+	  + kcam.kcam_matrix[1][1]*gradk[1]
+	  + kcam.kcam_matrix[1][2]*gradk[2];
+
+	gradk[2] = kcam.kcam_matrix[2][0]*gradk[0]
+	  + kcam.kcam_matrix[2][1]*gradk[1]
+	  + kcam.kcam_matrix[2][2]*gradk[2];
+	  
     out_jacobian[0] = gradk[0];
     out_jacobian[1] = gradk[1];
     out_jacobian[2] = gradk[2];
@@ -275,7 +291,7 @@ struct HybridJacobianKernel {
     feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] =
         feat_jacobian[4] = feat_jacobian[5] = 0;
     feat_residual = 0;
-    // ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
+    ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
 
     scalar_t geom_jacobian[6], geom_residual;
     ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);

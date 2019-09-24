@@ -102,5 +102,7 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);
-  m.def("downsample_xyz", &DownsampleXYZ);
+  py::class_<Downsample>(m, "Downsample")
+      .def_static("downsample_xyz", &Downsample::DownsampleXYZ)
+      .def_static("downsample_mask", &Downsample::DownsampleMask);
 }

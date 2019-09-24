@@ -6,7 +6,7 @@ import torch
 from tenviz.pose import SE3
 
 from fiontb.downsample import (
-    downsample_xyz, downsample, DownsampleXYZMethod, DownsampleMethod)
+    downsample_xyz, downsample_mask, DownsampleXYZMethod, DownsampleMethod)
 from fiontb._cfiontb import (ICPJacobian as _ICPJacobian,
                              calc_sobel_gradient)
 from fiontb._utils import empty_ensured_size
@@ -34,7 +34,8 @@ class ICPOdometry:
 
     def estimate(self, target_points, target_normals, target_mask,
                  source_points, source_mask, kcam, transform=None,
-                 target_feats=None, source_feats=None):
+                 target_feats=None, source_feats=None,
+                 geom_weight=1.0, feat_weight=1.0):
         """Estimate the ICP odometry between a target points and normals in a
         grid against source points using the point-to-plane geometric
         error.
@@ -90,6 +91,10 @@ class ICPOdometry:
         if not geom_only:
             source_feats = source_feats.view(-1, source_points.size(0))
 
+        import math
+        best_loss = math.inf
+        best_transform = None
+
         for _ in range(self.num_iters):
             if geom_only:
                 _ICPJacobian.estimate_geometric(
@@ -100,29 +105,38 @@ class ICPOdometry:
                 _ICPJacobian.estimate_hybrid(
                     target_points, target_normals, target_feats,
                     target_mask, source_points, source_feats,
-                    source_mask, kcam, transform, 0.5, 0.5,
+                    source_mask, kcam, transform, geom_weight, feat_weight,
                     self.jacobian, self.residual)
-
-            import ipdb; ipdb.set_trace()
 
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
-            upper_JtJ = torch.cholesky(JtJ.double())
-
             Jr = Jt @ self.residual
 
-            loss = torch.pow(self.residual, 2).mean().item()
-            print(_, loss)
-            update = torch.cholesky_solve(
-                Jr.view(-1, 1).double(), upper_JtJ).squeeze()
+            if False:
+                upper_JtJ = torch.cholesky(JtJ.double())
+
+                update = torch.cholesky_solve(
+                    Jr.view(-1, 1).double(), upper_JtJ).squeeze()
+            else:
+                update = JtJ.inverse() @ Jr
 
             update_matrix = SE3.exp(
                 update.cpu()).to_matrix().to(device).float()
             transform = update_matrix @ transform
 
-        return transform
+            # Uncomment the next 2 lines for optimization debug
+            loss = torch.pow(self.residual, 2).mean().item()
 
-    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None, use_color=False):
+            if loss < best_loss:
+                best_loss = loss
+                best_transform = transform
+
+            print(_, loss)
+
+        return best_transform
+
+    def estimate_frame_to_frame(self, target_frame, source_frame,
+                                transform=None, use_color=False):
         target_image = None
         source_intensity = None
 
@@ -200,14 +214,13 @@ class MultiscaleICPOdometry:
                 tgt_normals = downsample_xyz(target_normals, target_mask, scale,
                                              normalize=True,
                                              method=self.downsample_xyz_method)
-                tgt_mask = downsample(target_mask, scale,
-                                      DownsampleMethod.Nearest)
+
+                tgt_mask = downsample_mask(target_mask, scale)
 
                 src_points = downsample_xyz(source_points, source_mask, scale,
                                             normalize=False,
                                             method=self.downsample_xyz_method)
-                src_mask = downsample(
-                    source_mask, scale, DownsampleMethod.Nearest)
+                src_mask = downsample_mask(source_mask, scale)
             else:
                 tgt_points = target_points
                 tgt_normals = target_normals
