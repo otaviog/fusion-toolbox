@@ -11,7 +11,7 @@ from matplotlib.pyplot import get_cmap
 import tenviz
 
 from fiontb.frame import FramePointCloud
-from fiontb.camera import Homogeneous
+from fiontb.camera import RigidTransform
 
 
 class DatasetViewer:
@@ -55,7 +55,7 @@ class DatasetViewer:
 
         self.visited_idxs.add(idx)
 
-        world_space = Homogeneous(rt_cam.cam_to_world) @ cam_space
+        world_space = RigidTransform(rt_cam.cam_to_world) @ cam_space
 
         with self.wcontext.current():
             pcl = tenviz.create_point_cloud(world_space, colors)
@@ -111,7 +111,7 @@ class DatasetViewer:
 
         with self.context.current():
             self.tv_camera_pcl = tenviz.create_point_cloud(
-                Homogeneous(hand_matrix) @ cam_space,
+                RigidTransform(hand_matrix) @ cam_space,
                 pcl.colors)
         self.cam_viewer.get_scene().add(self.tv_camera_pcl)
 

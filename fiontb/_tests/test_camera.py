@@ -1,23 +1,35 @@
 import unittest
 
-import numpy as np
 import torch
 
-from fiontb.camera import Homogeneous, KCamera, RTCamera, Project
+from fiontb.camera import (KCamera, RTCamera, Project,
+                           IRigidTransform, RigidTransform)
 
 
 class TestCamera(unittest.TestCase):
-    def test_homogeneous(self):
-        matrix = np.random.rand(4, 4)
-        points = np.random.rand(100, 3)
+    def test_rigid_transform(self):
+        matrix = torch.rand(4, 4)
+        points = torch.rand(100, 4)
+        points[:, 3] = 1
 
-        points1 = Homogeneous(matrix) @ points
+        points1 = RigidTransform(matrix) @ points[:, :3]
 
-        points2 = np.insert(points, 3, 1, axis=1)
-        points2 = matrix @ points2.reshape(-1, 4, 1)
-        points2 = np.delete(points2, 3, 1).squeeze()
+        points2 = matrix @ points.view(-1, 4, 1)
+        points2 = points2.squeeze()[:, :3]
 
-        np.testing.assert_almost_equal(points1, points2)
+        torch.testing.assert_allclose(points1, points2)
+
+    def test_irigid_transform(self):
+        matrix = torch.rand(4, 4)
+        points = torch.rand(100, 4)
+        points[:, 3] = 1
+
+        ref_result = matrix @ points.view(-1, 4, 1)
+        ref_result = ref_result.squeeze()[:, :3]
+
+        result = IRigidTransform()(matrix) @ points[:, :3]
+
+        torch.testing.assert_allclose(ref_result, result)
 
     def test_project(self):
         proj = Project.apply

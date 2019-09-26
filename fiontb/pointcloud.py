@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from .camera import Homogeneous, normal_transform_matrix
+from .camera import RigidTransform, normal_transform_matrix
 
 
 class PointCloud:
@@ -40,7 +40,7 @@ class PointCloud:
         if self.points.size == 0:
             return
 
-        points = Homogeneous(matrix) @ self.points
+        points = RigidTransform(matrix) @ self.points
         normal_matrix = normal_transform_matrix(matrix)
 
         if self.normals is not None:

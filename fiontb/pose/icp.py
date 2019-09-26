@@ -1,8 +1,8 @@
 """Pose estimation via iterative closest points algorithm.
 """
+import math
 
 import torch
-
 from tenviz.pose import SE3
 
 from fiontb.downsample import (
@@ -32,9 +32,9 @@ class ICPOdometry:
         self.residual = None
         self.image_grad = None
 
-    def estimate(self, target_points, target_normals, target_mask,
-                 source_points, source_mask, kcam, transform=None,
-                 target_feats=None, source_feats=None,
+    def estimate(self, kcam, source_points, source_mask, source_feats=None,
+                 target_points=None, target_mask=None, target_normals=None,
+                 target_feats=None, transform=None,
                  geom_weight=1.0, feat_weight=1.0):
         """Estimate the ICP odometry between a target points and normals in a
         grid against source points using the point-to-plane geometric
@@ -72,9 +72,10 @@ class ICPOdometry:
         # assert source_points.is_cuda, "At least source_points must be a cuda tensor."
 
         device = target_points.device
+        dtype = source_points.dtype
         kcam = kcam.matrix.to(device)
         if transform is None:
-            transform = torch.eye(4, device=device)
+            transform = torch.eye(4, device=device, dtype=dtype)
         else:
             transform = transform.to(device)
 
@@ -82,16 +83,15 @@ class ICPOdometry:
         source_mask = source_mask.view(-1)
 
         self.jacobian = empty_ensured_size(self.jacobian, source_points.size(0), 6,
-                                           device=device, dtype=torch.float)
+                                           device=device, dtype=dtype)
         self.residual = empty_ensured_size(self.residual, source_points.size(0),
-                                           device=device, dtype=torch.float)
+                                           device=device, dtype=dtype)
 
         geom_only = target_feats is None or source_feats is None
 
         if not geom_only:
             source_feats = source_feats.view(-1, source_points.size(0))
 
-        import math
         best_loss = math.inf
         best_transform = None
 
@@ -112,7 +112,7 @@ class ICPOdometry:
             JtJ = Jt @ self.jacobian
             Jr = Jt @ self.residual
 
-            if False:
+            if True:
                 upper_JtJ = torch.cholesky(JtJ.double())
 
                 update = torch.cholesky_solve(
@@ -121,28 +121,29 @@ class ICPOdometry:
                 update = JtJ.inverse() @ Jr
 
             update_matrix = SE3.exp(
-                update.cpu()).to_matrix().to(device).float()
+                update.cpu()).to_matrix().to(device).to(dtype)
             transform = update_matrix @ transform
 
-            # Uncomment the next 2 lines for optimization debug
-            loss = torch.pow(self.residual, 2).mean().item()
+            # loss = torch.pow(self.residual, 2).mean().item()
+            loss = self.residual.mean().item()
 
             if loss < best_loss:
                 best_loss = loss
                 best_transform = transform
 
+            # Uncomment the next line(s) for optimization debug
             print(_, loss)
 
         return best_transform
 
-    def estimate_frame_to_frame(self, target_frame, source_frame,
-                                transform=None, use_color=False):
-        target_image = None
-        source_intensity = None
-
-        return self.estimate(target_frame.points, target_frame.normals,
-                             target_frame.mask, source_frame.points, source_frame.mask,
-                             source_frame.kcam, transform, target_image, source_intensity)
+    def estimate_frame_to_frame(self, source_frame, target_frame,
+                                transform=None, geom_weight=1.0, feat_weight=1.0):
+        return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
+                             target_points=target_frame.points,
+                             target_mask=target_frame.mask,
+                             target_normals=target_frame.normals,
+                             transform=transform,
+                             geom_weight=geom_weight, feat_weight=feat_weight)
 
 
 class MultiscaleICPOdometry:
@@ -167,9 +168,9 @@ class MultiscaleICPOdometry:
                           for scale, iters in scale_iters]
         self.downsample_xyz_method = downsample_xyz_method
 
-    def estimate(self, target_points, target_normals, target_mask,
-                 source_points, source_mask,
-                 kcam, transform=None):
+    def estimate(self, kcam, source_points, source_mask,
+                 target_points, target_mask, target_normals,
+                 transform=None):
         """Estimate the ICP odometry between a target frame points and normals
         against source points using the point-to-plane geometric
         error.
@@ -199,13 +200,14 @@ class MultiscaleICPOdometry:
             transform (:obj:`torch.Tensor`): A float [4x4] initial
              transformation matrix.
 
-        Returns: (:obj:`torch.Tensor`): A [4x4] rigid motion matrix
+        Returns: (:obj:`torch.Tensor`): A [3x4] rigid motion matrix
             that aligns source points to target points.
 
         """
 
         if transform is None:
-            transform = torch.eye(4, device=target_points.device)
+            transform = torch.eye(4, device=source_points.device,
+                                  dtype=source_points.dtype)
 
         for scale, icp_instance in self.scale_icp:
             if scale < 1.0:
@@ -230,9 +232,11 @@ class MultiscaleICPOdometry:
                 src_mask = source_mask
 
             scaled_kcam = kcam.scaled(scale)
-            transform = icp_instance.estimate(tgt_points, tgt_normals, tgt_mask,
-                                              src_points, src_mask, scaled_kcam,
-                                              transform)
+            transform = icp_instance.estimate(
+                scaled_kcam, src_points, src_mask,
+                target_points=tgt_points,
+                target_mask=tgt_mask, target_normals=tgt_normals,
+                transform=transform, geom_weight=1.0, feat_weight=0)
 
         return transform
 
@@ -240,3 +244,14 @@ class MultiscaleICPOdometry:
         return self.estimate(target_frame.points, target_frame.normals,
                              target_frame.mask, source_frame.points, source_frame.mask,
                              source_frame.kcam, transform)
+
+
+class MultiscaleFeatICPOdometry:
+    def __init__(self, scale_iters):
+        pass
+
+    def estimate(self,
+                 kcam, source_points, source_mask,
+                 target_points, target_mask, target_normals,
+                 transform=None):
+        pass

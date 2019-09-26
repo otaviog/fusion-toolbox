@@ -285,6 +285,14 @@ class FramePointCloud:
             self._normals.to(device) if self._normals is not None else None,
             self.colors.to(device) if self.colors is not None else None)
 
+    def __getitem__(self, *slices):
+        slices = slices[0]
+        return FramePointCloud(self.image_points[slices],
+                               self.mask[slices], self.kcam, rt_cam=self.rt_cam,
+                               points=self.points[slices],
+                               normals=self.normals[slices],
+                               colors=self.colors[slices])
+
 
 def estimate_normals(depth_image, frame_info, mask,
                      method=EstimateNormalsMethod.CentralDifferences,

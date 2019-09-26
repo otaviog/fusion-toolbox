@@ -50,6 +50,5 @@ class TestFiltering(unittest.TestCase):
                   torch.tensor([[15, 15],
                                 [20, 20],
                                 [5, 5]], dtype=torch.double, requires_grad=True))
-
         torch.autograd.gradcheck(feat_map, inputs, eps=1e-6, atol=1e-4,
-                                 raise_exception=False)
+                                 raise_exception=True)

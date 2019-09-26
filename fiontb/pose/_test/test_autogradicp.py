@@ -73,7 +73,7 @@ class _Tests:
         to_tensor = ToTensor()
 
         frame = dataset[0]
-        next_frame = dataset[1]
+        next_frame = dataset[2]
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
@@ -91,9 +91,7 @@ class _Tests:
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
         pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-        pcl2 = pcl1.clone()
-
-        pcl2 = pcl2.transform(relative_rt)
+        pcl2 = pcl1.transform(relative_rt)
         show_pcls([pcl0, pcl1, pcl2])
 
     def hybrid(self):
