@@ -62,6 +62,12 @@ PYBIND11_MODULE(_cfiontb, m) {
   m.def("surfel_find_live_to_model_merges", &FindLiveToModelMerges);
   m.def("surfel_find_feat_live_to_model_merges", &FindFeatLiveToModelMerges);
 
+  py::class_<SurfelAllocator>(m, "SurfelAllocator")
+      .def(py::init<int, std::string>())
+      .def("find_unactive", &SurfelAllocator::FindUnactive)
+      .def_readwrite("free_mask_byte", &SurfelAllocator::free_mask_byte)
+      .def_readwrite("free_mask_bit", &SurfelAllocator::free_mask_bit);
+
   py::class_<IndexMap>(m, "IndexMap")
       .def(py::init())
       .def("to", &IndexMap::To)
@@ -89,8 +95,6 @@ PYBIND11_MODULE(_cfiontb, m) {
       .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)
       .def_static("estimate_hybrid", &ICPJacobian::EstimateHybrid);
 
-  m.def("calc_sobel_gradient", &CalcSobelGradient);
-
   m.def("project_op_forward", &ProjectOp::Forward);
   m.def("project_op_backward", &ProjectOp::Backward);
 
@@ -99,6 +103,12 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   m.def("featuremap_op_forward", &FeatureMapOp::Forward);
   m.def("featuremap_op_backward", &FeatureMapOp::Backward);
+
+  py::class_<FeatureMap3DOp>(m, "FeatureMap3DOp")
+      .def_static("forward", &FeatureMap3DOp::Forward)
+      .def_static("compute_epsilon_distances",
+                  &FeatureMap3DOp::ComputeEpsilonDistances)
+      .def_static("backward", &FeatureMap3DOp::Backward);
 
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);

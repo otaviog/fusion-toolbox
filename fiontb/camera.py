@@ -178,7 +178,6 @@ class KCamera:
 
         return (torch.all(self.matrix == other.matrix)
                 and (self.undist_coeff == other.undist_coeff)
-                and (self.depth_radial_distortion == other.depth_radial_distortion)
                 and (self.image_size == other.image_size))
 
     def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
@@ -211,26 +210,18 @@ class RigidTransform:
 
         return points.squeeze()
 
+    def inplace(self, points):
+        points = points.view(-1, 3)
+        points @= self.matrix[:3, :3].transpose(1, 0)
+        points += self.matrix[:3, 3]
+        return points
 
-class IRigidTransform:
-    def __init__(self):
-        self.out_tensor = None
-        self.matrix = None
-
-    def __call__(self, matrix):
-        self.matrix = matrix
-        return self
-
-    def __matmul__(self, points):
+    def outplace(self, points, out):
         points = points.view(-1, 3, 1)
-        self.out_tensor = empty_ensured_size(self.out_tensor, points.size(0),
-                                             3, 1,
-                                             dtype=points.dtype,
-                                             device=points.device)
-        torch.matmul(self.matrix[:3, :3], points, out=self.out_tensor)
-        self.out_tensor += self.matrix[:3, 3].view(3, 1)
+        torch.matmul(self.matrix[:3, :3], points, out=out)
+        out += self.matrix[:3, 3].view(3, 1)
 
-        return self.out_tensor.squeeze()
+        return out.squeeze()
 
 
 def normal_transform_matrix(matrix):

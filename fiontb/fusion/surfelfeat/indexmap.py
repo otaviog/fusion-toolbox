@@ -15,10 +15,10 @@ _SHADER_DIR = Path(__file__).parent / "shaders"
 
 
 class _BaseIndexMapRaster:
-    def __init__(self, context):
-        self.context = context
+    def __init__(self, gl_context):
+        self.gl_context = gl_context
 
-        with context.current():
+        with gl_context.current():
             self.framebuffer = tenviz.create_framebuffer({
                 0: tenviz.FramebufferTarget.RGBAFloat,
                 1: tenviz.FramebufferTarget.RGBAFloat,
@@ -26,7 +26,7 @@ class _BaseIndexMapRaster:
                 3: tenviz.FramebufferTarget.RGBInt32
             })
 
-    def get(self, device=None):
+    def to_indexmap(self, device=None):
         indexmap = IndexMap()
         indexmap.position_confidence = self.framebuffer[0].to_tensor()
         indexmap.normal_radius = self.framebuffer[1].to_tensor()
@@ -57,8 +57,8 @@ class LiveIndexMapRaster(_BaseIndexMapRaster):
     framebuffers.
     """
 
-    def __init__(self, context):
-        with context.current():
+    def __init__(self, gl_context):
+        with gl_context.current():
             self.program = tenviz.DrawProgram(
                 tenviz.DrawMode.Points, _SHADER_DIR / "live_indexmap.vert",
                 _SHADER_DIR / "indexmap.frag")
@@ -67,7 +67,7 @@ class LiveIndexMapRaster(_BaseIndexMapRaster):
             self.confidences = tenviz.buffer_create()
             self.normals = tenviz.buffer_create()
             self.radii = tenviz.buffer_create()
-            self.colors = tenviz.buffer_create()
+            self.colors = tenviz.buffer_create(normalize=True)
 
             self.program['in_point'] = self.positions
             self.program['in_conf'] = self.confidences
@@ -79,7 +79,10 @@ class LiveIndexMapRaster(_BaseIndexMapRaster):
             self.program['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
             self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-        super(LiveIndexMapRaster, self).__init__(context)
+        super(LiveIndexMapRaster, self).__init__(gl_context)
+
+    _VIEW_MTX = torch.eye(4, dtype=torch.float32)
+    _VIEW_MTX[2, 2] = -1
 
     def raster(self, live_surfels, proj_matrix, width, height):
         """Raster the surfelcloud to the framebuffers.
@@ -99,19 +102,16 @@ class LiveIndexMapRaster(_BaseIndexMapRaster):
 
         """
 
-        view_mtx = torch.eye(4, dtype=torch.float32)
-        view_mtx[2, 2] = -1
-
-        with self.context.current():
+        with self.gl_context.current():
             self.positions.from_tensor(live_surfels.positions)
             self.confidences.from_tensor(live_surfels.confidences)
             self.normals.from_tensor(live_surfels.normals)
             self.radii.from_tensor(live_surfels.radii)
             self.colors.from_tensor(live_surfels.colors)
 
-        self.context.set_clear_color(0, 0, 0, 0)
-        self.context.render(proj_matrix, view_mtx, self.framebuffer,
-                            [self.program], width, height)
+        self.gl_context.set_clear_color(0, 0, 0, 0)
+        self.gl_context.render(proj_matrix, LiveIndexMapRaster._VIEW_MTX, self.framebuffer,
+                               [self.program], width, height)
 
 
 class ModelIndexMapRaster(_BaseIndexMapRaster):
@@ -128,26 +128,26 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
 
         """
 
-        with surfel_model.context.current():
-            self.render_surfels_prg = tenviz.DrawProgram(
+        with surfel_model.gl_context.current():
+            self.program = tenviz.DrawProgram(
                 tenviz.DrawMode.Points,
                 vert_shader=_SHADER_DIR / "model_indexmap.vert",
                 frag_shader=_SHADER_DIR / "indexmap.frag",
                 # ignore_missing=True
             )
 
-            self.render_surfels_prg['in_point'] = surfel_model.positions
-            self.render_surfels_prg['in_normal'] = surfel_model.normals
-            self.render_surfels_prg['in_color'] = surfel_model.colors
-            self.render_surfels_prg['in_conf'] = surfel_model.confidences
-            self.render_surfels_prg['in_radius'] = surfel_model.radii
-            self.render_surfels_prg['in_mask'] = surfel_model.active_mask_gl
+            self.program['in_point'] = surfel_model.positions
+            self.program['in_normal'] = surfel_model.normals
+            self.program['in_color'] = surfel_model.colors
+            self.program['in_conf'] = surfel_model.confidences
+            self.program['in_radius'] = surfel_model.radii
+            self.program['in_mask'] = surfel_model.free_mask_gl
 
-            self.render_surfels_prg['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
-            self.render_surfels_prg['Modelview'] = tenviz.MatPlaceholder.Modelview
-            self.render_surfels_prg['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
+            self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
+            self.program['Modelview'] = tenviz.MatPlaceholder.Modelview
+            self.program['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
 
-        super(ModelIndexMapRaster, self).__init__(surfel_model.context)
+        super(ModelIndexMapRaster, self).__init__(surfel_model.gl_context)
 
         self.surfel_model = surfel_model
 
@@ -167,21 +167,20 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
             height (int): Image height.
 
         """
+        gl_context = self.surfel_model.gl_context
 
-        context = self.surfel_model.context
-
-        with context.current():
-            self.render_surfels_prg['StableThresh'] = (
+        with gl_context.current():
+            self.program['StableThresh'] = (
                 float(stable_conf_thresh)
                 if stable_conf_thresh is not None else -1.0)
 
-        context.set_clear_color(0, 0, 0, 0)
-        context.render(proj_matrix, rt_cam.opengl_view_cam,
-                       self.framebuffer,
-                       [self.render_surfels_prg], width, height)
+        gl_context.set_clear_color(0, 0, 0, 0)
+        gl_context.render(proj_matrix, rt_cam.opengl_view_cam,
+                          self.framebuffer,
+                          [self.program], width, height)
 
 
-def show_indexmap(indexmap, title, debug=True):
+def show_indexmap(indexmap, title, debug=True, show=True):
     """Helper function for quickly display the framebuffers in pyplot.
 
     Args:
@@ -205,4 +204,5 @@ def show_indexmap(indexmap, title, debug=True):
     plt.title("{} - Indices".format(title))
     plt.imshow(indexmap.indexmap[:, :, 0].cpu())
 
-    plt.show()
+    if show:
+        plt.show()

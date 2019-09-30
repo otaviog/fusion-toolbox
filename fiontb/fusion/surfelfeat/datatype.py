@@ -1,8 +1,70 @@
+import torch
 import tenviz
 
+from fiontb.frame import FramePointCloud
 from fiontb.fusion.surfel.model import compute_confidences, compute_surfel_radii
-from fiontb.camera import Homogeneous, normal_transform_matrix
-from fiontb._cfiontb import MappedSurfelModel
+from fiontb.camera import RigidTransform, normal_transform_matrix
+from fiontb._cfiontb import (
+    MappedSurfelModel, SurfelAllocator as _SurfelAllocator)
+
+
+class SurfelCloud:
+    def __init__(self, positions, confidences, normals, radii, colors):
+        self.positions = positions
+        self.confidences = confidences
+        self.normals = normals
+        self.radii = radii
+        self.colors = colors
+
+    @classmethod
+    def from_frame_pcl(cls, frame_pcl, confidences=None):
+        pcl = frame_pcl.unordered_point_cloud(world_space=False)
+        if confidences is None:
+            confidences = compute_confidences(frame_pcl)
+
+        radii = compute_surfel_radii(pcl.points, pcl.normals,
+                                     frame_pcl.kcam)
+
+        return cls(pcl.points,
+                   confidences,
+                   pcl.normals,
+                   radii,
+                   pcl.colors)
+
+    @classmethod
+    def from_frame(cls, frame, confidences=None):
+        return cls.from_frame_pcl(FramePointCloud.from_frame(frame), confidences)
+
+    @property
+    def device(self):
+        return self.positions.device
+
+    @property
+    def size(self):
+        return self.positions.size(0)
+
+    def itransform(self, matrix):
+        self.positions = RigidTransform(
+            matrix.to(self.device)) @ self.positions
+        normal_matrix = normal_transform_matrix(matrix).to(self.device)
+        self.normals = (
+            normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
+
+    def to(self, device):
+        return SurfelCloud(self.positions.to(device),
+                           self.confidences.to(device),
+                           self.normals.to(device),
+                           self.radii.to(device),
+                           self.colors.to(device))
+
+    def __getitem__(self, *args):
+        return SurfelCloud(
+            self.positions[args],
+            self.confidences[args],
+            self.normals[args],
+            self.radii[args],
+            self.colors[args])
+
 
 class _MappedSurfelModelContext:
     def __init__(self, positions_map,
@@ -67,16 +129,45 @@ class _CPUCopySurfelModelContext:
         self.colors_buff.from_tensor(params.colors)
 
 
-class SurfelModel:
-    def __init__(self, context, max_surfels, device):
-        self.context = context
+class SurfelAllocator(_SurfelAllocator):
+    def __init__(self, max_surfels):
+        super(SurfelAllocator, self).__init__(max_surfels, "cuda:0")
         self.max_surfels = max_surfels
-        self.device = device
+        self.active_count = 0
 
-        self.active_mask = torch.ones(
-            (max_surfels, ), dtype=torch.uint8).to(device)
+    def mark_active(self, indices):
+        self.free_mask_byte[indices] = 0
+        self.free_mask_bit[indices] = False
+        self.active_count += indices.size(0)
 
-        with self.context.current():
+    def mark_unactive(self, indices):
+        self.free_mask_byte[indices] = 1
+        self.free_mask_bit[indices] = True
+        self.active_count -= indices.size(0)
+
+    def allocate(self, num_elements):
+        unactive = torch.empty(num_elements, dtype=torch.int64)
+        self.find_unactive(unactive)
+        self.mark_active(unactive)
+        return unactive
+
+    def clear_all(self):
+        self.free_mask_byte[:] = 1
+        self.free_mask_bit[:] = True
+        self.active_count = 0
+
+    def copy_(self, other):
+        self.free_mask_byte = other.free_mask_byte.clone()
+        self.free_mask_bit = other.free_mask_bit.clone()
+        self.active_count = other.active_count
+
+
+class SurfelModel:
+    def __init__(self, gl_context, max_surfels):
+        self.gl_context = gl_context
+        self.allocator = SurfelAllocator(max_surfels)
+
+        with self.gl_context.current():
             self.positions = tenviz.buffer_empty(
                 max_surfels, 3, tenviz.BType.Float)
             self.normals = tenviz.buffer_empty(
@@ -87,11 +178,19 @@ class SurfelModel:
                 max_surfels, 1, tenviz.BType.Float)
             self.confidences = tenviz.buffer_empty(
                 max_surfels, 1, tenviz.BType.Float)
-            self.active_mask_gl = tenviz.buffer_empty(
+            self.free_mask_gl = tenviz.buffer_empty(
                 max_surfels, 1, tenviz.BType.Uint8, integer_attrib=True)
-            self.active_mask_gl.from_tensor(self.active_mask)
+            self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
 
         self.times = None
+
+    @classmethod
+    def from_surfel_cloud(cls, gl_context, surfels):
+        model = cls(gl_context, surfels.size)
+
+        model.add_surfels(surfels, update_gl=True)
+
+        return model
 
     def map_as_tensors(self, device=None):
         if device is None or torch.device(device).type != 'cpu':
@@ -109,21 +208,25 @@ class SurfelModel:
             self.radii,
             self.colors)
 
-    def mark_active(self, indices):
-        self.active_mask[indices] = 0
+    def to_surfel_cloud(self):
+        active_mask = self.allocator.free_mask_byte == 0
+        with self.gl_context.current():
+            with self.map_as_tensors() as mapped:
+                return SurfelCloud(mapped.positions[active_mask].clone(),
+                                   mapped.confidences[active_mask].clone(),
+                                   mapped.normals[active_mask].clone(),
+                                   mapped.radii[active_mask].clone(),
+                                   mapped.colors[active_mask].clone())
 
-    def get_inactive_indices(self, num):
-        return self.active_mask.nonzero()[:num].flatten()
+    def mark_unactive(self, indices):
+        self.allocator.mark_unactive(indices)
 
     def add_surfels(self, new_surfels, update_gl=False):
         if new_surfels.size == 0:
             return
-
-        new_indices = self.get_inactive_indices(
-            new_surfels.size)
-        self.mark_active(new_indices)
-
-        with self.context.current():
+        new_indices = self.allocator.allocate(new_surfels.size)
+        new_surfels = new_surfels.to(self.device)
+        with self.gl_context.current():
             with self.map_as_tensors() as mapped:
                 mapped.positions[new_indices] = new_surfels.positions
                 mapped.colors[new_indices] = new_surfels.colors
@@ -131,17 +234,17 @@ class SurfelModel:
                 mapped.radii[new_indices] = new_surfels.radii
                 mapped.confidences[new_indices] = new_surfels.confidences
 
-        if update_gl:
-            self.update_gl()
+            if update_gl:
+                self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
 
     def update_gl(self):
-        with self.context.current():
-            self.active_mask_gl.from_tensor(self.active_mask.contiguous())
+        with self.gl_context.current():
+            self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
 
     def clone(self):
-        clone = SurfelModel(self.context, self.max_surfels, self.device)
+        clone = SurfelModel(self.gl_context, self.max_surfels)
 
-        with self.context.current():
+        with self.gl_context.current():
             clone.positions.from_tensor(self.positions.to_tensor())
             clone.normals.from_tensor(self.normals.to_tensor())
             clone.colors.from_tensor(self.colors.to_tensor())
@@ -150,62 +253,16 @@ class SurfelModel:
             if self.times is not None:
                 clone.times.from_tensor(self.times.to_tensor())
 
-        clone.active_mask = self.active_mask.clone()
+        clone.allocator.copy_(self.allocator)
         clone.update_gl()
 
         return clone
 
-
-class LiveSurfels:
-    def __init__(self, positions, confidences, normals, radii, colors):
-        self.positions = positions
-        self.confidences = confidences
-        self.normals = normals
-        self.radii = radii
-        self.colors = colors
-
-    @classmethod
-    def from_frame_pcl(cls, frame_pcl, confidences=None):
-        pcl = frame_pcl.unordered_point_cloud(world_space=False)
-
-        if confidences is None:
-            confidences = compute_confidences(frame_pcl)
-
-        radii = compute_surfel_radii(pcl.points, pcl.normals,
-                                     frame_pcl.kcam)
-
-        return cls(pcl.points,
-                   confidences,
-                   pcl.normals,
-                   radii,
-                   pcl.colors)
-
     @property
     def device(self):
-        return self.positions.device
+        # TODO: unhard-code device
+        return "cuda:0"
 
     @property
-    def size(self):
-        return self.positions.size(0)
-
-    def transform(self, matrix):
-        self.positions = Homogeneous(
-            matrix.to(self.device)) @ self.positions
-        normal_matrix = normal_transform_matrix(matrix).to(self.device)
-        self.normals = (
-            normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
-
-    def to(self, device):
-        return LiveSurfels(self.positions.to(device),
-                           self.confidences.to(device),
-                           self.normals.to(device),
-                           self.radii.to(device),
-                           self.colors.to(device))
-
-    def __getitem__(self, *args):
-        return LiveSurfels(
-            self.positions[args],
-            self.confidences[args],
-            self.normals[args],
-            self.radii[args],
-            self.colors[args])
+    def max_surfels(self):
+        return self.allocator.max_surfels

@@ -51,3 +51,12 @@ fiontb.pose.autogradicp.hybrid:
 
 fiontb.fusion.surfelfeat.merge_live:
 	python3 -m fiontb.fusion.surfelfeat._test.test_merge_live
+
+fiontb.fusion.surfelfeat.datatype:
+	python3 -m fiontb.fusion.surfelfeat._test.test_datatype adding
+
+fiontb.fusion.surfelfeat.registration:	
+	python3 -m fiontb.fusion.surfelfeat._test.test_registration
+
+fiontb.fusion.surfelfeat.fusion:	
+	python3 -m fiontb.fusion.surfelfeat._test.test_fusion

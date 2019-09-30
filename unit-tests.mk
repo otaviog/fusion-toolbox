@@ -42,3 +42,6 @@ fiontb.filtering.featuremap:
 
 fiontb.pose.so3:
 	python3 -m unittest fiontb.pose._test.test_so3
+
+fiontb.spatial.kdtreelayer:
+	python3 -m unittest fiontb.spatial._test.test_kdtree_layer

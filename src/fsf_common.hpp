@@ -54,14 +54,14 @@ template <Device dev>
 struct IndexMapAccessor {
   typename Accessor<dev, float, 3>::T position_confidence;
   typename Accessor<dev, float, 3>::T normal_radius;
-  typename Accessor<dev, uint8_t, 3>::T color;
+  typename Accessor<dev, uint8_t, 3>::T color_;
   typename Accessor<dev, int32_t, 3>::T indexmap;
 
   IndexMapAccessor(const IndexMap &params)
       : position_confidence(
             Accessor<dev, float, 3>::Get(params.position_confidence)),
         normal_radius(Accessor<dev, float, 3>::Get(params.normal_radius)),
-        color(Accessor<dev, uint8_t, 3>::Get(params.color)),
+        color_(Accessor<dev, uint8_t, 3>::Get(params.color)),
         indexmap(Accessor<dev, int32_t, 3>::Get(params.indexmap)) {}
 
   FTB_DEVICE_HOST inline bool empty(int row, int col) const {
@@ -73,8 +73,7 @@ struct IndexMapAccessor {
   }
 
   FTB_DEVICE_HOST inline Vector<float, 3> position(int row, int col) const {
-    const auto acc = position_confidence[row][col];
-    return Vector<float, 3>(acc[0], acc[1], acc[2]);
+    return to_vec3<float>(position_confidence[row][col]);
   }
 
   FTB_DEVICE_HOST inline float confidence(int row, int col) const {
@@ -82,8 +81,11 @@ struct IndexMapAccessor {
   }
 
   FTB_DEVICE_HOST inline Vector<float, 3> normal(int row, int col) const {
-    const auto acc = normal_radius[row][col];
-    return Vector<float, 3>(acc[0], acc[1], acc[2]);
+    return to_vec3<float>(normal_radius[row][col]);
+  }
+
+  FTB_DEVICE_HOST inline Vector<float, 3> color(int row, int col) const {
+    return to_vec3<float>(color_[row][col]);
   }
 
   FTB_DEVICE_HOST inline float radius(int row, int col) const {

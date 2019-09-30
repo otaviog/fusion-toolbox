@@ -22,7 +22,7 @@ class SurfelRender(tenviz.DrawProgram):
     def __init__(self, surfel_model):
         self.surfel_model = surfel_model
 
-        with surfel_model.context.current():
+        with surfel_model.gl_context.current():
             super(SurfelRender, self).__init__(tenviz.DrawMode.Points,
                                                vert_shader=_SHADER_DIR / "surfel.vert",
                                                frag_shader=_SHADER_DIR / "surfel.frag",
@@ -38,7 +38,7 @@ class SurfelRender(tenviz.DrawProgram):
             self['in_conf'] = surfel_model.confidences
             if surfel_model.times is not None:
                 self['in_time'] = surfel_model.times
-            self['in_mask'] = surfel_model.active_mask_gl
+            self['in_mask'] = surfel_model.free_mask_gl
             self._max_conf = 0
 
             cmap = get_cmap('plasma', 2048)
@@ -52,60 +52,28 @@ class SurfelRender(tenviz.DrawProgram):
         self.set_render_mode(RenderMode.Color)
 
     def set_render_mode(self, render_mode):
-        with self.surfel_model.context.current():
+        with self.surfel_model.gl_context.current():
             self['RenderMode'] = int(render_mode.value)
 
         self.render_mode = render_mode
 
     def set_max_confidence(self, max_conf):
-        with self.surfel_model.context.current():
+        with self.surfel_model.gl_context.current():
             self['MaxConf'] = float(max_conf)
 
     def set_max_time(self, max_time):
-        with self.surfel_model.context.current():
+        with self.surfel_model.gl_context.current():
             self['MaxTime'] = float(max_time)
 
     def set_stable_threshold(self, stable_conf_thresh):
-        with self.surfel_model.context.current():
+        with self.surfel_model.gl_context.current():
             self['StableThresh'] = float(stable_conf_thresh)
 
 
-def _test():
-    import tenviz.io
-    from fiontb.fusion.surfel import SurfelModel, SurfelCloud
-
-    geo = tenviz.io.read_3dobject(
-        Path(__file__).parent / "../../test-data/bunny/bun_zipper_res4.ply").torch()
-    normals = tenviz.geometry.compute_normals(geo.verts, geo.faces)
-
-    nverts = geo.verts.size(0)
-    cloud = SurfelCloud(geo.verts,
-                        (torch.abs(torch.rand(nverts, 3))*255).byte(),
-                        normals, torch.rand(
-                            nverts, dtype=torch.float32).abs()*0.01,
-                        torch.rand(nverts, dtype=torch.float32).abs(),
-                        torch.full((nverts, ), 1, dtype=torch.int32), "cpu")
-    cloud.to("cuda:0")
-    ctx = tenviz.Context(640, 480)
-    model = SurfelModel(ctx, geo.verts.size(0))
-    model.add_surfels(cloud)
-    model.update_active_mask_gl()
-    surfel_render = SurfelRender(model)
-    surfel_render.set_bounds(geo.verts)
-    # surfel_render.set_render_mode(RenderMode.Confs)
-
-    viewer = ctx.viewer([surfel_render], tenviz.CameraManipulator.WASD)
-
-    while True:
-        key = viewer.wait_key(1)
-        if key < 0:
-            break
-
-
-def show_surfels(context, surfels_list, title="Surfels",
+def show_surfels(gl_context, surfels_list, title="Surfels",
                  max_time=10, max_conf=10, view_matrix=None):
     scene = [SurfelRender(surfels) for surfels in surfels_list]
-    viewer = context.viewer(scene, tenviz.CameraManipulator.WASD)
+    viewer = gl_context.viewer(scene, tenviz.CameraManipulator.WASD)
 
     if view_matrix is not None:
         viewer.set_camera_matrix(view_matrix.clone().numpy())
@@ -142,6 +110,38 @@ def show_surfels(context, surfels_list, title="Surfels",
                 snode.set_render_mode(mode_dict[key])
                 snode.set_max_time(max_time)
                 snode.set_max_confidence(max_conf)
+
+
+def _test():
+    import tenviz.io
+    from fiontb.fusion.surfelfeat.datatype import SurfelModel, SurfelCloud
+
+    geo = tenviz.io.read_3dobject(
+        Path(__file__).parent / "../../test-data/bunny/bun_zipper_res4.ply").torch()
+    normals = tenviz.geometry.compute_normals(geo.verts, geo.faces)
+
+    nverts = geo.verts.size(0)
+    cloud = SurfelCloud(
+        geo.verts,
+        torch.rand(nverts, dtype=torch.float32).abs(),
+        normals,
+        torch.rand(nverts, dtype=torch.float32).abs()*0.01,
+        (torch.abs(torch.rand(nverts, 3))*255).byte()).to("cuda:0")
+    ctx = tenviz.Context(640, 480)
+    model = SurfelModel(ctx, geo.verts.size(0))
+    model.add_surfels(cloud)
+    model.update_gl()
+
+    surfel_render = SurfelRender(model)
+    surfel_render.set_bounds(geo.verts)
+    # surfel_render.set_render_mode(RenderMode.Confs)
+
+    viewer = ctx.viewer([surfel_render], tenviz.CameraManipulator.WASD)
+
+    while True:
+        key = viewer.wait_key(1)
+        if key < 0:
+            break
 
 
 if __name__ == '__main__':

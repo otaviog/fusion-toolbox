@@ -19,11 +19,11 @@ import math
 import torch
 import tenviz
 
-from fiontb.camera import Homogeneous, normal_transform_matrix
+from fiontb.camera import RigidTransform, normal_transform_matrix
 
 
 def compute_surfel_radii(cam_points, normals, kcam):
-    focal_len = abs(kcam.matrix[0, 0] + kcam.matrix[1, 1]) * .5
+    focal_len = (abs(kcam.matrix[0, 0]) + abs(kcam.matrix[1, 1])) * .5
     radii = (
         cam_points[:, 2] / focal_len) * math.sqrt(2)
     radii = torch.min(2*radii, radii /
@@ -108,7 +108,7 @@ class SurfelCloud:
         if self.points.size(0) == 0:
             return
 
-        self.points = Homogeneous(
+        self.points = RigidTransform(
             matrix.to(self.device)) @ self.points
         normal_matrix = normal_transform_matrix(matrix).to(self.device)
         self.normals = (

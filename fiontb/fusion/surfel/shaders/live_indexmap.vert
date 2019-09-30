@@ -19,8 +19,6 @@ out Surfel {
 
 void main() {
   gl_Position = ProjModelview*in_point;
-  float tx = ((gl_Position.x / gl_Position.w) + 1.0)*0.5;
-  float ty = ((gl_Position.y / gl_Position.w) + 1.0)*0.5;
 
   surfel.pos_conf.xyz = (Modelview*in_point).xyz;
   surfel.normal_rad.xyz = NormalModelview*in_normal;

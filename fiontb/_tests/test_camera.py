@@ -3,7 +3,7 @@ import unittest
 import torch
 
 from fiontb.camera import (KCamera, RTCamera, Project,
-                           IRigidTransform, RigidTransform)
+                           RigidTransform)
 
 
 class TestCamera(unittest.TestCase):
@@ -12,23 +12,15 @@ class TestCamera(unittest.TestCase):
         points = torch.rand(100, 4)
         points[:, 3] = 1
 
-        points1 = RigidTransform(matrix) @ points[:, :3]
-
-        points2 = matrix @ points.view(-1, 4, 1)
-        points2 = points2.squeeze()[:, :3]
-
-        torch.testing.assert_allclose(points1, points2)
-
-    def test_irigid_transform(self):
-        matrix = torch.rand(4, 4)
-        points = torch.rand(100, 4)
-        points[:, 3] = 1
-
         ref_result = matrix @ points.view(-1, 4, 1)
         ref_result = ref_result.squeeze()[:, :3]
 
-        result = IRigidTransform()(matrix) @ points[:, :3]
+        result = RigidTransform(matrix) @ points[:, :3]
 
+        torch.testing.assert_allclose(ref_result, result)
+
+        result = points[:, :3].clone()
+        result = RigidTransform(matrix).inplace(result)
         torch.testing.assert_allclose(ref_result, result)
 
     def test_project(self):

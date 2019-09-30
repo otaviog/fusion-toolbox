@@ -9,6 +9,7 @@ namespace fiontb {
 template <Device dev, typename scalar_t, unsigned long dims>
 struct Accessor {
   typedef torch::TensorAccessor<scalar_t, dims> T;
+  typedef torch::TensorAccessor<scalar_t, dims> Ts;
 
   static T Get(torch::Tensor &tensor) {
     return tensor.accessor<scalar_t, dims>();
@@ -28,6 +29,10 @@ struct Accessor<kCUDA, scalar_t, dims> {
   typedef torch::PackedTensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
                                       size_t>
       T;
+
+  typedef torch::TensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
+                                      size_t>
+  Ts;
 
   static T Get(torch::Tensor &tensor) {
     return tensor

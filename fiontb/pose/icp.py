@@ -6,9 +6,8 @@ import torch
 from tenviz.pose import SE3
 
 from fiontb.downsample import (
-    downsample_xyz, downsample_mask, DownsampleXYZMethod, DownsampleMethod)
-from fiontb._cfiontb import (ICPJacobian as _ICPJacobian,
-                             calc_sobel_gradient)
+    downsample_xyz, downsample_mask, DownsampleXYZMethod)
+from fiontb._cfiontb import (ICPJacobian as _ICPJacobian)
 from fiontb._utils import empty_ensured_size
 
 # pylint: disable=invalid-name
