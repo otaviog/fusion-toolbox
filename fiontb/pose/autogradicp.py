@@ -76,7 +76,6 @@ class AutogradICP:
                     (Homogeneous(transform) @ src_matched_p3d)
                 cost = torch.bmm(tgt_matched_normals.view(-1,
                                                           1, 3), diff.view(-1, 3, 1))
-                import ipdb; ipdb.set_trace()
 
                 geom_loss = torch.pow(cost, 2).mean()
 
