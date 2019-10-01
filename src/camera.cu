@@ -36,19 +36,20 @@ torch::Tensor ProjectOp::Forward(const torch::Tensor &points,
   auto bk_points = points.view({-1, 3});
 
   const torch::Tensor out_projection =
-	torch::empty({bk_points.size(0), 2},
+      torch::empty({bk_points.size(0), 2},
                    torch::TensorOptions(points.type()).device(points.device()));
 
-  if (points.is_cuda()) {
-    FTB_CHECK(intrinsics.is_cuda(), "Expected a CUDA tensor");
-    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project", ([&] {
+  const auto reference_dev = points.device();
+  FTB_CHECK_DEVICE(reference_dev, intrinsics);
+
+  if (reference_dev.is_cuda()) {
+    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.forward", ([&] {
                             ProjectKernel<kCUDA, scalar_t> kernel(
                                 bk_points, intrinsics, out_projection);
                             Launch1DKernelCUDA(kernel, bk_points.size(0));
                           }));
   } else {
-    FTB_CHECK(!intrinsics.is_cuda(), "Expected a CPU tensor");
-    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project", ([&] {
+    AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.forward", ([&] {
                             ProjectKernel<kCPU, scalar_t> kernel(
                                 bk_points, intrinsics, out_projection);
                             Launch1DKernelCPU(kernel, bk_points.size(0));
@@ -77,20 +78,12 @@ struct ProjectBackwardKernel {
   FTB_DEVICE_HOST void operator()(int i) {
     Eigen::Matrix<scalar_t, 3, 1> point = to_vec3<scalar_t>(points[i]);
 
-    const scalar_t focal_len_x = kcamera.kcam_matrix[0][0];
-    const scalar_t focal_len_y = kcamera.kcam_matrix[1][1];
-
-    const scalar_t zsqr = point[2] * point[2];
-
-    const scalar_t J00 = focal_len_x / point[2];
-    const scalar_t J02 = -point[0] * focal_len_x / zsqr;
-
-    const scalar_t J11 = focal_len_y / point[2];
-    const scalar_t J12 = -point[1] * focal_len_y / zsqr;
-
-    dx_points[i][0] = J00 * dy_grad[i][0];
-    dx_points[i][1] = J11 * dy_grad[i][1];
-    dx_points[i][2] = J02 * dy_grad[i][0] + J12 * dy_grad[i][1];
+	scalar_t j00, j02, j11, j12;
+	kcamera.Dx_Projection(point, j00, j02, j11, j12);
+	
+    dx_points[i][0] = j00 * dy_grad[i][0];
+    dx_points[i][1] = j11 * dy_grad[i][1];
+    dx_points[i][2] = j02 * dy_grad[i][0] + j12 * dy_grad[i][1];
   }
 };
 }  // namespace
@@ -103,15 +96,16 @@ torch::Tensor ProjectOp::Backward(const torch::Tensor &dy_grad,
       torch::empty(bk_points.sizes(),
                    torch::TensorOptions(points.type()).device(points.device()));
 
-  if (points.is_cuda()) {
-    FTB_CHECK(intrinsics.is_cuda(), "Expected a CUDA tensor");
+  const auto reference_dev = points.device();
+  FTB_CHECK_DEVICE(reference_dev, intrinsics);
+
+  if (reference_dev.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.backward", ([&] {
                             ProjectBackwardKernel<kCUDA, scalar_t> kernel(
                                 dy_grad, bk_points, intrinsics, dx_points);
                             Launch1DKernelCUDA(kernel, bk_points.size(0));
                           }));
   } else {
-    FTB_CHECK(!intrinsics.is_cuda(), "Expected a CPU tensor");
     AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.backward", ([&] {
                             ProjectBackwardKernel<kCPU, scalar_t> kernel(
                                 dy_grad, bk_points, intrinsics, dx_points);

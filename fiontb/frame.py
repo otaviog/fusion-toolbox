@@ -110,6 +110,8 @@ class Frame:
     def __init__(self, info: FrameInfo, depth_image, rgb_image=None,
                  fg_mask=None, normal_image=None):
         self.info = info
+        self.info.kcam.image_size = (depth_image.shape[1],
+                                     depth_image.shape[0])
         self.depth_image = depth_image
         self.rgb_image = rgb_image
         self.fg_mask = fg_mask
@@ -270,7 +272,7 @@ class FramePointCloud:
                          normals)
 
         if world_space and self.rt_cam is not None:
-            pcl.transform(self.rt_cam.cam_to_world)
+            pcl = pcl.transform(self.rt_cam.cam_to_world)
 
         return pcl
 
@@ -284,6 +286,14 @@ class FramePointCloud:
             self._points.to(device) if self._points is not None else None,
             self._normals.to(device) if self._normals is not None else None,
             self.colors.to(device) if self.colors is not None else None)
+
+    def __getitem__(self, *slices):
+        slices = slices[0]
+        return FramePointCloud(self.image_points[slices],
+                               self.mask[slices], self.kcam, rt_cam=self.rt_cam,
+                               points=self.points[slices],
+                               normals=self.normals[slices],
+                               colors=self.colors[slices])
 
 
 def estimate_normals(depth_image, frame_info, mask,

@@ -34,14 +34,11 @@ fiontb.pose.open3d.dataset:
 fiontb.pose.icp.geometric1:
 	python3 -m fiontb.pose._test.test_icp geometric1
 
-fiontb.pose.icp.geometric2:
-	python3 -m fiontb.pose._test.test_icp geometric2
-
 fiontb.pose.icp.multiscale-geometric:
 	python3 -m fiontb.pose._test.test_icp multiscale-geometric
 
 fiontb.pose.icp.color:
-	python3  -m fiontb.pose._test.test_icp color
+	python3 -m fiontb.pose._test.test_icp color
 
 fiontb.pose.autogradicp.geometric:
 	python3 -m fiontb.pose._test.test_autogradicp geometric --profile=True
@@ -54,3 +51,12 @@ fiontb.pose.autogradicp.hybrid:
 
 fiontb.fusion.surfelfeat.merge_live:
 	python3 -m fiontb.fusion.surfelfeat._test.test_merge_live
+
+fiontb.fusion.surfelfeat.datatype:
+	python3 -m fiontb.fusion.surfelfeat._test.test_datatype adding
+
+fiontb.fusion.surfelfeat.registration:	
+	python3 -m fiontb.fusion.surfelfeat._test.test_registration
+
+fiontb.fusion.surfelfeat.fusion:	
+	python3 -m fiontb.fusion.surfelfeat._test.test_fusion

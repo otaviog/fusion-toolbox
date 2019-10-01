@@ -10,14 +10,14 @@ namespace fiontb {
 
 template <Device dev, typename scalar_t>
 struct KCamera {
-  KCamera(const torch::Tensor kcam_matrix)
-      : kcam_matrix(Accessor<dev, scalar_t, 2>::Get(kcam_matrix)) {}
+  const typename Accessor<dev, scalar_t, 2>::T matrix;
+
+  KCamera(const torch::Tensor matrix)
+      : matrix(Accessor<dev, scalar_t, 2>::Get(matrix)) {}
   FTB_DEVICE_HOST Eigen::Vector2i Project(
       const Vector<scalar_t, 3> point) const {
-    const scalar_t img_x =
-        kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
-    const scalar_t img_y =
-        kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
+    const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
+    const scalar_t img_y = matrix[1][1] * point[1] / point[2] + matrix[1][2];
 
     return Eigen::Vector2i(round(img_x), round(img_y));
   }
@@ -31,8 +31,8 @@ struct KCamera {
 
     Project(point, img_x, img_y);
 
-    x = round(img_x);
-    y = round(img_y);
+    x = int(round(img_x));
+    y = int(round(img_y));
   }
 
 #ifdef __CUDACC__
@@ -40,10 +40,8 @@ struct KCamera {
 #endif
   FTB_DEVICE_HOST void Project(const Vector<scalar_t, 3> point, scalar_t &x,
                                scalar_t &y) const {
-    const scalar_t img_x =
-        kcam_matrix[0][0] * point[0] / point[2] + kcam_matrix[0][2];
-    const scalar_t img_y =
-        kcam_matrix[1][1] * point[1] / point[2] + kcam_matrix[1][2];
+    const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
+    const scalar_t img_y = matrix[1][1] * point[1] / point[2] + matrix[1][2];
 
     x = img_x;
     y = img_y;
@@ -52,19 +50,19 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 4, 1> Dx_Projection(
-      const Vector<scalar_t, 3> point) const {
-    Eigen::Matrix<scalar_t, 4, 1> coeffs;
-
-    const scalar_t fx = kcam_matrix[0][0];
-    const scalar_t fy = kcam_matrix[1][1];
+  FTB_DEVICE_HOST void Dx_Projection(const Vector<scalar_t, 3> point,
+                                     scalar_t &j00, scalar_t &j02,
+                                     scalar_t &j11, scalar_t &j12) const {
+    const scalar_t fx = matrix[0][0];
+    const scalar_t fy = matrix[1][1];
 
     const scalar_t z = point[2];
     const scalar_t z_sqr = z * z;
-    coeffs << fx / z, -point[0] * fx / z_sqr, fy / z, -point[1] * fy / z_sqr;
-    return coeffs;
+    j00 = fx / z;
+    j02 = -point[0] * fx / z_sqr;
+    j11 = fy / z;
+    j12 = -point[1] * fy / z_sqr;
   }
-  const typename Accessor<dev, scalar_t, 2>::T kcam_matrix;
 };
 
 struct ProjectOp {

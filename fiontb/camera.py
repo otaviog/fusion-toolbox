@@ -7,7 +7,7 @@ import quaternion
 import torch
 import tenviz
 
-from fiontb._utils import ensure_torch
+from fiontb._utils import ensure_torch, empty_ensured_size
 from fiontb._cfiontb import (project_op_forward as _project_op_forward,
                              project_op_backward as _project_op_backward)
 
@@ -178,7 +178,6 @@ class KCamera:
 
         return (torch.all(self.matrix == other.matrix)
                 and (self.undist_coeff == other.undist_coeff)
-                and (self.depth_radial_distortion == other.depth_radial_distortion)
                 and (self.image_size == other.image_size))
 
     def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
@@ -198,18 +197,31 @@ class Project(torch.autograd.Function):
         return _project_op_backward(dy_grad, points, intrinsics), None
 
 
-class Homogeneous:
-    """Helper class to multiply [Nx3] or [Nx3x1] points by a [4x4] matrix.
+class RigidTransform:
+    """Helper class to multiply [Nx3] points by [4x4] matrices.
     """
 
     def __init__(self, matrix):
         self.matrix = matrix
 
     def __matmul__(self, points):
-        points = self.matrix[:3, :3].matmul(points.reshape(-1, 3, 1))
-        points += self.matrix[:3, 3].reshape(3, 1)
+        points = self.matrix[:3, :3].matmul(points.view(-1, 3, 1))
+        points += self.matrix[:3, 3].view(3, 1)
 
         return points.squeeze()
+
+    def inplace(self, points):
+        points = points.view(-1, 3)
+        points @= self.matrix[:3, :3].transpose(1, 0)
+        points += self.matrix[:3, 3]
+        return points
+
+    def outplace(self, points, out):
+        points = points.view(-1, 3, 1)
+        torch.matmul(self.matrix[:3, :3], points, out=out)
+        out += self.matrix[:3, 3].view(3, 1)
+
+        return out.squeeze()
 
 
 def normal_transform_matrix(matrix):

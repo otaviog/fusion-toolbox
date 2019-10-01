@@ -130,23 +130,23 @@ void ICPJacobian::EstimateGeometric(
 
 namespace {
 template <Device dev, typename scalar_t>
-FTB_DEVICE_HOST scalar_t EuclideanDistance(
-    const ChannelInterpolator<dev, scalar_t> lhs,
-    const typename Accessor<dev, scalar_t, 2>::T rhs, int rhs_index) {
+FTB_DEVICE_HOST inline scalar_t EuclideanDistance(
+    const BilinearInterp<dev, scalar_t> f1,
+    const typename Accessor<dev, scalar_t, 2>::T f2, int f2_index) {
   scalar_t dist = scalar_t(0);
-  for (int idx = 0; idx < rhs.size(0); ++idx) {
-    dist += pow(lhs.Get(idx) - rhs[idx][rhs_index], 2);
+  for (int channel = 0; channel < f2.size(0); ++channel) {
+    const scalar_t diff = f1.Get(channel) - f2[channel][f2_index];
+    dist += diff * diff;
   }
 
   return sqrt(dist);
 }
 
 template <typename scalar_t>
-FTB_DEVICE_HOST scalar_t DxEuclideanDistance(scalar_t lhs_nth_feat,
-                                             scalar_t rhs_nth_feat,
-                                             scalar_t forward_result) {
-  if (forward_result > 0)
-    return (rhs_nth_feat - lhs_nth_feat) / forward_result;
+FTB_DEVICE_HOST inline scalar_t Df1_EuclideanDistance(
+    scalar_t f1_nth_val, scalar_t f2_nth_val, scalar_t inv_forward_result) {
+  if (inv_forward_result > 0)
+    return (f1_nth_val - f2_nth_val) * inv_forward_result;
   else
     return 0;
 }
@@ -189,59 +189,75 @@ struct HybridJacobianKernel {
   FTB_DEVICE_HOST void ComputeGeometricTerm(
       const Vector<scalar_t, 3> &Tsrc_point, int ui, int vi,
       scalar_t out_jacobian[6], scalar_t &out_residual) {
-    const Vector<scalar_t, 3> point0(to_vec3<scalar_t>(tgt.points[vi][ui]));
-    const Vector<scalar_t, 3> normal0(to_vec3<scalar_t>(tgt.normals[vi][ui]));
+    const Vector<scalar_t, 3> tgt_point(to_vec3<scalar_t>(tgt.points[vi][ui]));
+    const Vector<scalar_t, 3> tgt_normal(
+        to_vec3<scalar_t>(tgt.normals[vi][ui]));
 
-    out_jacobian[0] = normal0[0];
-    out_jacobian[1] = normal0[1];
-    out_jacobian[2] = normal0[2];
+    out_jacobian[0] = tgt_normal[0];
+    out_jacobian[1] = tgt_normal[1];
+    out_jacobian[2] = tgt_normal[2];
 
-    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(normal0);
+    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(tgt_normal);
     out_jacobian[3] = rot_twist[0];
     out_jacobian[4] = rot_twist[1];
     out_jacobian[5] = rot_twist[2];
 
-    out_residual = (point0 - Tsrc_point).dot(normal0);
+    out_residual = tgt_normal.dot(tgt_point - Tsrc_point);
   }
 
+#pragma nv_exec_check_disable
   FTB_DEVICE_HOST void ComputeFeatTerm(int ri,
                                        const Vector<scalar_t, 3> &Tsrc_point,
                                        scalar_t u, scalar_t v,
                                        scalar_t out_jacobian[6],
                                        scalar_t &out_residual) {
-    ChannelInterpolator<dev, scalar_t> channel_interp =
-        tgt_featmap.InterpolateChannel(u, v);
+    BilinearInterp<dev, scalar_t> interp = tgt_featmap.GetBilinear(u, v);
 
-    const scalar_t feat_residual =
-        EuclideanDistance(channel_interp, src_feats, ri);
+    const scalar_t feat_residual = EuclideanDistance(interp, src_feats, ri);
 
-    const ChannelInterpolatorBackward<dev, scalar_t> dx_channel_interp(
-        tgt_featmap.InterpolateChannelBackward(u, v));
+    const scalar_t inv_feat_residual =
+        (feat_residual > 0) ? scalar_t(1) / feat_residual : -1;
+
+    const BilinearInterpGrad<dev, scalar_t> dx_interp(
+        tgt_featmap.GetBilinearGrad(u, v));
 
     scalar_t d_euc_u = 0;
     scalar_t d_euc_v = 0;
-    for (int channel = 0; channel < tgt_featmap.channel_size(); ++channel) {
-      const scalar_t dx_dist = DxEuclideanDistance(
-          channel_interp.Get(channel), src_feats[channel][ri], feat_residual);
+    for (int channel = 0; channel < tgt_featmap.channel_size; ++channel) {
+      const scalar_t df1_dist = Df1_EuclideanDistance(
+          interp.Get(channel), src_feats[channel][ri], inv_feat_residual);
 
       scalar_t du, dv;
-      dx_channel_interp.Get(channel, du, dv);
-      d_euc_u += dx_dist * du;
-      d_euc_v += dx_dist * dv;
+      dx_interp.Get(channel, du, dv);
+
+      d_euc_u += df1_dist * du;
+      d_euc_v += df1_dist * dv;
     }
 
-    const Eigen::Matrix<scalar_t, 4, 1> dx_kcam(kcam.Dx_Projection(Tsrc_point));
-    const Vector<scalar_t, 3> gradk(
-        d_euc_u * dx_kcam[0], d_euc_v * dx_kcam[2],
-        d_euc_u * dx_kcam[1] + d_euc_v * dx_kcam[3]);
-    out_jacobian[0] = gradk[0];
-    out_jacobian[1] = gradk[1];
-    out_jacobian[2] = gradk[2];
+	scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
+    kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
+	
+    Eigen::Matrix<scalar_t, 1, 3> pgrad;
+    pgrad << d_euc_u * j00_proj, d_euc_v * j11_proj,
+        d_euc_u * j02_proj + d_euc_v * j12_proj;
+	
+    Eigen::Matrix<scalar_t, 3, 3> K;
+    K << kcam.matrix[0][0], kcam.matrix[0][1], kcam.matrix[0][2],
+        kcam.matrix[1][0], kcam.matrix[1][1], kcam.matrix[1][2],
+        kcam.matrix[2][0], kcam.matrix[2][1], kcam.matrix[2][2];
 
-    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(gradk);
-    out_jacobian[3] = rot_twist[0];
-    out_jacobian[4] = rot_twist[1];
-    out_jacobian[5] = rot_twist[2];
+    Eigen::Matrix<scalar_t, 3, 6> J;
+    // clang-format off
+	J <<
+	  1, 0, 0, 0, Tsrc_point[2], -Tsrc_point[1],
+	  0, 1, 0, -Tsrc_point[2], 0, Tsrc_point[0],
+	  0, 0, 1, Tsrc_point[1], -Tsrc_point[0], 0;
+    // clang-format on
+
+    //J = K * J;
+    Eigen::Matrix<scalar_t, 1, 6> jacobian = pgrad * J;
+
+    for (int k = 0; k < 6; ++k) out_jacobian[k] = jacobian(0, k);
 
     out_residual = feat_residual;
   }
@@ -275,11 +291,13 @@ struct HybridJacobianKernel {
     feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] =
         feat_jacobian[4] = feat_jacobian[5] = 0;
     feat_residual = 0;
-    // ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
-
     scalar_t geom_jacobian[6], geom_residual;
-    ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);
 
+    if (ri == 228479) {
+      geom_residual = 0;
+    }
+    ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
+    ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);
 #pragma unroll
     for (int k = 0; k < 6; ++k) {
       jacobian[ri][k] =

@@ -12,7 +12,7 @@ from fiontb.viz.show import show_pcls
 
 from fiontb.pose.autogradicp import AutogradICP
 
-_TEST_DATA = Path(__file__).parent
+_TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 torch.set_printoptions(precision=10)
 
@@ -33,12 +33,12 @@ def _prepare_frame(frame, bi_filter=True):
 class _Tests:
     def geometric(self, profile=False):
         device = "cuda:0"
-        icp = AutogradICP(100, 0.05)
+        icp = AutogradICP(25, 0.05)
 
         dataset = load_ftb(_TEST_DATA / "sample2")
 
         frame = _prepare_frame(dataset[0], bi_filter=False)
-        next_frame = _prepare_frame(dataset[2], bi_filter=False)
+        next_frame = _prepare_frame(dataset[1], bi_filter=False)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
@@ -73,7 +73,7 @@ class _Tests:
         to_tensor = ToTensor()
 
         frame = dataset[0]
-        next_frame = dataset[1]
+        next_frame = dataset[2]
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
@@ -91,9 +91,7 @@ class _Tests:
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
         pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-        pcl2 = pcl1.clone()
-
-        pcl2 = pcl2.transform(relative_rt)
+        pcl2 = pcl1.transform(relative_rt)
         show_pcls([pcl0, pcl1, pcl2])
 
     def hybrid(self):

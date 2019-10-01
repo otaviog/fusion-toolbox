@@ -1,3 +1,4 @@
+#include "feature_map.hpp"
 #include "filtering.hpp"
 
 #include "camera.hpp"
@@ -34,14 +35,14 @@ FTB_DEVICE_HOST scalar_t bilinear_interp(scalar_t u, scalar_t v,
 
 template <Device dev, typename scalar_t>
 struct ForwardKernel {
-  const typename Accessor<dev, scalar_t, 3>::T feature_map;
+  const FeatureMap<dev, scalar_t> feature_map;
   const typename Accessor<dev, scalar_t, 2>::T uv;
   typename Accessor<dev, scalar_t, 2>::T out_features;
   typename Accessor<dev, bool, 1>::T out_bound_mask;
 
   ForwardKernel(const torch::Tensor feature_map, const torch::Tensor uv,
                 torch::Tensor out_features, torch::Tensor out_bound_mask)
-      : feature_map(Accessor<dev, scalar_t, 3>::Get(feature_map)),
+      : feature_map(feature_map),
         uv(Accessor<dev, scalar_t, 2>::Get(uv)),
         out_features(Accessor<dev, scalar_t, 2>::Get(out_features)),
         out_bound_mask(Accessor<dev, bool, 1>::Get(out_bound_mask)) {}
@@ -49,18 +50,18 @@ struct ForwardKernel {
   FTB_DEVICE_HOST void operator()(int idx) {
     out_bound_mask[idx] = false;
 
-    const int width = feature_map.size(2);
-    const int height = feature_map.size(1);
-
     scalar_t u = uv[idx][0];
     scalar_t v = uv[idx][1];
 
-    if (u < 0 || u >= width || v < 0 || v >= height) return;
+    if (u < 0 || u >= feature_map.width || v < 0 || v >= feature_map.height)
+      return;
 
     out_bound_mask[idx] = true;
-    for (int i = 0; i < feature_map.size(0); ++i) {
-      scalar_t val = bilinear_interp(u, v, feature_map[i]);
-      out_features[i][idx] = val;
+
+    const BilinearInterp<dev, scalar_t> interp = feature_map.GetBilinear(u, v);
+    for (int channel = 0; channel < feature_map.channel_size; ++channel) {
+      scalar_t val = interp.Get(channel);
+      out_features[channel][idx] = val;
     }
   }
 };
@@ -94,14 +95,14 @@ void FeatureMapOp::Forward(const torch::Tensor feature_map,
 namespace {
 template <Device dev, typename scalar_t>
 struct BackwardKernel {
-  const typename Accessor<dev, scalar_t, 3>::T feature_map;
+  const FeatureMap<dev, scalar_t> feature_map;
   const typename Accessor<dev, scalar_t, 2>::T uv;
   const typename Accessor<dev, scalar_t, 2>::T dl_value;
   typename Accessor<dev, scalar_t, 2>::T dl_uv;
 
   BackwardKernel(const torch::Tensor feature_map, const torch::Tensor uv,
                  const torch::Tensor dl_value, torch::Tensor dl_uv)
-      : feature_map(Accessor<dev, scalar_t, 3>::Get(feature_map)),
+      : feature_map(feature_map),
         uv(Accessor<dev, scalar_t, 2>::Get(uv)),
         dl_value(Accessor<dev, scalar_t, 2>::Get(dl_value)),
         dl_uv(Accessor<dev, scalar_t, 2>::Get(dl_uv)) {}
@@ -111,35 +112,28 @@ struct BackwardKernel {
     const scalar_t u = uv[idx][0];
     const scalar_t v = uv[idx][1];
 
-    const int width = feature_map.size(2);
-    const int height = feature_map.size(1);
-
     dl_uv[idx][0] = 0;
     dl_uv[idx][1] = 0;
-    if (u < 0 || u >= width || v < 0 || v >= height) return;
+
+    if (u < 0 || u >= feature_map.width || v < 0 || v >= feature_map.height)
+      return;
 
     const scalar_t h = 0.05;
 
     scalar_t dl_ugrad = 0;
     scalar_t dl_vgrad = 0;
 
-    for (long i = 0; i < feature_map.size(0); ++i) {
-      const auto channel_feature_map = feature_map[i];
-      const scalar_t channel_dl = dl_value[i][idx];
+    BilinearInterpGrad<dev, scalar_t> grad =
+        feature_map.GetBilinearGrad(u, v, h);
 
-      const scalar_t u0 =
-          bilinear_interp<scalar_t>(u + h, v, channel_feature_map);
-      const scalar_t u1 = bilinear_interp<scalar_t>(max(u - h, scalar_t(0)), v,
-                                                    channel_feature_map);
-      const scalar_t ugrad = (u0 - u1) / 2 * h;
+    for (int channel = 0; channel < feature_map.channel_size; ++channel) {
+      scalar_t du, dv;
+      grad.Get(channel, du, dv);
 
-      const float v1 = bilinear_interp<scalar_t>(u, v + h, channel_feature_map);
-      const float v0 = bilinear_interp<scalar_t>(u, max(v - h, scalar_t(0)),
-                                                 channel_feature_map);
-      const scalar_t vgrad = (v0 - v1) / 2 * h;
+      const scalar_t channel_dl = dl_value[channel][idx];
 
-      dl_ugrad += ugrad * channel_dl;
-      dl_vgrad += vgrad * channel_dl;
+      dl_ugrad += du * channel_dl;
+      dl_vgrad += dv * channel_dl;
     }
 
     dl_uv[idx][0] = dl_ugrad;

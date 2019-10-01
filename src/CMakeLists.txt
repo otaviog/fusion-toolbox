@@ -1,6 +1,7 @@
 include_directories(${PYTHON_INCLUDE_DIR})
 
 cuda_add_library(fiontb
+  feature_map3d.cu
   cuda_utils.cpp
   normals.cu
   bilateralfilter.cu
@@ -22,6 +23,7 @@ cuda_add_library(fiontb
   sobel_gradient.cu
   downsample.cu
   dense_matcher.cu
+  surfel_allocator.cpp
   )
 
 target_include_directories(fiontb

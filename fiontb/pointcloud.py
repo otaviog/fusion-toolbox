@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from .camera import Homogeneous, normal_transform_matrix
+from .camera import RigidTransform, normal_transform_matrix
 
 
 class PointCloud:
@@ -38,18 +38,29 @@ class PointCloud:
 
     def transform(self, matrix):
         if self.points.size == 0:
-            return
+            return PointCloud(self.points)
 
-        points = Homogeneous(matrix) @ self.points
-        normal_matrix = normal_transform_matrix(matrix)
+        points = RigidTransform(matrix) @ self.points
 
         if self.normals is not None:
+            normal_matrix = normal_transform_matrix(matrix)
             normals = (
                 normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
         else:
             normals = None
 
         return PointCloud(points, self.colors, normals)
+
+    def itransform(self, matrix):
+        if self.points.size == 0:
+            return
+
+        self.points @= matrix[:3, :3].transpose(1, 0)
+        self.points += matrix[:3, 3]
+
+        if self.normals is not None:
+            normal_matrix = normal_transform_matrix(matrix)
+            self.normals @= normal_matrix.transpose(1, 0)
 
     def index_select(self, index):
         return PointCloud(

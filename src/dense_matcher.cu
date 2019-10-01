@@ -51,13 +51,13 @@ struct MatchPointsDenseKernel {
     const Vector<scalar_t, 3> Tsrc_point =
         rt_cam.Transform(to_vec3<scalar_t>(src_points[idx]));
 
-    int x, y;
-    kcam.Projecti(Tsrc_point, x, y);
-    if (x < 0 || x >= width || y < 0 || y >= height) return;
-    if (target.empty(x, y)) return;
+    int ui, vi;
+    kcam.Projecti(Tsrc_point, ui, vi);
+    if (ui < 0 || ui >= width || vi < 0 || vi >= height) return;
+    if (target.empty(vi, ui)) return;
 
-    out_index[idx] = y * width + x;
-    auto target_point = target.points[y][x];
+    out_index[idx] = vi * width + ui;
+    auto target_point = target.points[vi][ui];
     out_points[idx][0] = target_point[0];
     out_points[idx][1] = target_point[1];
     out_points[idx][2] = target_point[2];
