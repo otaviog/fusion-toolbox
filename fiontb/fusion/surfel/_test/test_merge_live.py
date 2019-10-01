@@ -7,10 +7,10 @@ import tenviz
 from fiontb.data.ftb import load_ftb
 from fiontb.data import set_cameras_to_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
+from fiontb.surfel import SurfelModel, SurfelCloud
 
 from ..indexmap import ModelIndexMapRaster, LiveIndexMapRaster, show_indexmap
 from ..merge_live import MergeLiveSurfels
-from ..datatype import SurfelModel, SurfelCloud
 
 
 def _test():
@@ -41,6 +41,7 @@ def _test():
 
     merge_live = MergeLiveSurfels(gl_context, 2, math.radians(30))
     prev_model = surfel_model.clone()
+
     with gl_context.current():
         model_indexmap = model_raster.to_indexmap(device)
 

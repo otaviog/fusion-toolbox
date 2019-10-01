@@ -1,12 +1,41 @@
+import math
+
 import torch
 import tenviz
 
 from fiontb.frame import FramePointCloud
-from fiontb.fusion.surfel.model import compute_confidences, compute_surfel_radii
 from fiontb.camera import RigidTransform, normal_transform_matrix
 from fiontb._cfiontb import (
     MappedSurfelModel, SurfelAllocator as _SurfelAllocator)
 
+def compute_surfel_radii(cam_points, normals, kcam):
+    focal_len = (abs(kcam.matrix[0, 0]) + abs(kcam.matrix[1, 1])) * .5
+    radii = (
+        cam_points[:, 2] / focal_len) * math.sqrt(2)
+    radii = torch.min(2*radii, radii /
+                      normals[:, 2].squeeze().abs())
+
+    return radii
+
+
+def compute_confidences(frame_pcl, no_mask=False):
+    img_points = frame_pcl.image_points[:, :, :2].reshape(-1, 2)
+    img_mask = frame_pcl.mask.flatten()
+
+    if not no_mask:
+        img_points = img_points[img_mask]
+
+    camera_center = torch.tensor(
+        frame_pcl.kcam.pixel_center, device=img_points.device)
+
+    confidences = torch.norm(
+        img_points - camera_center, p=2, dim=1)
+    confidences = confidences / confidences.max()
+
+    confidences = torch.exp(-torch.pow(confidences, 2) /
+                            (2.0*math.pow(0.6, 2)))
+
+    return confidences
 
 class SurfelCloud:
     def __init__(self, positions, confidences, normals, radii, colors):

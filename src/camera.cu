@@ -1,5 +1,8 @@
 #include "camera.hpp"
 
+#include <pybind11/eigen.h>
+#include <torch/csrc/utils/pybind.h>
+
 #include "error.hpp"
 #include "kernel.hpp"
 
@@ -78,9 +81,9 @@ struct ProjectBackwardKernel {
   FTB_DEVICE_HOST void operator()(int i) {
     Eigen::Matrix<scalar_t, 3, 1> point = to_vec3<scalar_t>(points[i]);
 
-	scalar_t j00, j02, j11, j12;
-	kcamera.Dx_Projection(point, j00, j02, j11, j12);
-	
+    scalar_t j00, j02, j11, j12;
+    kcamera.Dx_Projection(point, j00, j02, j11, j12);
+
     dx_points[i][0] = j00 * dy_grad[i][0];
     dx_points[i][1] = j11 * dy_grad[i][1];
     dx_points[i][2] = j02 * dy_grad[i][0] + j12 * dy_grad[i][1];
@@ -114,6 +117,11 @@ torch::Tensor ProjectOp::Backward(const torch::Tensor &dy_grad,
   }
 
   return dx_points;
+}
+
+void ProjectOp::RegisterPybind(pybind11::module &m) {
+  m.def("project_op_forward", &ProjectOp::Forward);
+  m.def("project_op_backward", &ProjectOp::Backward);
 }
 
 }  // namespace fiontb

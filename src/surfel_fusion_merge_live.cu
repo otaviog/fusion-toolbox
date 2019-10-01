@@ -1,4 +1,4 @@
-#include "fsf_common.hpp"
+#include "surfel_fusion_common.hpp"
 
 #include "camera.hpp"
 #include "kernel.hpp"
@@ -18,9 +18,9 @@ struct LiveMergeKernel {
 
   typename Accessor<dev, int64_t, 2>::T new_surfel_map;
 
-  LiveMergeKernel(IndexMapAccessor<dev> target_indexmap,
-                  IndexMapAccessor<dev> live_indexmap,
-                  SurfelModelAccessor<dev> surfel_model,
+  LiveMergeKernel(const IndexMap &target_indexmap,
+                  const IndexMap &live_indexmap,
+                  const MappedSurfelModel &surfel_model,
                   RTCamera<dev, float> rt_cam, int search_size,
                   float max_normal_angle, torch::Tensor new_surfel_map)
       : target_indexmap(target_indexmap),
@@ -30,7 +30,7 @@ struct LiveMergeKernel {
         search_size(search_size),
         max_normal_angle(max_normal_angle),
         new_surfel_map(Accessor<dev, int64_t, 2>::Get(new_surfel_map)) {
-    scale = int(float(target_indexmap.height()) / live_indexmap.height());
+    scale = int(float(target_indexmap.get_height()) / live_indexmap.get_height());
     search_size = int(scale * search_size);
   }
 
@@ -105,35 +105,29 @@ struct LiveMergeKernel {
 
 }  // namespace
 
-void FSFOp::MergeLive(const IndexMap &target_indexmap_params,
-                      const IndexMap &live_indexmap_params,
-                      const MappedSurfelModel &model_params,
-                      const torch::Tensor &rt_cam, int search_size,
-                      float max_normal_angle, torch::Tensor new_surfels_map) {
-  auto reference_dev = target_indexmap_params.get_device();
-  live_indexmap_params.CheckDevice(reference_dev);
-  target_indexmap_params.CheckDevice(reference_dev);
-  model_params.CheckDevice(reference_dev);
+void SurfelFusionOp::MergeLive(const IndexMap &target_indexmap,
+                               const IndexMap &live_indexmap,
+                               const MappedSurfelModel &model,
+                               const torch::Tensor &rt_cam, int search_size,
+                               float max_normal_angle,
+                               torch::Tensor new_surfels_map) {
+  auto reference_dev = target_indexmap.get_device();
+
+  live_indexmap.CheckDevice(reference_dev);
+  target_indexmap.CheckDevice(reference_dev);
+  model.CheckDevice(reference_dev);
   FTB_CHECK_DEVICE(reference_dev, rt_cam);
 
   if (reference_dev.is_cuda()) {
-    IndexMapAccessor<kCUDA> live_indexmap(live_indexmap_params);
-    IndexMapAccessor<kCUDA> target_indexmap(target_indexmap_params);
-    SurfelModelAccessor<kCUDA> model(model_params);
-
     LiveMergeKernel<kCUDA> kernel(target_indexmap, live_indexmap, model,
                                   RTCamera<kCUDA, float>(rt_cam), search_size,
                                   max_normal_angle, new_surfels_map);
-    Launch2DKernelCUDA(kernel, live_indexmap.width(), live_indexmap.height());
+    Launch2DKernelCUDA(kernel, live_indexmap.get_width(), live_indexmap.get_height());
   } else {
-    IndexMapAccessor<kCPU> live_indexmap(live_indexmap_params);
-    IndexMapAccessor<kCPU> target_indexmap(target_indexmap_params);
-    SurfelModelAccessor<kCPU> model(model_params);
-
     LiveMergeKernel<kCPU> kernel(target_indexmap, live_indexmap, model,
                                  RTCamera<kCPU, float>(rt_cam), search_size,
                                  max_normal_angle, new_surfels_map);
-    Launch2DKernelCPU(kernel, live_indexmap.width(), live_indexmap.height());
+    Launch2DKernelCPU(kernel, live_indexmap.get_width(), live_indexmap.get_height());
   }
 }
 }  // namespace fiontb

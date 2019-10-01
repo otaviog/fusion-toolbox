@@ -1,8 +1,10 @@
 #pragma once
 
-#include <vector>
-
 #include <torch/torch.h>
+
+namespace pybind11 {
+class module;
+}
 
 namespace fiontb {
 struct ICPJacobian {
@@ -17,11 +19,12 @@ struct ICPJacobian {
 
   static void EstimateHybrid(
       const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
-      const torch::Tensor tgt_feat,
-      const torch::Tensor tgt_mask, const torch::Tensor src_points,
-      const torch::Tensor src_feats, const torch::Tensor src_mask,
-      const torch::Tensor kcam, const torch::Tensor rt_cam,
-      float geom_weight, float feat_weight,
+      const torch::Tensor tgt_feat, const torch::Tensor tgt_mask,
+      const torch::Tensor src_points, const torch::Tensor src_feats,
+      const torch::Tensor src_mask, const torch::Tensor kcam,
+      const torch::Tensor rt_cam, float geom_weight, float feat_weight,
       torch::Tensor jacobian, torch::Tensor residual);
+
+  static void RegisterPybind(pybind11::module &m);
 };
 }  // namespace fiontb

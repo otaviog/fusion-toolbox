@@ -5,28 +5,11 @@ import torch
 import tenviz
 
 import fiontb.frame
-from .model import compute_confidences, SurfelCloud
-from .live_merge import LiveToModelMergeMap
+from fiontb.surfel import SurfelCloud
+from .merge_live import LiveToModelMergeMap
 from .spacecarving import SpaceCarving
 from .intra_merge import IntraMergeMap
 from .indexmap import ModelIndexMap
-
-
-class _ConfidenceCache:
-    def __init__(self):
-        self.width = -1
-        self.height = -1
-        self.confidences = None
-
-    def get_confidences(self, frame_pcl):
-        fheight, fwidth = frame_pcl.image_points.shape[:2]
-        # It doesn't check kcam
-        if fheight != self.height or fwidth != self.width:
-            self.width = fwidth
-            self.height = fheight
-            self.confidences = compute_confidences(frame_pcl, no_mask=True)
-
-        return self.confidences[frame_pcl.mask.flatten()]
 
 
 class FusionStats:

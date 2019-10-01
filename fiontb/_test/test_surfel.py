@@ -7,16 +7,16 @@ import torch
 from fiontb.frame import FramePointCloud
 from fiontb.viz.surfelrender import show_surfels
 from fiontb.data.ftb import load_ftb
-from ..context import SurfelModel, LiveSurfels
+from ..surfel import SurfelModel, SurfelCloud
 
 
 class TestDatatype:
     def adding(self):
         device = "cpu:0"
-        test_data = Path(__file__).parent / "../../../../test-data/rgbd"
+        test_data = Path(__file__).parent / "../../test-data/rgbd"
         dataset = load_ftb(test_data / "sample2")
 
-        live_surfels = LiveSurfels.from_frame_pcl(
+        live_surfels = SurfelCloud.from_frame_pcl(
             FramePointCloud.from_frame(dataset[0]))
 
         gl_context = tenviz.Context()

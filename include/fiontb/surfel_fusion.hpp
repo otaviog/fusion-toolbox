@@ -4,9 +4,15 @@
 
 #include "error.hpp"
 
+namespace pybind11 {
+class module;
+}
+
 namespace fiontb {
 struct IndexMap {
   torch::Tensor position_confidence, normal_radius, color, indexmap;
+
+  static void RegisterPybind(pybind11::module &m);
 
   int get_width() const { return position_confidence.size(1); }
 
@@ -36,6 +42,8 @@ struct IndexMap {
 struct MappedSurfelModel {
   torch::Tensor positions, confidences, normals, radii, colors;
 
+  static void RegisterPybind(pybind11::module &m);
+
   void CheckDevice(const torch::Device &dev) const {
     FTB_CHECK_DEVICE(dev, positions);
     FTB_CHECK_DEVICE(dev, confidences);
@@ -50,22 +58,21 @@ struct SurfelCloud {
 };
 
 struct SurfelFusionOp {
-  static void CarveSpace(const torch::Tensor &model_pos_fb,
-                         const torch::Tensor model_idx_fb, torch::Tensor mask,
-                         int curr_time, float stable_conf_thresh,
-                         int search_size, float min_z_diff);
+  static void MergeLive(const IndexMap &target_indexmap,
+                        const IndexMap &live_indexmap,
+                        const MappedSurfelModel &model,
+                        const torch::Tensor &rt_cam, int search_size,
+                        float max_normal_angle, torch::Tensor new_surfels_map);
 
-  static void FindMergeableSurfels(const torch::Tensor &pos_fb,
-                                   const torch::Tensor &normal_rad_fb,
-                                   const torch::Tensor &idx_fb,
-                                   torch::Tensor merge_map, float max_dist,
-                                   float max_angle, int neighbor_size,
-                                   float stable_conf_thresh);
+  static void CarveSpace(const IndexMap &model_indexmap,
+                         torch::Tensor free_mask, int curr_time,
+                         float stable_conf_thresh, int search_size,
+                         float min_z_diff);
 
-  static torch::Tensor FindLiveToModelMerges(
-      const torch::Tensor &live_pos_fb, const torch::Tensor &live_normal_fb,
-      const torch::Tensor &live_idx_fb, const torch::Tensor &model_pos_fb,
-      const torch::Tensor &model_normal_fb, const torch::Tensor &model_idx_fb,
-      float max_normal_angle, int search_size);
+  static void Merge(const IndexMap &model_indexmap, torch::Tensor merge_map,
+                    float max_dist, float max_angle, int neighbor_size,
+                    float stable_conf_thresh);
+
+  static void RegisterPybind(pybind11::module &m);
 };
 }  // namespace fiontb

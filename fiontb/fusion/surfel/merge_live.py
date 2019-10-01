@@ -2,7 +2,7 @@ import math
 
 import torch
 
-from fiontb._cfiontb import FSFOp
+from fiontb._cfiontb import SurfelFusionOp
 from fiontb._utils import empty_ensured_size
 
 from .indexmap import LiveIndexMapRaster
@@ -30,13 +30,13 @@ class MergeLiveSurfels:
         with self._gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
-                FSFOp.merge_live(target_indexmap,
-                                 live_indexmap,
-                                 mapped_model,
-                                 rt_cam.cam_to_world.to(ref_device),
-                                 self.search_size,
-                                 self.max_normal_angle,
-                                 self._new_surfels_map)
+                SurfelFusionOp.merge_live(target_indexmap,
+                                          live_indexmap,
+                                          mapped_model,
+                                          rt_cam.cam_to_world.to(ref_device),
+                                          self.search_size,
+                                          self.max_normal_angle,
+                                          self._new_surfels_map)
 
         new_surfels_index = self._new_surfels_map[self._new_surfels_map > -1]
         new_surfels = live_surfels[new_surfels_index]

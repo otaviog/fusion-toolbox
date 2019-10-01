@@ -1,17 +1,9 @@
 about:
 	@echo "Empirical test tasks"
 
-fiontb.fusion.surfel.spacecarving:
-	python3 -m fiontb.fusion.surfel.spacecarving
-
-fiontb.fusion.surfel.live_merge:
-	python3 -m fiontb.fusion.surfel.live_merge
-
-fiontb.fusion.surfel.intra_merge:
-	python3 -m fiontb.fusion.surfel.intra_merge
-
-fiontb.viz.surfelrender:
-	python3 -m fiontb.viz.surfelrender
+#########
+# Filtering
+#
 
 fiontb.filtering.bilateral:
 	python3 -m fiontb.filtering bilateral
@@ -21,6 +13,10 @@ fiontb.filtering.featuremap:
 
 fiontb.spatial.indexmap:
 	python3 -m fiontb.spatial.indexmap
+
+#########
+# Pose
+#
 
 fiontb.pose.open3d.real:
 	python3 fiontb/pose/open3d_interop.py real
@@ -49,14 +45,27 @@ fiontb.pose.autogradicp.color:
 fiontb.pose.autogradicp.hybrid:
 	python3 -m fiontb.pose._test.test_autogradicp hybrid
 
-fiontb.fusion.surfelfeat.merge_live:
-	python3 -m fiontb.fusion.surfelfeat._test.test_merge_live
+#########
+# Surfel
+#
 
-fiontb.fusion.surfelfeat.datatype:
-	python3 -m fiontb.fusion.surfelfeat._test.test_datatype adding
+fiontb.surfel:
+	python3 -m fiontb._test.test_surfel adding
 
-fiontb.fusion.surfelfeat.registration:	
-	python3 -m fiontb.fusion.surfelfeat._test.test_registration
+fiontb.viz.surfelrender:
+	python3 -m fiontb.viz.surfelrender
 
-fiontb.fusion.surfelfeat.fusion:	
-	python3 -m fiontb.fusion.surfelfeat._test.test_fusion
+fiontb.fusion.surfel.merge_live:
+	python3 -m fiontb.fusion.surfel._test.test_merge_live
+
+fiontb.fusion.surfel.carve_space:
+	python3 -m fiontb.fusion.surfel._test.test_carve_space
+
+fiontb.fusion.surfel.intra_merge:
+	python3 -m fiontb.fusion.surfel.intra_merge
+
+fiontb.fusion.fsf.registration:	
+	python3 -m fiontb.fusion.fsf._test.test_registration
+
+fiontb.fusion.fsf.fusion:	
+	python3 -m fiontb.fusion.fsf._test.test_fusion

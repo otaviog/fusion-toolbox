@@ -14,13 +14,14 @@ cuda_add_library(fiontb
   tsdf_fusion.cpp
   camera.cu
   so3.cu
-  kernel_surfel_intra_merge.cu
-  kernel_surfel_live_merge.cu
-  kernel_surfel_space_carving.cu
-  fsf_live_merge.cu
+  surfel.cpp
+  surfel_allocator.cpp
+  surfel_fusion.cpp
+  surfel_fusion_merge_live.cu
+  surfel_fusion_carve_space.cu
+  surfel_fusion_merge.cu
   kernel_indexmap.cu  
   icp_jacobian.cu
-  sobel_gradient.cu
   downsample.cu
   dense_matcher.cu
   surfel_allocator.cpp
@@ -38,7 +39,7 @@ set_target_properties(fiontb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET fiontb PROPERTY CXX_STANDARD 14)
 
-add_library(_cfiontb SHARED _fiontb.cpp)
+add_library(_cfiontb SHARED _cfiontb.cpp)
 set_property(TARGET _cfiontb PROPERTY CXX_STANDARD 14)
 set_target_properties(_cfiontb PROPERTIES PREFIX "")
 set_target_properties(_cfiontb PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/fiontb)

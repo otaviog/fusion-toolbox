@@ -6,6 +6,10 @@
 #include "accessor.hpp"
 #include "cuda_utils.hpp"
 
+namespace pybind11 {
+class module;
+}
+
 namespace fiontb {
 
 template <Device dev, typename scalar_t>
@@ -72,6 +76,8 @@ struct ProjectOp {
   static torch::Tensor Backward(const torch::Tensor &dy_grad,
                                 const torch::Tensor &points,
                                 const torch::Tensor &intrinsic_matrix);
+
+  static void RegisterPybind(pybind11::module &m);
 };
 
 template <Device dev, typename scalar_t>

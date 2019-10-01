@@ -1,4 +1,4 @@
-#include "fsf.hpp"
+#include "surfel_fusion.hpp"
 
 #include "accessor.hpp"
 #include "eigen_common.hpp"
@@ -70,6 +70,10 @@ struct IndexMapAccessor {
 
   FTB_DEVICE_HOST inline int32_t index(int row, int col) const {
     return indexmap[row][col][0];
+  }
+
+  FTB_DEVICE_HOST inline int32_t time(int row, int col) const {
+    return indexmap[row][col][2];
   }
 
   FTB_DEVICE_HOST inline Vector<float, 3> position(int row, int col) const {

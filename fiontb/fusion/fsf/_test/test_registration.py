@@ -6,10 +6,11 @@ import tenviz
 from fiontb.data.ftb import load_ftb
 from fiontb.data import set_cameras_to_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
+from fiontb.surfel import SurfelCloud, SurfelModel
+from fiontb.testing import prepare_frame
 
-from ..datatype import SurfelCloud, SurfelModel
 from ..registration import SurfelCloudRegistration
-from ._utils import prepare_frame
+
 
 
 def _test():

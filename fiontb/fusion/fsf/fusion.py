@@ -1,9 +1,10 @@
 import torch
 
-from fiontb.fusion.surfel.fusion import _ConfidenceCache
-from .merge_live import MergeLiveSurfels
-from .indexmap import ModelIndexMapRaster
-from .datatype import SurfelModel, SurfelCloud
+from fiontb.fusion.surfel.confidence import ConfidenceCache
+from fiontb.fusion.surfel.merge_live import MergeLiveSurfels
+from fiontb.fusion.surfel.indexmap import ModelIndexMapRaster
+from fiontb.surfel import SurfelModel, SurfelCloud
+
 from .registration import SurfelCloudRegistration
 
 
@@ -14,7 +15,7 @@ class FSFLocalFusion:
         self.model_raster = ModelIndexMapRaster(self.model)
         self.time = 0
 
-        self._conf_cache = _ConfidenceCache()
+        self._conf_cache = ConfidenceCache()
         self._merge_live_surfels = MergeLiveSurfels(gl_context)
 
     def fuse(self, frame_pcl, rt_cam):
