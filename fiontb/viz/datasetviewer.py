@@ -49,36 +49,6 @@ class DatasetViewer:
         self._show_cams = True
         self.max_pcls = max_pcls
 
-    def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
-        if idx in self.visited_idxs:
-            return
-
-        self.visited_idxs.add(idx)
-
-        world_space = RigidTransform(rt_cam.cam_to_world) @ cam_space
-
-        with self.wcontext.current():
-            pcl = tenviz.create_point_cloud(world_space, colors)
-            self.world_viewer.get_scene().add(pcl)
-            vcam = tenviz.create_virtual_camera(
-                cam_proj,
-                np.linalg.inv(rt_cam.opengl_view_cam))
-            self.world_viewer.get_scene().add(vcam)
-
-            self.pcl_deque.append((pcl, vcam))
-
-        if not self.visited_idxs:
-            self.world_viewer.reset_view()
-
-        if len(self.pcl_deque) > self.max_pcls:
-            with self.wcontext.current():
-                oldest_pcl, oldest_cam = self.pcl_deque.popleft()
-                self.world_viewer.get_scene().erase(oldest_pcl)
-                self.world_viewer.get_scene().erase(oldest_cam)
-                oldest_pcl = oldest_cam = None
-
-        self.wcontext.collect_garbage()
-
     def _set_model(self, frame, idx):
         finfo = frame.info
         cmap = get_cmap('viridis', finfo.depth_max)
@@ -120,10 +90,42 @@ class DatasetViewer:
         self.cam_viewer.reset_view()
 
         if finfo.rt_cam is not None:
-            self._update_world(idx, finfo.rt_cam, cam_space,
+            self._update_world(idx, finfo.rt_cam,
+                               cam_space,
+                               #RigidTransform(hand_matrix) @ cam_space,
                                pcl.colors, cam_proj)
 
         self.context.collect_garbage()
+
+    def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
+        if idx in self.visited_idxs:
+            return
+
+        self.visited_idxs.add(idx)
+
+        world_space = RigidTransform(rt_cam.cam_to_world) @ cam_space
+
+        with self.wcontext.current():
+            pcl = tenviz.create_point_cloud(world_space, colors)
+            self.world_viewer.get_scene().add(pcl)
+            vcam = tenviz.create_virtual_camera(
+                cam_proj,
+                np.linalg.inv(rt_cam.opengl_view_cam))
+            self.world_viewer.get_scene().add(vcam)
+
+            self.pcl_deque.append((pcl, vcam))
+
+        if not self.visited_idxs:
+            self.world_viewer.reset_view()
+
+        if len(self.pcl_deque) > self.max_pcls:
+            with self.wcontext.current():
+                oldest_pcl, oldest_cam = self.pcl_deque.popleft()
+                self.world_viewer.get_scene().erase(oldest_pcl)
+                self.world_viewer.get_scene().erase(oldest_cam)
+                oldest_pcl = oldest_cam = None
+
+        self.wcontext.collect_garbage()
 
     def _update_canvas(self, _):
         idx = cv2.getTrackbarPos("pos", self.title)
