@@ -49,6 +49,55 @@ class DatasetViewer:
         self._show_cams = True
         self.max_pcls = max_pcls
 
+    def _set_model(self, frame, idx):
+        finfo = frame.info
+        cmap = get_cmap('viridis', finfo.depth_max)
+
+        depth_img = (frame.depth_image / finfo.depth_max)
+        depth_img = cmap(depth_img)
+        depth_img = depth_img[:, :, 0:3]
+        depth_img = (depth_img*255).astype(np.uint8)
+
+        rgb_img = cv2.cvtColor(
+            frame.rgb_image, cv2.COLOR_RGB2BGR)
+
+        self.last_proc_data = {
+            'idx': idx,
+            'depth_img': depth_img,
+            'rgb_img': rgb_img,
+            'fg_mask': frame.fg_mask
+        }
+
+        with self.context.current():
+            self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
+
+        pcl = FramePointCloud.from_frame(
+            frame).unordered_point_cloud(world_space=False, compute_normals=False)
+        cam_space = pcl.points
+
+        hand_matrix = torch.eye(4)
+        hand_matrix[2, 2] = -1
+        # hand_matrix[1, 1] = -1
+
+        with self.context.current():
+            self.tv_camera_pcl = tenviz.create_point_cloud(
+                RigidTransform(hand_matrix) @ cam_space,
+                pcl.colors)
+        self.cam_viewer.get_scene().add(self.tv_camera_pcl)
+
+        cam_proj = tenviz.projection_from_kcam(
+            finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
+
+        self.cam_viewer.reset_view()
+
+        if finfo.rt_cam is not None:
+            self._update_world(idx, finfo.rt_cam,
+                               cam_space,
+                               #RigidTransform(hand_matrix) @ cam_space,
+                               pcl.colors, cam_proj)
+
+        self.context.collect_garbage()
+
     def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
         if idx in self.visited_idxs:
             return
@@ -78,53 +127,6 @@ class DatasetViewer:
                 oldest_pcl = oldest_cam = None
 
         self.wcontext.collect_garbage()
-
-    def _set_model(self, frame, idx):
-        finfo = frame.info
-        cmap = get_cmap('viridis', finfo.depth_max)
-
-        depth_img = (frame.depth_image / finfo.depth_max)
-        depth_img = cmap(depth_img)
-        depth_img = depth_img[:, :, 0:3]
-        depth_img = (depth_img*255).astype(np.uint8)
-
-        rgb_img = cv2.cvtColor(
-            frame.rgb_image, cv2.COLOR_RGB2BGR)
-
-        self.last_proc_data = {
-            'idx': idx,
-            'depth_img': depth_img,
-            'rgb_img': rgb_img,
-            'fg_mask': frame.fg_mask
-        }
-
-        with self.context.current():
-            self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
-
-        pcl = FramePointCloud.from_frame(
-            frame).unordered_point_cloud(world_space=False, compute_normals=False)
-        cam_space = pcl.points
-
-        hand_matrix = torch.eye(4)
-        hand_matrix[2, 2] = -1
-        hand_matrix[1, 1] = -1
-
-        with self.context.current():
-            self.tv_camera_pcl = tenviz.create_point_cloud(
-                RigidTransform(hand_matrix) @ cam_space,
-                pcl.colors)
-        self.cam_viewer.get_scene().add(self.tv_camera_pcl)
-
-        cam_proj = tenviz.projection_from_kcam(
-            finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
-
-        self.cam_viewer.reset_view()
-
-        if finfo.rt_cam is not None:
-            self._update_world(idx, finfo.rt_cam, cam_space,
-                               pcl.colors, cam_proj)
-
-        self.context.collect_garbage()
 
     def _update_canvas(self, _):
         idx = cv2.getTrackbarPos("pos", self.title)
