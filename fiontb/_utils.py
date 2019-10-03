@@ -1,3 +1,6 @@
+import contextlib
+import cProfile
+
 import numpy as np
 import torch
 
@@ -20,3 +23,15 @@ def empty_ensured_size(tensor, *sizes, dtype=torch.float, device=None):
         return torch.empty(sizes, dtype=dtype, device=device)
 
     return tensor
+
+@contextlib.contextmanager
+def profile(output_file, really=True):
+    if really:
+        prof = cProfile.Profile()
+        prof.enable()
+        yield
+        prof.disable()
+
+        prof.dump_stats(str(output_file))
+    else:
+        yield

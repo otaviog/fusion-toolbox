@@ -3,94 +3,85 @@ from cProfile import Profile
 
 import torch
 from torchvision.transforms import ToTensor
-import cv2
+import fire
 
 from fiontb.data.ftb import load_ftb
-from fiontb.filtering import bilateral_depth_filter
 from fiontb.frame import FramePointCloud
 from fiontb.viz.show import show_pcls
+from fiontb.testing import prepare_frame
+from fiontb.pose.autogradicp import AutogradICP, MultiscaleAutogradICP
+from fiontb._utils import profile as _profile
+from ._utils import evaluate
 
-from fiontb.pose.autogradicp import AutogradICP
+# pylint: disable=no-self-use
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 torch.set_printoptions(precision=10)
 
-
-def _prepare_frame(frame, bi_filter=True):
-
-    if bi_filter:
-        frame.depth_image = bilateral_depth_filter(
-            frame.depth_image,
-            frame.depth_image > 0,
-            depth_scale=frame.info.depth_scale)
-
-    return frame
-
-# pylint: disable=no-self-use
-
+_OTHER_FRAME_INDEX = 5
+_SAMPLE = "sample1"
+_TO_TENSOR = ToTensor()
 
 class _Tests:
     def geometric(self, profile=False):
         device = "cuda:0"
         icp = AutogradICP(25, 0.05)
 
-        dataset = load_ftb(_TEST_DATA / "sample2")
+        dataset = load_ftb(_TEST_DATA / _SAMPLE)
 
-        frame = _prepare_frame(dataset[0], bi_filter=False)
-        next_frame = _prepare_frame(dataset[1], bi_filter=False)
+        frame = prepare_frame(dataset[0], filter_depth=True)
+        next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
+                                   filter_depth=True)
 
-        fpcl = FramePointCloud.from_frame(frame).to(device)
-        next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
+        fpcl0 = FramePointCloud.from_frame(frame).to(device)
+        fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
 
-        if profile:
-            prof = Profile()
-            prof.enable()
+        with _profile(Path(__file__).parent /
+                      "autogradicp-geometric.prof",
+                      really=profile):
+            relative_rt = icp.estimate(fpcl1.kcam,
+                                       source_points=fpcl1.points,
+                                       source_mask=fpcl1.mask,
+                                       target_points=fpcl0.points,
+                                       target_mask=fpcl0.mask,
+                                       target_normals=fpcl0.normals)
 
-        relative_rt = icp.estimate(next_fpcl.kcam,
-                                   tgt_image_p3d=fpcl.points,
-                                   tgt_mask=fpcl.mask,
-                                   tgt_normals=fpcl.normals,
-                                   src_points=next_fpcl.points)
+        evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
-        if profile:
-            prof.disable()
-            prof.dump_stats("cprofile.prof")
+        pcl0 = fpcl0.unordered_point_cloud(world_space=False)
+        pcl1 = fpcl1.unordered_point_cloud(world_space=False)
+        pcl2 = pcl1.transform(relative_rt)
 
-        pcl0 = fpcl.unordered_point_cloud(world_space=False)
-        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-        pcl2 = pcl1.clone()
-
-        pcl2 = pcl2.transform(relative_rt)
         show_pcls([pcl0, pcl1, pcl2])
 
     def color(self):
         device = "cuda:0"
         icp = AutogradICP(100, 0.05)
 
-        dataset = load_ftb(_TEST_DATA / "sample2")
+        dataset = load_ftb(_TEST_DATA / _SAMPLE)
 
-        to_tensor = ToTensor()
+        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True, blur=True)
+        next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
+                                   filter_depth=True, to_hsv=True, blur=True)
 
-        frame = dataset[0]
-        next_frame = dataset[2]
+        fpcl0 = FramePointCloud.from_frame(frame).to(device)
+        fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
 
-        fpcl = FramePointCloud.from_frame(frame).to(device)
-        next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
+        image0 = _TO_TENSOR(frame.rgb_image).to(device)
+        image1 = _TO_TENSOR(next_frame.rgb_image).to(device)
 
-        image = to_tensor(cv2.cvtColor(
-            frame.rgb_image, cv2.COLOR_RGB2HSV)).to(device)
+        relative_rt = icp.estimate(fpcl1.kcam.to(device),
+                                   source_points=fpcl1.points,
+                                   source_mask=fpcl1.mask,
+                                   target_feats=image0,
+                                   source_feats=image1,
+                                   geom_weight=0, feat_weight=1)
 
-        next_image = to_tensor(cv2.cvtColor(
-            next_frame.rgb_image, cv2.COLOR_RGB2HSV)).to(device)
+        evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
-        relative_rt = icp.estimate(next_fpcl.kcam.to(device),
-                                   src_points=next_fpcl.points,
-                                   tgt_image_feat=image,
-                                   src_image_feat=next_image)
-
-        pcl0 = fpcl.unordered_point_cloud(world_space=False)
-        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
+        pcl0 = fpcl0.unordered_point_cloud(world_space=False)
+        pcl1 = fpcl1.unordered_point_cloud(world_space=False)
         pcl2 = pcl1.transform(relative_rt)
         show_pcls([pcl0, pcl1, pcl2])
 
@@ -98,38 +89,97 @@ class _Tests:
         device = "cuda:0"
         icp = AutogradICP(100, 0.05)
 
-        dataset = load_ftb(_TEST_DATA / "sample2")
+        dataset = load_ftb(_TEST_DATA / _SAMPLE)
 
-        to_tensor = ToTensor()
+        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True, blur=True)
+        next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
+                                   filter_depth=True, to_hsv=True, blur=True)
 
-        frame = dataset[0]
-        next_frame = dataset[1]
+        fpcl0 = FramePointCloud.from_frame(frame).to(device)
+        fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
+        pcl1 = fpcl1.unordered_point_cloud(world_space=False)
 
-        fpcl = FramePointCloud.from_frame(frame).to(device)
-        next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
+        image0 = _TO_TENSOR(frame.rgb_image).to(device)
+        image1 = _TO_TENSOR(next_frame.rgb_image).to(device)
 
-        image = to_tensor(cv2.cvtColor(
-            frame.rgb_image, cv2.COLOR_RGB2HSV)).to(device)
+        relative_rt = icp.estimate(
+            fpcl1.kcam, source_points=fpcl1.points,
+            source_mask=fpcl1.mask,
+            target_points=fpcl0.points, target_mask=fpcl0.mask,
+            target_normals=fpcl0.normals,
+            source_feats=image1, target_feats=image0,
+            geom_weight=0, feat_weight=1)
 
-        next_image = to_tensor(cv2.cvtColor(
-            next_frame.rgb_image, cv2.COLOR_RGB2HSV)).to(device)
-        relative_rt = icp.estimate(next_fpcl.kcam,
-                                   src_points=next_fpcl.points,
-                                   tgt_image_p3d=fpcl.points,
-                                   tgt_mask=fpcl.mask,
-                                   tgt_normals=fpcl.normals,
-                                   tgt_image_feat=image,
-                                   src_image_feat=next_image, geom_weight=0.8,
-                                   feat_weight=0.2)
+        evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
-        pcl0 = fpcl.unordered_point_cloud(world_space=False)
-        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-        pcl2 = pcl1.clone()
+        pcl0 = fpcl0.unordered_point_cloud(world_space=False)
+        pcl2 = pcl1.transform(relative_rt)
 
-        pcl2 = pcl2.transform(relative_rt)
+        show_pcls([pcl0, pcl1, pcl2])
+
+    def multiscale_geometric(self):
+        device = "cuda:0"
+        icp = MultiscaleAutogradICP([(0.5, 100, 0.05, False),
+                                     (1.0, 100, 0.05, False)
+                                     ])
+
+        dataset = load_ftb(_TEST_DATA / _SAMPLE)
+
+        frame = prepare_frame(dataset[0], filter_depth=True)
+        next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
+                                   filter_depth=True)
+
+        fpcl0 = FramePointCloud.from_frame(frame).to(device)
+        fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
+
+        relative_rt = icp.estimate(
+            fpcl1.kcam, source_points=fpcl1.points,
+            source_mask=fpcl1.mask,
+            target_points=fpcl0.points, target_mask=fpcl0.mask,
+            target_normals=fpcl0.normals,
+            geom_weight=1.0, feat_weight=0.0)
+
+        evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
+
+        pcl0 = fpcl0.unordered_point_cloud(world_space=False)
+        pcl1 = fpcl1.unordered_point_cloud(world_space=False)
+        pcl2 = pcl1.transform(relative_rt)
+
+        show_pcls([pcl0, pcl1, pcl2])
+
+    def multiscale_hybrid(self):
+        device = "cuda:0"
+        icp = MultiscaleAutogradICP([(0.5, 100, 0.05, False),
+                                     (1.0, 100, 0.05, True)])
+
+        dataset = load_ftb(_TEST_DATA / _SAMPLE)
+
+        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True)
+        next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
+                                   filter_depth=True, to_hsv=True)
+
+        fpcl0 = FramePointCloud.from_frame(frame).to(device)
+        fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
+        pcl1 = fpcl1.unordered_point_cloud(world_space=False)
+
+        image0 = _TO_TENSOR(frame.rgb_image).to(device)
+        image1 = _TO_TENSOR(next_frame.rgb_image).to(device)
+
+        relative_rt = icp.estimate(
+            fpcl1.kcam, source_points=fpcl1.points,
+            source_mask=fpcl1.mask,
+            target_points=fpcl0.points, target_mask=fpcl0.mask,
+            target_normals=fpcl0.normals,
+            source_feats=image1, target_feats=image0,
+            geom_weight=0.5, feat_weight=0.5)
+
+        evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
+
+        pcl0 = fpcl0.unordered_point_cloud(world_space=False)
+        pcl2 = pcl1.transform(relative_rt)
+
         show_pcls([pcl0, pcl1, pcl2])
 
 
 if __name__ == '__main__':
-    import fire
     fire.Fire(_Tests)

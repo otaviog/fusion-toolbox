@@ -109,6 +109,10 @@ class PointCloud:
     def size(self):
         return self.points.shape[0]
 
+    @property
+    def device(self):
+        return self.points.device
+
 
 def stack_pcl(pcl_list):
     pcl_list = [pcl for pcl in pcl_list

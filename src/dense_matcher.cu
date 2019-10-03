@@ -41,12 +41,10 @@ struct MatchPointsDenseKernel {
         out_index(Accessor<dev, int64_t, 1>::Get(out_index)) {}
 
   FTB_DEVICE_HOST void operator()(int idx) {
-    if (idx >= src_points.size(0)) return;
-
     out_index[idx] = -1;
 
-    const int width = target.points.size(1);
     const int height = target.points.size(0);
+    const int width = target.points.size(1);
 
     const Vector<scalar_t, 3> Tsrc_point =
         rt_cam.Transform(to_vec3<scalar_t>(src_points[idx]));
@@ -92,10 +90,12 @@ void LaunchCPU(MatchPointsDenseKernel<kCPU, scalar_t> kernel, int size) {
 }  // namespace
 
 void Matching::MatchDensePoints(const torch::Tensor target_points,
-                      const torch::Tensor target_mask,
-                      const torch::Tensor source_points,
-                      const torch::Tensor kcam, const torch::Tensor rt_cam,
-                      torch::Tensor out_point, torch::Tensor out_index) {
+                                const torch::Tensor target_mask,
+                                const torch::Tensor source_points,
+                                const torch::Tensor kcam,
+                                const torch::Tensor rt_cam,
+                                torch::Tensor out_point,
+                                torch::Tensor out_index) {
   const auto reference_dev = target_points.device();
   FTB_CHECK_DEVICE(reference_dev, target_points);
   FTB_CHECK_DEVICE(reference_dev, source_points);
@@ -104,7 +104,7 @@ void Matching::MatchDensePoints(const torch::Tensor target_points,
   FTB_CHECK_DEVICE(reference_dev, out_point);
   FTB_CHECK_DEVICE(reference_dev, out_index);
 
-  if (target_points.is_cuda()) {
+  if (reference_dev.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(
         target_points.scalar_type(), "MatchDensePoints", ([&] {
           MatchPointsDenseKernel<kCUDA, scalar_t> kernel(

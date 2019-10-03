@@ -18,6 +18,6 @@ def ate_rmse(trajectory_true, trajectory_pred):
     xyz_pred = torch.stack(xyz_pred)
 
     rmse = (xyz_true - xyz_pred).norm(dim=1)
-    rmse = rmse.mean()
+    rmse = rmse.mean().item()
 
     return rmse

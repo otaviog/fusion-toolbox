@@ -5,10 +5,11 @@ import math
 import torch
 from tenviz.pose import SE3
 
-from fiontb.downsample import (
-    downsample_xyz, downsample_mask, DownsampleXYZMethod)
+from fiontb.downsample import (DownsampleXYZMethod)
 from fiontb._cfiontb import (ICPJacobian as _ICPJacobian)
 from fiontb._utils import empty_ensured_size
+
+from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 # pylint: disable=invalid-name
 
@@ -145,7 +146,7 @@ class ICPOdometry:
                              geom_weight=geom_weight, feat_weight=feat_weight)
 
 
-class MultiscaleICPOdometry:
+class MultiscaleICPOdometry(_MultiscaleOptimization):
     """Pyramidal point-to-plane iterative closest points
     algorithm.
     """
@@ -155,102 +156,15 @@ class MultiscaleICPOdometry:
 
         Args:
 
-            scale_iters (List[(float, int)]): Scale levels and its
-             number of iterations. Scales must be <= 1.0
+            scale_iters (List[(float, int, bool)]): Scale levels, its
+             number of iterations, and whatever should use features. Scales must be <= 1.0
 
             downsample_xyz_method
              (:obj:`fiontb.downsample.DownsampleXYZMethod`): Which
              method to interpolate the xyz target and source points.
         """
 
-        self.scale_icp = [(scale, ICPOdometry(iters))
-                          for scale, iters in scale_iters]
-        self.downsample_xyz_method = downsample_xyz_method
-
-    def estimate(self, kcam, source_points, source_mask,
-                 target_points, target_mask, target_normals,
-                 transform=None):
-        """Estimate the ICP odometry between a target frame points and normals
-        against source points using the point-to-plane geometric
-        error.
-
-        Args:
-
-            target_points (:obj:`torch.Tensor`): A float [WxHx3] tensor
-             of rasterized 3d points that the source points should be
-             aligned.
-
-            target_normals (:obj:`torch.Tensor`): A float [WxHx3] tensor
-             of rasterized 3d normals that the source points should be
-             aligned.
-
-            target_mask (:obj:`torch.Tensor`): A uint8 [WxH] mask tensor
-             of valid target points.
-
-            source_points (:obj:`torch.Tensor`): A float [WxHx3] tensor of
-             source points.
-
-            source_mask (:obj:`torch.Tensor`): Uint8 [WxH] mask tensor
-             of valid source points.
-
-            kcam (:obj:`fiontb.camera.KCamera`): Intrinsics camera
-             transformer.
-
-            transform (:obj:`torch.Tensor`): A float [4x4] initial
-             transformation matrix.
-
-        Returns: (:obj:`torch.Tensor`): A [3x4] rigid motion matrix
-            that aligns source points to target points.
-
-        """
-
-        if transform is None:
-            transform = torch.eye(4, device=source_points.device,
-                                  dtype=source_points.dtype)
-
-        for scale, icp_instance in self.scale_icp:
-            if scale < 1.0:
-                tgt_points = downsample_xyz(target_points, target_mask, scale,
-                                            method=self.downsample_xyz_method)
-                tgt_normals = downsample_xyz(target_normals, target_mask, scale,
-                                             normalize=True,
-                                             method=self.downsample_xyz_method)
-
-                tgt_mask = downsample_mask(target_mask, scale)
-
-                src_points = downsample_xyz(source_points, source_mask, scale,
-                                            normalize=False,
-                                            method=self.downsample_xyz_method)
-                src_mask = downsample_mask(source_mask, scale)
-            else:
-                tgt_points = target_points
-                tgt_normals = target_normals
-                tgt_mask = target_mask
-
-                src_points = source_points
-                src_mask = source_mask
-
-            scaled_kcam = kcam.scaled(scale)
-            transform = icp_instance.estimate(
-                scaled_kcam, src_points, src_mask,
-                target_points=tgt_points,
-                target_mask=tgt_mask, target_normals=tgt_normals,
-                transform=transform, geom_weight=1.0, feat_weight=0)
-
-        return transform
-
-    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
-        return self.estimate(target_frame.points, target_frame.normals,
-                             target_frame.mask, source_frame.points, source_frame.mask,
-                             source_frame.kcam, transform)
-
-
-class MultiscaleFeatICPOdometry:
-    def __init__(self, scale_iters):
-        pass
-
-    def estimate(self,
-                 kcam, source_points, source_mask,
-                 target_points, target_mask, target_normals,
-                 transform=None):
-        pass
+        super().__init__(
+            [(scale, ICPOdometry(iters), use_feats)
+             for scale, iters, use_feats in scale_iters],
+            downsample_xyz_method)

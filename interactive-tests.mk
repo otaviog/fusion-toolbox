@@ -30,11 +30,14 @@ fiontb.pose.open3d.dataset:
 fiontb.pose.icp.geometric1:
 	python3 -m fiontb.pose._test.test_icp geometric1
 
+fiontb.pose.icp.color:
+	python3 -m fiontb.pose._test.test_icp color
+
 fiontb.pose.icp.multiscale-geometric:
 	python3 -m fiontb.pose._test.test_icp multiscale-geometric
 
-fiontb.pose.icp.color:
-	python3 -m fiontb.pose._test.test_icp color
+fiontb.pose.icp.multiscale-color:
+	python3 -m fiontb.pose._test.test_icp multiscale-color
 
 fiontb.pose.autogradicp.geometric:
 	python3 -m fiontb.pose._test.test_autogradicp geometric --profile=True
@@ -44,6 +47,12 @@ fiontb.pose.autogradicp.color:
 
 fiontb.pose.autogradicp.hybrid:
 	python3 -m fiontb.pose._test.test_autogradicp hybrid
+
+fiontb.pose.autogradicp.multiscale-geometric:
+	python3 -m fiontb.pose._test.test_autogradicp multiscale-geometric
+
+fiontb.pose.autogradicp.multiscale-hybrid:
+	python3 -m fiontb.pose._test.test_autogradicp multiscale-hybrid
 
 #########
 # Surfel

@@ -272,7 +272,7 @@ class FramePointCloud:
                          normals)
 
         if world_space and self.rt_cam is not None:
-            pcl = pcl.transform(self.rt_cam.cam_to_world)
+            pcl = pcl.transform(self.rt_cam.cam_to_world.to(self.device))
 
         return pcl
 
@@ -286,6 +286,10 @@ class FramePointCloud:
             self._points.to(device) if self._points is not None else None,
             self._normals.to(device) if self._normals is not None else None,
             self.colors.to(device) if self.colors is not None else None)
+
+    @property
+    def device(self):
+        return self.image_points.device
 
     def __getitem__(self, *slices):
         slices = slices[0]

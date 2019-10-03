@@ -223,6 +223,18 @@ class RigidTransform:
 
         return out.squeeze()
 
+    @staticmethod
+    def concat(matrix_a, matrix_b):
+        dev = matrix_a.device
+        dtype = matrix_a.dtype
+        mtx_a = torch.eye(4, dtype=dtype, device=dev)
+        mtx_a[:3, :4] = matrix_a[:3, :4]
+
+        mtx_b = torch.eye(4, dtype=dtype, device=dev)
+        mtx_b[:3, :4] = matrix_b[:3, :4]
+
+        return (mtx_a @ mtx_b)[:3, :4]
+
 
 def normal_transform_matrix(matrix):
     """Returns the transposed inverse of transformation matrix. Suitable

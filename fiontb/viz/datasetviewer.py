@@ -107,7 +107,6 @@ class DatasetViewer:
 
         hand_matrix = torch.eye(4)
         hand_matrix[2, 2] = -1
-        hand_matrix[1, 1] = -1
 
         with self.context.current():
             self.tv_camera_pcl = tenviz.create_point_cloud(
@@ -166,23 +165,23 @@ class DatasetViewer:
             if cv_key < 0:
                 cv_key = 0
 
-            quit = False
+            quit_loop = False
             for key in [cv_key, self.cam_viewer.wait_key(0),
                         self.world_viewer.wait_key(0)]:
 
                 if key < 0:
-                    quit = True
+                    quit_loop = True
 
                 key = chr(key & 0xff).lower()
 
                 if key == 'q':
-                    quit = True
+                    quit_loop = True
                 elif key == 'm':
                     self.show_mask = not self.show_mask
                 elif key == 'c':
                     self._show_cams = not self._show_cams
                     for _, vcam in self.pcl_deque:
                         vcam.visible = self._show_cams
-            if quit:
+            if quit_loop:
                 break
         cv2.destroyWindow(self.title)

@@ -3,22 +3,22 @@ import torch
 import tenviz
 
 
-def show_surfels(pcl_list, width=640, height=480):
+def show_surfels(surfels_list, width=640, height=480):
     ctx = tenviz.Context(width, height)
 
     scene = []
-    for pcl in pcl_list:
+    for surfel_cloud in surfels_list:
         surfels = ctx.add_surfel_cloud()
 
         with ctx.current():
-            surfels.points.from_tensor(pcl.points)
-            surfels.update_bounds(pcl.points)
-            surfels.normals.from_tensor(pcl.normals)
+            surfels.points.from_tensor(surfel_cloud.points)
+            surfels.update_bounds(surfel_cloud.points)
+            surfels.normals.from_tensor(surfel_cloud.normals)
 
-            surfels.colors.from_tensor(pcl.colors)
-            radii = torch.full((pcl.points.size(0),), 0.01, dtype=torch.float)
+            surfels.colors.from_tensor(surfel_cloud.colors)
+            radii = torch.full((surfel_cloud.size,), 0.01, dtype=torch.float)
             surfels.radii.from_tensor(radii)
-            surfels.mark_visible(torch.arange(0, pcl.points.size(0)))
+            surfels.mark_visible(torch.arange(0, surfel_cloud.size))
 
         scene.append(surfels)
 
@@ -64,13 +64,3 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
             toggle_idx = int(key) - 1
             if toggle_idx < len(scene):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
-
-
-def show_frames(frame_list):
-    frame0 = frame_list[0]
-    pcl_list = []
-    for frame in frame_list:
-        pcl = frame_to_pointcloud(frame)
-        pcl_list.append(pcl)
-
-    show_pcls(pcl_list, frame0.rgb_image.shape[1], frame0.rgb_image.shape[0])
