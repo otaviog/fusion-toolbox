@@ -74,6 +74,8 @@ class _Tests:
         relative_rt = icp.estimate(fpcl1.kcam.to(device),
                                    source_points=fpcl1.points,
                                    source_mask=fpcl1.mask,
+                                   target_points=fpcl0.points,
+                                   target_mask=fpcl0.mask,
                                    target_feats=image0,
                                    source_feats=image1,
                                    geom_weight=0, feat_weight=1)

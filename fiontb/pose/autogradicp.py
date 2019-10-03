@@ -24,7 +24,6 @@ class _ClosureBox:
             self.x[0][3] = float(x[3])
             self.x[0][4] = float(x[4])
             self.x[0][5] = float(x[5])
-        print(x)
         self.loss = self.closure()
         return self.loss.detach().cpu().item()
 
@@ -36,7 +35,7 @@ class _ClosureBox:
             self.x[0][3] = float(x[3])
             self.x[0][4] = float(x[4])
             self.x[0][5] = float(x[5])
-        self.loss = self.closure()
+        self.loss = self.closure()*0.05
         self.loss.backward(torch.ones(1, 6, device="cuda:0"))
 
         grad = self.x.grad.cpu().numpy()
@@ -61,9 +60,9 @@ class AutogradICP:
 
         source_points = source_points[source_mask].view(-1, 3)
 
+        matcher = DensePointMatcher()
         if has_geom:
             target_normals = target_normals.view(-1, 3)
-            matcher = DensePointMatcher()
             device = target_points.device
             dtype = target_points.dtype
         else:
@@ -105,34 +104,39 @@ class AutogradICP:
 
             geom_loss = 0
             feat_loss = 0
+
+            tgt_matched_p3d, matched_index = matcher.match(
+                target_points, target_mask,
+                source_points, kcam, transform)
+
+            valid_matches = matched_index > -1
+            src_matched_p3d = source_points[valid_matches]
+            trans_src = (RigidTransform(transform) @ src_matched_p3d)
+
             if has_geom:
-                tgt_matched_p3d, matched_index = matcher.match(
-                    target_points, target_mask,
-                    source_points, kcam, transform)
-
-                valid_matches = matched_index > -1
-
                 tgt_matched_p3d = tgt_matched_p3d[valid_matches]
-                src_matched_p3d = source_points[valid_matches]
 
                 matched_index = matched_index[valid_matches]
                 tgt_matched_normals = target_normals[matched_index]
 
-                diff = tgt_matched_p3d - \
-                    (RigidTransform(transform) @ src_matched_p3d)
+                diff = tgt_matched_p3d - trans_src
+
                 cost = torch.bmm(tgt_matched_normals.view(-1,
                                                           1, 3), diff.view(-1, 3, 1))
                 geom_loss = torch.pow(cost, 2).mean()
 
             if has_feat:
-                tgt_uv = Project.apply(RigidTransform(transform)
-                                       @ source_points, kcam.matrix)
+                tgt_uv = Project.apply(trans_src, kcam.matrix)
+                tgt_uv2 = Project.apply(RigidTransform(transform) @ source_points,
+                                       kcam.matrix)
+                _, bmask = FeatureMap.apply(
+                    target_feats, tgt_uv2)
                 tgt_feats, bound_mask = FeatureMap.apply(
                     target_feats, tgt_uv)
                 bound_mask = bound_mask.detach()
 
                 tgt_feats = tgt_feats[:, bound_mask]
-                match_src_feats = source_feats[:, bound_mask]
+                match_src_feats = source_feats[:, valid_matches][:, bound_mask]
 
                 res = torch.norm(tgt_feats - match_src_feats, 2, dim=0)
                 feat_loss = res.mean()
@@ -152,7 +156,7 @@ class AutogradICP:
         else:
             box = _ClosureBox(_closure, upsilon_omega)
             scipy.optimize.fmin_bfgs(box.func, upsilon_omega.detach().cpu().numpy(),
-                                     box.grad)
+                                     box.grad, disp=False)
 
         transform = SO3tExp.apply(upsilon_omega).detach().squeeze(0)
 
