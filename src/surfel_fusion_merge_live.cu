@@ -20,7 +20,7 @@ struct LiveMergeKernel {
 
   LiveMergeKernel(const IndexMap &target_indexmap,
                   const IndexMap &live_indexmap,
-                  const MappedSurfelModel &surfel_model,
+                  MappedSurfelModel surfel_model,
                   RTCamera<dev, float> rt_cam, int search_size,
                   float max_normal_angle, torch::Tensor new_surfel_map)
       : target_indexmap(target_indexmap),
@@ -107,7 +107,7 @@ struct LiveMergeKernel {
 
 void SurfelFusionOp::MergeLive(const IndexMap &target_indexmap,
                                const IndexMap &live_indexmap,
-                               const MappedSurfelModel &model,
+                               MappedSurfelModel model,
                                const torch::Tensor &rt_cam, int search_size,
                                float max_normal_angle,
                                torch::Tensor new_surfels_map) {

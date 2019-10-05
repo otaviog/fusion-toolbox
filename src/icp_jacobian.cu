@@ -52,13 +52,13 @@ struct GeometricJacobianKernel {
         residual(Accessor<dev, scalar_t, 1>::Get(residual)) {}
 
   FTB_DEVICE_HOST void operator()(int ri) {
-    jacobian[ri][0] = 0.0f;
-    jacobian[ri][1] = 0.0f;
-    jacobian[ri][2] = 0.0f;
-    jacobian[ri][3] = 0.0f;
-    jacobian[ri][4] = 0.0f;
-    jacobian[ri][5] = 0.0f;
-    residual[ri] = 0.0f;
+    jacobian[ri][0] = 0;
+    jacobian[ri][1] = 0;
+    jacobian[ri][2] = 0;
+    jacobian[ri][3] = 0;
+    jacobian[ri][4] = 0;
+    jacobian[ri][5] = 0;
+    residual[ri] = 0;
 
     if (src_mask[ri] == 0) return;
 

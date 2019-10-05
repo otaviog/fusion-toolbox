@@ -14,7 +14,7 @@ class SurfelAllocator {
 
   static void RegisterPybind(pybind11::module &m);
 
-  void FindUnactive(torch::Tensor unactive_indices);
+  void FindFree(torch::Tensor out_free_indices);
 
   torch::Tensor free_mask_byte, free_mask_bit;
 };

@@ -23,6 +23,7 @@ _OTHER_FRAME_INDEX = 5
 _SAMPLE = "sample1"
 _TO_TENSOR = ToTensor()
 
+
 class _Tests:
     def geometric(self, profile=False):
         device = "cuda:0"
@@ -61,7 +62,8 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / _SAMPLE)
 
-        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True, blur=True)
+        frame = prepare_frame(
+            dataset[0], filter_depth=True, to_hsv=True, blur=True)
         next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
                                    filter_depth=True, to_hsv=True, blur=True)
 
@@ -93,7 +95,8 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / _SAMPLE)
 
-        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True, blur=True)
+        frame = prepare_frame(
+            dataset[0], filter_depth=True, to_hsv=True, blur=True)
         next_frame = prepare_frame(dataset[_OTHER_FRAME_INDEX],
                                    filter_depth=True, to_hsv=True, blur=True)
 

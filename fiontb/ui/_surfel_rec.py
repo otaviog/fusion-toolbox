@@ -22,7 +22,7 @@ class SurfelReconstructionUI:
 
         scene = [self.surfel_render]
         if gt_mesh is not None:
-            with surfel_model.context.current():
+            with surfel_model.gl_context.current():
                 self.gt_mesh_node = tenviz.create_mesh(
                     gt_mesh.verts, gt_mesh.faces, normals=gt_mesh.normals)
                 scene.append(self.gt_mesh_node)
@@ -31,7 +31,7 @@ class SurfelReconstructionUI:
                 gt_mesh.verts, gt_mesh.faces.long(), 256)
         self.gt_mesh = gt_mesh
 
-        self.viewer = surfel_model.context.viewer(
+        self.viewer = surfel_model.gl_context.viewer(
             scene, cam_manip=tenviz.CameraManipulator.WASD)
         self.viewer.reset_view()
         self.surfel_model = surfel_model
@@ -55,7 +55,7 @@ class SurfelReconstructionUI:
                 read_next_frame = self.run_mode != RunMode.STEP
                 frame_count += 1
 
-            self.surfel_model.context.set_clear_color(0.32, 0.34, 0.87, 1)
+            self.surfel_model.gl_context.set_clear_color(0.32, 0.34, 0.87, 1)
             keys = [self.viewer.wait_key(0), cv2.waitKey(1)]
 
             for key in keys:

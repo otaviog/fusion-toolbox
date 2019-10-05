@@ -27,7 +27,8 @@ void MappedSurfelModel::RegisterPybind(pybind11::module &m) {
       .def_readwrite("confidences", &MappedSurfelModel::confidences)
       .def_readwrite("normals", &MappedSurfelModel::normals)
       .def_readwrite("radii", &MappedSurfelModel::radii)
-      .def_readwrite("colors", &MappedSurfelModel::colors);
+      .def_readwrite("colors", &MappedSurfelModel::colors)
+      .def_readwrite("times", &MappedSurfelModel::times);
 }
 
 void SurfelFusionOp::RegisterPybind(pybind11::module &m) {

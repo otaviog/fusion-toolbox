@@ -126,14 +126,18 @@ void ProjectOp::RegisterPybind(pybind11::module &m) {
 
 void ConcatRTMatrix(const torch::Tensor &left_mtx,
                     const torch::Tensor &right_mtx, torch::Tensor out) {
-  AT_DISPATCH_ALL_TYPES(left_mtx.scalar_type, "", ([&] {
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 4; ++j) {
-        out[i][j] = left_mtx[i][0] * right_mtx[0][j] +
-                    left_mtx[i][1] * right_mtx[1][j] +
-                    left_mtx[i][2] * right_mtx[2][j]
-		  + left_mtx[i][3];
-      }));
-    }
-	}
+  AT_DISPATCH_ALL_TYPES(left_mtx.scalar_type(), "", ([&] {
+        const auto left_acc = left_mtx.accessor<scalar_t, 2>();
+        const auto right_acc = right_mtx.accessor<scalar_t, 2>();
+        auto out_acc = out.accessor<scalar_t, 2>();
+                          for (int i = 0; i < 3; ++i) {
+                            for (int j = 0; j < 4; ++j) {
+                              out_acc[i][j] = left_acc[i][0] * right_acc[0][j] +
+                                          left_acc[i][1] * right_acc[1][j] +
+                                          left_acc[i][2] * right_acc[2][j] +
+                                          left_acc[i][3];
+                            }
+                          }
+                        }));
+}
 }  // namespace fiontb

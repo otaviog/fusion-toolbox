@@ -42,7 +42,8 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
     with ctx.current():
         scene = []
         for pcl in pcl_list:
-            tv_pcl = tenviz.create_point_cloud(pcl.points, pcl.colors)
+            tv_pcl = tenviz.create_point_cloud(pcl.points.view(-1, 3),
+                                               pcl.colors.view(-1, 3))
             tv_pcl.style.point_size = int(point_size)
             scene.append(tv_pcl)
 

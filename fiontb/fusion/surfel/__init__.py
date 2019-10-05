@@ -1,2 +1,2 @@
-
+from .fusion import SurfelFusion
 

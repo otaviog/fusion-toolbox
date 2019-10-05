@@ -16,24 +16,26 @@ const int MAX_VIOLANTIONS = 1;
 template <Device dev>
 struct CarveSpaceKernel {
   const IndexMapAccessor<dev> model;
-  typename Accessor<dev, bool, 1>::T free_mask;
+  typename Accessor<dev, int64_t, 2>::T free_map;
 
   int32_t curr_time;
   float stable_thresh;
   int search_size;
   float min_z_diff;
 
-  CarveSpaceKernel(const IndexMap &model, torch::Tensor free_mask,
+  CarveSpaceKernel(const IndexMap &model, torch::Tensor free_map,
                    int32_t curr_time, float stable_thresh, int search_size,
                    float min_z_diff)
       : model(model),
-        free_mask(Accessor<dev, bool, 1>::Get(free_mask)),
+        free_map(Accessor<dev, int64_t, 2>::Get(free_map)),
         curr_time(curr_time),
         stable_thresh(stable_thresh),
         search_size(search_size),
         min_z_diff(min_z_diff) {}
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
+    free_map[row][col] = -1;
+
     if (model.empty(row, col)) return;
     if (model.time(row, col) == curr_time &&
         model.confidence(row, col) >= stable_thresh)
@@ -65,27 +67,27 @@ struct CarveSpaceKernel {
     }
 
     if (violantion_count >= MAX_VIOLANTIONS) {
-      free_mask[model_idx] = 1;
+      free_map[row][col] = model_idx;
     }
   }
 };
 }  // namespace
 
-void SurfelFusionOp::CarveSpace(const IndexMap &model, torch::Tensor free_mask,
+void SurfelFusionOp::CarveSpace(const IndexMap &model, torch::Tensor free_map,
                                 int curr_time, float stable_thresh,
                                 int search_size, float min_z_diff) {
   const auto ref_device = model.get_device();
   model.CheckDevice(ref_device);
 
-  FTB_CHECK_DEVICE(ref_device, free_mask);
+  FTB_CHECK_DEVICE(ref_device, free_map);
 
   if (ref_device.is_cuda()) {
-    CarveSpaceKernel<kCUDA> kernel(model, free_mask, curr_time, stable_thresh,
+    CarveSpaceKernel<kCUDA> kernel(model, free_map, curr_time, stable_thresh,
                                    search_size, min_z_diff);
 
     Launch2DKernelCUDA(kernel, model.get_width(), model.get_height());
   } else {
-    CarveSpaceKernel<kCPU> kernel(model, free_mask, curr_time, stable_thresh,
+    CarveSpaceKernel<kCPU> kernel(model, free_map, curr_time, stable_thresh,
                                   search_size, min_z_diff);
 
     Launch2DKernelCPU(kernel, model.get_width(), model.get_height());

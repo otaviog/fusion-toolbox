@@ -11,13 +11,15 @@ struct SurfelModelAccessor {
   typename Accessor<dev, float, 2>::T normals;
   typename Accessor<dev, float, 1>::T radii;
   typename Accessor<dev, uint8_t, 2>::T colors;
+  typename Accessor<dev, int32_t, 1>::T times;
 
   SurfelModelAccessor(const MappedSurfelModel &params)
       : positions(Accessor<dev, float, 2>::Get(params.positions)),
         confidences(Accessor<dev, float, 1>::Get(params.confidences)),
         normals(Accessor<dev, float, 2>::Get(params.normals)),
         radii(Accessor<dev, float, 1>::Get(params.radii)),
-        colors(Accessor<dev, uint8_t, 2>::Get(params.colors)) {}
+        colors(Accessor<dev, uint8_t, 2>::Get(params.colors)),
+        times(Accessor<dev, int32_t, 1>::Get(params.times)) {}
 
   FTB_DEVICE_HOST inline Vector<float, 3> position(int idx) const {
     return to_vec3<float>(positions[idx]);

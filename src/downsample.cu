@@ -24,16 +24,13 @@ struct DownsampleXYZNearestKernel {
         dst(Accessor<dev, scalar_t, 3>::Get(dst)) {}
 
   FTB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
-    const int dst_width = dst.size(1);
-    const int dst_height = dst.size(0);
-
     const int center_src_row = dst_row * inv_scale,
               center_src_col = dst_col * inv_scale;
 
     const int src_width = xyz_img.size(1), src_height = xyz_img.size(0);
     const int where[4][2] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
 
-    Vector<scalar_t, 3> xyz_mean;
+    Vector<scalar_t, 3> xyz_mean(0, 0, 0);
     int xyz_count = 0;
 
     for (int i = 0; i < 4; ++i) {
@@ -41,7 +38,7 @@ struct DownsampleXYZNearestKernel {
       const int src_col = center_src_col + where[i][1];
 
       if (src_col < 0 || src_col >= src_width) continue;
-      if (mask[src_row][src_col] == 0) continue;
+      if (!mask[src_row][src_col]) continue;
 
       const Vector<scalar_t, 3> src_xyz =
           to_vec3<scalar_t>(xyz_img[src_row][src_col]);
@@ -59,7 +56,7 @@ struct DownsampleXYZNearestKernel {
       const int src_col = center_src_col + where[i][1];
 
       if (src_col < 0 || src_col >= src_width) continue;
-      if (mask[src_row][src_col] == 0) continue;
+      if (!mask[src_row][src_col]) continue;
 
       const Vector<scalar_t, 3> src_xyz =
           to_vec3<scalar_t>(xyz_img[src_row][src_col]);
@@ -86,17 +83,17 @@ void Downsample::DownsampleXYZ(const torch::Tensor &xyz_image,
   FTB_CHECK_DEVICE(reference_dev, dst);
 
   if (reference_dev.is_cuda()) {
-    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", [&] {
+    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", ([&] {
       DownsampleXYZNearestKernel<kCUDA, scalar_t> kernel(xyz_image, mask, scale,
                                                          dst);
       Launch2DKernelCUDA(kernel, dst.size(1), dst.size(0));
-    });
+        }));
   } else {
-    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", [&] {
+    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", ([&] {
       DownsampleXYZNearestKernel<kCPU, scalar_t> kernel(xyz_image, mask, scale,
                                                         dst);
       Launch2DKernelCPU(kernel, dst.size(1), dst.size(0));
-    });
+        }));
   }
 }
 

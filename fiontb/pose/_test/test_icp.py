@@ -20,7 +20,7 @@ _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 torch.set_printoptions(precision=10)
 
-_OTHER_FRAME_INDEX = 5
+_OTHER_FRAME_INDEX = 1
 _SAMPLE = "sample2"
 
 _TO_TENSOR = ToTensor()
@@ -90,10 +90,9 @@ class Tests:
         dataset = load_ftb(_TEST_DATA / _SAMPLE)
 
         icp = MultiscaleICPOdometry([
-            (0.25, 25, False),
-            (0.5, 25, False),
-            (0.75, 25, False),
-            (1.0, 25, False)
+            (0.25, 20, False),
+            (0.5, 20, False),
+            (1.0, 20, False)
         ])
 
         frame = prepare_frame(dataset[0], filter_depth=True)

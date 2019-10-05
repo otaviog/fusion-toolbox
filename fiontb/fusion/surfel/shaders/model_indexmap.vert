@@ -6,6 +6,7 @@ layout (location = 2) in vec3 in_color;
 layout (location = 3) in float in_conf;
 layout (location = 4) in float in_radius;
 layout (location = 5) in int in_mask;
+layout (location = 6) in int in_time;
 
 uniform mat4 ProjModelview;
 uniform mat4 Modelview;
@@ -18,6 +19,7 @@ out Surfel {
   vec4 normal_rad;
   vec3 color;
   flat int index;
+  flat int time;
 } surfel;
 
 void main() {
@@ -35,4 +37,5 @@ void main() {
   surfel.normal_rad.w = in_radius;
   surfel.color = in_color;
   surfel.index = gl_VertexID;
+  surfel.time = in_time;
 }

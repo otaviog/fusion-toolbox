@@ -15,23 +15,23 @@ SurfelAllocator::SurfelAllocator(int size, const std::string &device) {
 void SurfelAllocator::RegisterPybind(pybind11::module &m) {
   py::class_<SurfelAllocator>(m, "SurfelAllocator")
       .def(py::init<int, std::string>())
-      .def("find_unactive", &SurfelAllocator::FindUnactive)
+      .def("find_free", &SurfelAllocator::FindFree)
       .def_readwrite("free_mask_byte", &SurfelAllocator::free_mask_byte)
       .def_readwrite("free_mask_bit", &SurfelAllocator::free_mask_bit);
 }
 
-void SurfelAllocator::FindUnactive(torch::Tensor unactive_indices) {
+void SurfelAllocator::FindFree(torch::Tensor out_free_indices) {
   const torch::TensorAccessor<bool, 1> free_mask_acc(
       free_mask_bit.accessor<bool, 1>());
-  torch::TensorAccessor<int64_t, 1> unactive_out_acc(
-      unactive_indices.accessor<int64_t, 1>());
+  torch::TensorAccessor<int64_t, 1> out_free_acc(
+      out_free_indices.accessor<int64_t, 1>());
 
-  const int size_unact = unactive_indices.size(0);
+  const int size_unact = out_free_indices.size(0);
   int found_count = 0;
 
   for (int i = 0; i < free_mask_bit.size(0); ++i) {
     if (free_mask_acc[i]) {
-      unactive_out_acc[found_count++] = i;
+      out_free_acc[found_count++] = i;
       if (found_count == size_unact) break;
     }
   }

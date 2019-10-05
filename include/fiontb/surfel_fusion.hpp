@@ -40,7 +40,7 @@ struct IndexMap {
 };
 
 struct MappedSurfelModel {
-  torch::Tensor positions, confidences, normals, radii, colors;
+  torch::Tensor positions, confidences, normals, radii, colors, times;
 
   static void RegisterPybind(pybind11::module &m);
 
@@ -50,17 +50,13 @@ struct MappedSurfelModel {
     FTB_CHECK_DEVICE(dev, normals);
     FTB_CHECK_DEVICE(dev, radii);
     FTB_CHECK_DEVICE(dev, colors);
+    FTB_CHECK_DEVICE(dev, times);
   }
-};
-
-struct SurfelCloud {
-  torch::Tensor positions, confidences, normals, radii, colors;
 };
 
 struct SurfelFusionOp {
   static void MergeLive(const IndexMap &target_indexmap,
-                        const IndexMap &live_indexmap,
-                        const MappedSurfelModel &model,
+                        const IndexMap &live_indexmap, MappedSurfelModel model,
                         const torch::Tensor &rt_cam, int search_size,
                         float max_normal_angle, torch::Tensor new_surfels_map);
 
@@ -70,8 +66,8 @@ struct SurfelFusionOp {
                          float min_z_diff);
 
   static void Merge(const IndexMap &model_indexmap, torch::Tensor merge_map,
-                    float max_dist, float max_angle, int neighbor_size,
-                    float stable_conf_thresh);
+                    MappedSurfelModel model, float max_dist, float max_angle,
+                    int neighbor_size, float stable_conf_thresh);
 
   static void RegisterPybind(pybind11::module &m);
 };

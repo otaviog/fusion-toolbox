@@ -9,6 +9,9 @@ from fiontb.data import set_cameras_to_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
 from fiontb.surfel import SurfelModel, SurfelCloud
 
+from ..indexmap import ModelIndexMapRaster
+from ..carve_space import CarveSpace
+
 
 def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
@@ -35,7 +38,21 @@ def _test():
         * torch.rand(num_violations, 1)*0.8
     surfel_model.add_surfels(violations, update_gl=True)
 
-    show_surfels(gl_context, [surfel_model])
+    prev_model = surfel_model.clone()
+
+    carve = CarveSpace(10)
+
+    height, width = frame.depth_image.shape
+
+    raster = ModelIndexMapRaster(surfel_model)
+    raster.raster(frame.info.kcam.get_opengl_projection_matrix(0.01, 500.0),
+                  frame.info.rt_cam, width, height)
+    with gl_context.current():
+        indexmap = raster.to_indexmap(device)
+
+    carve(indexmap, 15, surfel_model)
+
+    show_surfels(gl_context, [prev_model, surfel_model])
 
 
 if __name__ == '__main__':
