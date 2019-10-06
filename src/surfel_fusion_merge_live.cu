@@ -19,8 +19,7 @@ struct LiveMergeKernel {
   typename Accessor<dev, int64_t, 2>::T new_surfel_map;
 
   LiveMergeKernel(const IndexMap &target_indexmap,
-                  const IndexMap &live_indexmap,
-                  MappedSurfelModel surfel_model,
+                  const IndexMap &live_indexmap, MappedSurfelModel surfel_model,
                   RTCamera<dev, float> rt_cam, int search_size,
                   float max_normal_angle, torch::Tensor new_surfel_map)
       : target_indexmap(target_indexmap),
@@ -30,7 +29,8 @@ struct LiveMergeKernel {
         search_size(search_size),
         max_normal_angle(max_normal_angle),
         new_surfel_map(Accessor<dev, int64_t, 2>::Get(new_surfel_map)) {
-    scale = int(float(target_indexmap.get_height()) / live_indexmap.get_height());
+    scale =
+        int(float(target_indexmap.get_height()) / live_indexmap.get_height());
     search_size = int(scale * search_size);
   }
 
@@ -70,8 +70,9 @@ struct LiveMergeKernel {
 
         const Vector<float, 3> normal = target_indexmap.normal(krow, kcol);
         if (dist < best_dist &&
-            (abs(normal[2]) < 0.75f ||
-             abs(GetVectorsAngle(normal, live_normal)) < max_normal_angle)) {
+            (GetVectorsAngle(normal, live_normal) < max_normal_angle
+             //|| abs(normal[2]) < 0.75f
+             )) {
           best_dist = dist;
           best = current;
         }
@@ -97,6 +98,7 @@ struct LiveMergeKernel {
                                     live_color * live_conf) /
                                        conf_total);
       surfel_model.confidences[best] = conf_total;
+      surfel_model.times[best] = live_indexmap.time(row, col);
     } else {
       new_surfel_map[row][col] = live_indexmap.index(row, col);
     }
@@ -122,12 +124,14 @@ void SurfelFusionOp::MergeLive(const IndexMap &target_indexmap,
     LiveMergeKernel<kCUDA> kernel(target_indexmap, live_indexmap, model,
                                   RTCamera<kCUDA, float>(rt_cam), search_size,
                                   max_normal_angle, new_surfels_map);
-    Launch2DKernelCUDA(kernel, live_indexmap.get_width(), live_indexmap.get_height());
+    Launch2DKernelCUDA(kernel, live_indexmap.get_width(),
+                       live_indexmap.get_height());
   } else {
     LiveMergeKernel<kCPU> kernel(target_indexmap, live_indexmap, model,
                                  RTCamera<kCPU, float>(rt_cam), search_size,
                                  max_normal_angle, new_surfels_map);
-    Launch2DKernelCPU(kernel, live_indexmap.get_width(), live_indexmap.get_height());
+    Launch2DKernelCPU(kernel, live_indexmap.get_width(),
+                      live_indexmap.get_height());
   }
 }
 }  // namespace fiontb

@@ -36,8 +36,7 @@ class SurfelRender(tenviz.DrawProgram):
             self['in_color'] = surfel_model.colors
             self['in_radius'] = surfel_model.radii
             self['in_conf'] = surfel_model.confidences
-            if surfel_model.times is not None:
-                self['in_time'] = surfel_model.times
+            self['in_time'] = surfel_model.times
             self['in_mask'] = surfel_model.free_mask_gl
             self._max_conf = 0
 
@@ -82,29 +81,31 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
     viewer.set_title(title)
 
     print("""Keys:
-    I: Show confidences
-    U: Show colors
-    O: Show normals
-    Y: Show times
-    P: Show gray
+    r: Show colors
+    t: Show normals
+    y: Show confidences
+    u: Show times
+    o: Show gray
+    i: Show Ids
     """)
     while True:
         key = viewer.wait_key(1)
         if key < 0:
             break
 
-        key = chr(key & 0xff)
+        key = chr(key & 0xff).lower()
         if '1' <= key <= '9':
             toggle_idx = int(key) - 1
             if toggle_idx < len(scene):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 
-        mode_dict = {'I': RenderMode.Confs,
-                     'J': RenderMode.Color,
-                     'O': RenderMode.Normal,
-                     'P': RenderMode.Gray,
-                     'Y': RenderMode.Times,
-                     'T': RenderMode.Ids}
+        mode_dict = {'y': RenderMode.Confs,
+                     'r': RenderMode.Color,
+                     't': RenderMode.Normal,
+                     'o': RenderMode.Gray,
+                     'u': RenderMode.Times,
+                     'i': RenderMode.Ids}
+
         if key in mode_dict:
             for snode in scene:
                 snode.set_render_mode(mode_dict[key])
@@ -114,7 +115,7 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
 
 def _test():
     import tenviz.io
-    from fiontb.fusion.surfelfeat.datatype import SurfelModel, SurfelCloud
+    from fiontb.surfel import SurfelModel, SurfelCloud
 
     geo = tenviz.io.read_3dobject(
         Path(__file__).parent / "../../test-data/bunny/bun_zipper_res4.ply").torch()

@@ -11,7 +11,7 @@ class CarveSpace:
     """
 
     def __init__(self, stable_conf_thresh,
-                 search_size=2, min_z_difference=0.1):
+                 search_size=2, min_z_difference=.5):
         self.stable_conf_thresh = stable_conf_thresh
         self.search_size = search_size
         self.min_z_difference = min_z_difference
@@ -32,3 +32,4 @@ class CarveSpace:
 
         deleted = self._free_map[self._free_map > -1]
         model.free(deleted, update_gl=update_gl)
+        return deleted.size(0)

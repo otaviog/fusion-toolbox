@@ -185,7 +185,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
                           [self.program], width, height)
 
 
-def show_indexmap(indexmap, title, debug=True, show=True):
+def show_indexmap(indexmap, title='', debug=True, show=True):
     """Helper function for quickly display the framebuffers in pyplot.
 
     Args:
@@ -199,6 +199,11 @@ def show_indexmap(indexmap, title, debug=True, show=True):
 
     plt.figure()
     plt.title("{} - Positions".format(title))
+    plt.subplot(1, 3, 1)
+    plt.imshow(indexmap.position_confidence[:, :, 0].cpu())
+    plt.subplot(1, 3, 2)
+    plt.imshow(indexmap.position_confidence[:, :, 1].cpu())
+    plt.subplot(1, 3, 3)
     plt.imshow(indexmap.position_confidence[:, :, 2].cpu())
 
     plt.figure()
@@ -208,6 +213,10 @@ def show_indexmap(indexmap, title, debug=True, show=True):
     plt.figure()
     plt.title("{} - Indices".format(title))
     plt.imshow(indexmap.indexmap[:, :, 0].cpu())
+
+    plt.figure()
+    plt.title("{} - Colors".format(title))
+    plt.imshow(indexmap.color[:, :, :3].cpu())
 
     if show:
         plt.show()

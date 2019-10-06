@@ -3,12 +3,14 @@ import math
 import torch
 
 from fiontb.surfel import SurfelCloud
+from fiontb.frame import FramePointCloud
 
 from .confidence import ConfidenceCache
 from .indexmap import ModelIndexMapRaster
 from .merge_live import MergeLiveSurfels
 from .merge import Merge
 from .carve_space import CarveSpace
+from .remove_unstable import RemoveUnstable
 
 
 class FusionStats:
@@ -38,34 +40,36 @@ class FusionStats:
 
 class SurfelFusion:
     def __init__(self, model, max_merge_distance=0.005, normal_max_angle=math.radians(30),
-                 stable_conf_thresh=10, max_unstable_time=20,
-                 indexmap_scale=4):
+                 stable_conf_thresh=10, max_unstable_time=20, search_size=2,
+                 indexmap_scale=4, min_z_difference=0.5):
         gl_context = model.gl_context
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
         self._pose_raster = ModelIndexMapRaster(model)
+        self._pose_indexmap = None
+        self._pose_kcam = None
+        self._pose_rtcam = None
 
         self._conf_cache = ConfidenceCache()
         self._merge_live_surfels = MergeLiveSurfels(gl_context, max_normal_angle=normal_max_angle,
-                                                    search_size=2)
+                                                    search_size=search_size)
+        self._merge_intern_surfels = Merge(
+            max_distance=max_merge_distance,
+            normal_max_angle=normal_max_angle,
+            search_size=search_size, stable_conf_thresh=stable_conf_thresh)
+        self._carve_space = CarveSpace(stable_conf_thresh, search_size=search_size,
+                                       min_z_difference=min_z_difference)
+        self._remove_unstable = RemoveUnstable(
+            stable_conf_thresh, max_unstable_time)
 
-        self._merge_intern_surfels = Merge(max_distance=max_merge_distance,
-                                           normal_max_angle=normal_max_angle,
-                                           search_size=2, stable_conf_thresh=stable_conf_thresh)
-        if False:
-            self._carve_space = CarveSpace(stable_conf_thresh,
-                                           search_size=2, min_z_difference=0.1)
-
-        self.stable_conf_thresh = stable_conf_thresh
-        self.max_unstable_time = max_unstable_time
         self.indexmap_scale = indexmap_scale
         self._time = 0
 
     def fuse(self, frame_pcl, rt_cam):
         frame_confs = self._conf_cache.get_confidences(frame_pcl)
         live_surfels = SurfelCloud.from_frame_pcl(
-            frame_pcl, confidences=frame_confs)
+            frame_pcl, confidences=frame_confs, time=self._time)
 
         gl_proj_matrix = frame_pcl.kcam.get_opengl_projection_matrix(
             0.01, 100.0, dtype=torch.float)
@@ -75,6 +79,10 @@ class SurfelFusion:
             live_surfels.itransform(rt_cam.cam_to_world)
             self.model.add_surfels(live_surfels, update_gl=True)
             self._time += 1
+
+            self._update_pose_indexmap(
+                frame_pcl.kcam, rt_cam, gl_proj_matrix, width, height)
+
             return FusionStats(live_surfels.size, 0, 0)
 
         stats = FusionStats()
@@ -98,49 +106,51 @@ class SurfelFusion:
         stats.merged_count = self._merge_intern_surfels(
             model_indexmap, self.model, update_gl=True)
 
-        if False:
-            stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
-                                                     update_gl=True)
+        stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
+                                                 update_gl=True)
 
-        self._pose_raster.raster(gl_proj_matrix, rt_cam,
-                                 width, height)
-        pose_indexmap = self._pose_raster.to_indexmap()
+        self._update_pose_indexmap(
+            frame_pcl.kcam, rt_cam, gl_proj_matrix, width, height)
+
         stats.removed_count += self._remove_unstable(
-            pose_indexmap, update_gl=True)
+            self._pose_indexmap.indexmap, self._time, self.model, update_gl=True)
 
         self._time += 1
-        # self.surfels.max_time = self._time
+        self.model.max_time = self._time
 
         return stats
 
-    def _remove_unstable(self, indexmap, update_gl=False):
-        visible_idxs = indexmap.indexmap[:, :, 0][indexmap.indexmap[:, :, 1] == 1].long()
+    def _update_pose_indexmap(self, kcam, rt_cam, gl_proj_matrix, width, height):
+        self._pose_raster.raster(gl_proj_matrix, rt_cam,
+                                 width, height)
+        self._pose_indexmap = self._pose_raster.to_indexmap()
+        self._pose_kcam = kcam
+        self._pose_rtcam = rt_cam
 
-        if visible_idxs.size(0) == 0:
-            return 0
+    def get_model_frame_pcl(self, flip=True):
+        indexmap = self._pose_indexmap
 
-        with self.model.gl_context.current():
-            confs = self.model.confidences[visible_idxs].squeeze()
-            times = self.model.times[visible_idxs].squeeze()
+        features = None
+        
+        if flip:
+            mask = (indexmap.indexmap[:, :, 1] == 1).int().flip([0]).bool()
+            points = indexmap.position_confidence[:, :, :3].clone().flip([0])
+            normals = indexmap.normal_radius[:, :, :3].clone().flip([0])
+            colors = indexmap.color.clone().flip([0])
 
-        unstable_idxs = visible_idxs[(confs < self.stable_conf_thresh)
-                                     & (self._time - times >= self.max_unstable_time)]
+            if self.model.features is not None:
+                features = torch.empty()
+                _SurfelFusionOp.CopyFeatures(indexmap.indexmap, surfels, features)    
+        else:
+            mask = (indexmap.indexmap[:, :, 1] == 1).bool()
+            points = indexmap.position_confidence[:, :, :3].clone()
+            normals = indexmap.normal_radius[:, :, :3].clone()
+            colors = indexmap.color.clone()
 
-        if unstable_idxs.size(0) == 0:
-            return 0
-
-        self.model.free(unstable_idxs, update_gl)
-        return unstable_idxs.size(0)
-
-    def get_model_frame_pcl(self):
-        with self.surfels.context.current():
-            mask = self.pose_indexmap.index_tex.to_tensor()[:, :, 1]
-            points = self.pose_indexmap.position_confidence_tex.to_tensor()[
-                :, :, :3]
-            normals = self.pose_indexmap.normal_radius_tex.to_tensor()[
-                :, :, :3]
-            colors = self.pose_indexmap.color_tex.to_tensor()
-
-        return fiontb.frame.FramePointCloud(
-            None, mask.byte(), self._last_kcam, self._last_rtcam,
+        return FramePointCloud(
+            None, mask, self._pose_kcam, self._pose_rtcam,
             points, normals, colors)
+
+    @property
+    def stable_conf_thresh(self):
+        return self._remove_unstable.stable_conf_thresh

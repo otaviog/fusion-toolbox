@@ -7,13 +7,14 @@ from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
 from fiontb.sensor import DatasetSensor
 from fiontb._utils import profile
 
-from ..surfel_slam import SurfelSLAM
+from ..fsf_slam import FSFSLAM
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 
 def _run_test(dataset):
-    slam = SurfelSLAM(tracking='frame-to-model')
+    slam = FSFSLAM(1024*1024*4, 4, max_surfels=1024*1024*30,
+                   tracking='frame-to-frame')
 
     sensor_ui = FrameUI("Frame Control")
     rec_ui = SurfelReconstructionUI(slam.model, RunMode.STEP,

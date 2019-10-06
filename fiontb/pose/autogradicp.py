@@ -43,6 +43,16 @@ class _ClosureBox:
         return grad.transpose().flatten()
 
 
+def _to_4x4(mtx):
+    if mtx.size(0) == 4 and mtx.size(1) == 4:
+        return mtx
+
+    ret = torch.eye(4, device=mtx.device, dtype=mtx.dtype)
+
+    ret[:3, :4] = mtx[:3, :4]
+
+    return ret
+
 class AutogradICP:
     def __init__(self, num_iters, learning_rate=0.05, use_lbfgs=False):
         self.num_iters = num_iters
@@ -128,7 +138,7 @@ class AutogradICP:
             if has_feat:
                 tgt_uv = Project.apply(trans_src, kcam.matrix)
                 tgt_uv2 = Project.apply(RigidTransform(transform) @ source_points,
-                                       kcam.matrix)
+                                        kcam.matrix)
                 _, bmask = FeatureMap.apply(
                     target_feats, tgt_uv2)
                 tgt_feats, bound_mask = FeatureMap.apply(
@@ -159,9 +169,10 @@ class AutogradICP:
                                      box.grad, disp=False)
 
         transform = SO3tExp.apply(upsilon_omega).detach().squeeze(0)
+        transform = _to_4x4(transform)
 
         if initial_transform is not None:
-            transform = RigidTransform.concat(transform, initial_transform)
+            transform = transform @ _to_4x4(initial_transform)
 
         return transform
 

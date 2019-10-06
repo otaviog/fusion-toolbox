@@ -14,7 +14,7 @@ KINECT2_KCAM = KCamera(torch.tensor([[356.769928, 0.0, 251.563446],
                                      [0.0, 0.0, 1.0]], dtype=torch.float))
 
 ASUS_KCAM = KCamera(torch.tensor([[544.47329, 0.0, 320],
-                                  [0.0, 544.47329, 240],
+                                  [0.0, -544.47329, 240],
                                   [0.0, 0.0, 1.0]], dtype=torch.float))
 
 
@@ -95,7 +95,7 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_mod
                 curr_entry.append([float(elem) for elem in line.split()])
             # cam space to world space
             rt_mtx = torch.tensor(curr_entry, dtype=torch.float)
-
+            rt_mtx[:3, 1] *= -1
             assert rt_mtx.shape == (4, 4)
             trajectory.append(rt_mtx)
 

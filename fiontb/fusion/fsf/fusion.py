@@ -3,6 +3,7 @@ import torch
 from fiontb.fusion.surfel.confidence import ConfidenceCache
 from fiontb.fusion.surfel.merge_live import MergeLiveSurfels
 from fiontb.fusion.surfel.indexmap import ModelIndexMapRaster
+from fiontb.fusion.surfel.fusion import FusionStats
 from fiontb.surfel import SurfelModel, SurfelCloud
 
 from .registration import SurfelCloudRegistration
@@ -54,12 +55,20 @@ class FSFLocalFusion:
 
 
 class FSFFusion:
-    def __init__(self, gl_context, max_local_surfels, max_local_frames, max_surfels):
-        self.local_fusion = FSFLocalFusion(gl_context, max_local_surfels)
+    def __init__(self, gl_context, max_local_surfels, max_local_frames, max_surfels,
+                 stable_conf_thresh=10, indexmap_scale=4,
+                 registration_iters=45,
+                 registration_lr=0.05):
+
+        self.stable_conf_thresh = stable_conf_thresh
         self.time = 0
         self.max_local_frames = max_local_frames
 
-        self.registration = SurfelCloudRegistration(5, 0.05)
+        self.local_fusion = FSFLocalFusion(
+            gl_context, max_local_surfels, indexmap_scale)
+
+        self.registration = SurfelCloudRegistration(registration_iters,
+                                                    registration_lr)
 
         self.global_model = SurfelModel(gl_context, max_surfels)
 
@@ -80,5 +89,6 @@ class FSFFusion:
             local_surfels.itransform(transform)
 
             self.global_model.add_surfels(local_surfels, update_gl=True)
-
+            # TODO: perform merging
             self.local_fusion.reset()
+        return FusionStats()

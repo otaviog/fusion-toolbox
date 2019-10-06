@@ -40,16 +40,17 @@ def compute_confidences(frame_pcl, no_mask=False):
 
 
 class SurfelCloud:
-    def __init__(self, positions, confidences, normals, radii, colors, times):
+    def __init__(self, positions, confidences, normals, radii, colors, times, features=None):
         self.positions = positions
         self.confidences = confidences
         self.normals = normals
         self.radii = radii
         self.colors = colors
         self.times = times
+        self.features = features
 
     @classmethod
-    def from_frame_pcl(cls, frame_pcl, confidences=None, time=0):
+    def from_frame_pcl(cls, frame_pcl, confidences=None, time=0, features=None):
         pcl = frame_pcl.unordered_point_cloud(world_space=False)
         if confidences is None:
             confidences = compute_confidences(frame_pcl)
@@ -66,11 +67,11 @@ class SurfelCloud:
                    pcl.normals,
                    radii,
                    pcl.colors,
-                   time)
+                   time, features)
 
     @classmethod
-    def from_frame(cls, frame, confidences=None):
-        return cls.from_frame_pcl(FramePointCloud.from_frame(frame), confidences)
+    def from_frame(cls, frame, confidences=None, time=0, features=None):
+        return cls.from_frame_pcl(FramePointCloud.from_frame(frame), confidences, time, features)
 
     @property
     def device(self):
@@ -101,7 +102,8 @@ class SurfelCloud:
                            self.normals.to(device),
                            self.radii.to(device),
                            self.colors.to(device),
-                           self.times.to(device))
+                           self.times.to(device),
+                           features=self.features.to(device) if self.features is not None else None)
 
     def __getitem__(self, *args):
         return SurfelCloud(
@@ -110,7 +112,8 @@ class SurfelCloud:
             self.normals[args],
             self.radii[args],
             self.colors[args],
-            self.times[args])
+            self.times[args],
+            features=self.features[:, args] if self.features is not None else None)
 
 
 class _MappedSurfelModelContext:
@@ -218,7 +221,7 @@ class SurfelAllocator(_SurfelAllocator):
 
 
 class SurfelModel:
-    def __init__(self, gl_context, max_surfels):
+    def __init__(self, gl_context, max_surfels, max_confidence=0, max_time=0, feature_size=0):
         self.gl_context = gl_context
         self.allocator = SurfelAllocator(max_surfels)
 
@@ -242,6 +245,15 @@ class SurfelModel:
             self.free_mask_gl = tenviz.buffer_empty(
                 max_surfels, 1, tenviz.BType.Uint8, integer_attrib=True)
             self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
+
+        if feature_size > 0:
+            self.features = torch.empty(
+                feature_size, max_surfels, device=self.device)
+        else:
+            self.features = None
+
+        self.max_confidence = max_confidence
+        self.max_time = max_time
 
     @classmethod
     def from_surfel_cloud(cls, gl_context, surfels):
@@ -298,8 +310,11 @@ class SurfelModel:
                 mapped.radii[new_indices] = new_surfels.radii
                 mapped.confidences[new_indices] = new_surfels.confidences
                 mapped.times[new_indices] = new_surfels.times
+
             if update_gl:
                 self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
+        if self.features is not None and new_surfels.features is not None:
+            self.features[:, new_indices] = new_surfels.features
 
     def update_gl(self):
         with self.gl_context.current():
@@ -315,6 +330,8 @@ class SurfelModel:
             clone.radii.from_tensor(self.radii.to_tensor())
             clone.confidences.from_tensor(self.confidences.to_tensor())
             clone.times.from_tensor(self.times.to_tensor())
+            if self.features is not None:
+                clone.features = self.features.clone()
 
         clone.allocator.copy_(self.allocator)
         clone.update_gl()

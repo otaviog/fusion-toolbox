@@ -11,7 +11,7 @@ namespace fiontb {
 
 namespace {
 
-const int MAX_VIOLANTIONS = 1;
+const int MAX_VIOLANTIONS = 4;
 
 template <Device dev>
 struct CarveSpaceKernel {
@@ -59,6 +59,8 @@ struct CarveSpaceKernel {
         if (model.time(krow, kcol) != curr_time &&
             model.confidence(krow, kcol) < stable_thresh)
           continue;
+
+        
         const float stable_z = model.position_confidence[krow][kcol][2];
         if (stable_z - model_z > min_z_diff) {
           ++violantion_count;

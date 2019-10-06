@@ -73,14 +73,28 @@ fiontb.fusion.surfel.merge:
 fiontb.fusion.surfel.carve_space:
 	python3 -m fiontb.fusion.surfel._test.test_carve_space
 
-fiontb.fusion.fsf.registration:	
-	python3 -m fiontb.fusion.fsf._test.test_registration
+fiontb.fusion.surfel.remove_unstable:
+	python3 -m fiontb.fusion.surfel._test.test_remove_unstable
 
-fiontb.fusion.fsf.fusion:	
-	python3 -m fiontb.fusion.fsf._test.test_fusion
+fiontb.fusion.surfel.fusion:
+	python3 -m fiontb.fusion.surfel._test.test_fusion
 
 fiontb.pipeline.surfel_slam.real-scene:
 	python3 -m fiontb.pipeline._test.test_surfel_slam real_scene
 
 fiontb.pipeline.surfel_slam.synthetic-scene:
 	python3 -m fiontb.pipeline._test.test_surfel_slam synthetic_scene
+
+# FSF
+
+fiontb.fusion.fsf.registration:	
+	python3 -m fiontb.fusion.fsf._test.test_registration
+
+fiontb.fusion.fsf.fusion:	
+	python3 -m fiontb.fusion.fsf._test.test_fusion
+
+fiontb.pipeline.fsf.real-scene:
+	python3 -m fiontb.pipeline._test.test_fsf_slam real_scene
+
+fiontb.pipeline.fsf.synthetic-scene:
+	python3 -m fiontb.pipeline._test.test_fsf_slam synthetic_scene

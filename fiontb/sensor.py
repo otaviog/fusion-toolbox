@@ -108,7 +108,7 @@ class DatasetSensor:
     """Simulates a sensor using a dataset instance.
     """
 
-    def __init__(self, dataset, start_idx=0):
+    def __init__(self, dataset, start_idx=0, prefetch_size=16, num_workers=4):
         """
         Args:
 
@@ -117,7 +117,12 @@ class DatasetSensor:
 
         self.dataset = dataset
         self.current_idx = start_idx
-
+        # self.loader = torch.utils.data.DataLoader(
+        #     self.dataset,
+        #     batch_size=prefetch_size,
+        #     shuffle=False, num_workers=num_workers)
+        # self.loader_iter = iter(self.loader)
+        
     def next_frame(self):
         """Reads the next frame from the dataset.
 

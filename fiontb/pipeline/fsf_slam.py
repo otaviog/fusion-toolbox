@@ -7,11 +7,12 @@ from fiontb.camera import RTCamera
 from fiontb.pose.icp import MultiscaleICPOdometry
 from fiontb.pose.autogradicp import MultiscaleAutogradICP
 from fiontb.surfel import SurfelModel
-from fiontb.fusion.surfel import SurfelFusion
+from fiontb.fusion.fsf import FSFFusion
 
 
-class SurfelSLAM:
-    def __init__(self, max_surfels=1024*1024*30, device="cuda:0",
+class FSFSLAM:
+    def __init__(self, max_local_surfels, max_local_frames,
+                 max_surfels=1024*1024*30, device="cuda:0",
                  tracking='frame-to-frame', stable_conf_thresh=10):
         self.device = device
 
@@ -32,11 +33,19 @@ class SurfelSLAM:
         self._previous_features = None
         self.gl_context = tenviz.Context()
 
-        self.model = SurfelModel(self.gl_context, max_surfels)
-        self.fusion = SurfelFusion(self.model,
-                                   stable_conf_thresh=stable_conf_thresh)
+        self.fusion = FSFFusion(self.gl_context, max_local_surfels, max_local_frames,
+                                max_surfels,
+                                stable_conf_thresh=stable_conf_thresh)
 
         self.tracking = tracking
+
+    @property
+    def model(self):
+        return self.fusion.global_model
+
+    @property
+    def stable_conf_thresh(self):
+        return self.fusion.stable_conf_thresh
 
     def step(self, frame, features=None):
         device = self.device

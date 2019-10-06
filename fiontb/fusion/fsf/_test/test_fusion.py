@@ -17,7 +17,6 @@ def _test():
     dataset = load_ftb(test_data / "sample1")  # 20 frames
     set_cameras_to_start_at_eye(dataset)
 
-    device = "cuda:0"
     gl_context = tenviz.Context()
 
     fusion = FSFFusion(gl_context, 1024*1024*3, 2, 1024*1024*24)

@@ -142,6 +142,7 @@ struct MergeKernel {
                                  model.color(source_idx) * src_conf) /
                                     conf_total);
     model.confidences[target_idx] = conf_total;
+    model.times[target_idx] = max(model.times[target_idx], model.times[source_idx]);
   }
 };
 }  // namespace
