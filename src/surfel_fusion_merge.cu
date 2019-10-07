@@ -42,7 +42,7 @@ struct FindMergesKernel {
     const Eigen::Vector3f normal = model.normal(row, col);
     const float radius = model.radius(row, col);
 
-    int nearest_surfel_idx = -1;
+    int nearest_local_surfel_idx = -1;
     float nearest_sq_dist = NumericLimits<dev, float>::infinity();
     int count = 0;
 
@@ -70,7 +70,8 @@ struct FindMergesKernel {
             angle <= max_angle) {
           ++count;
           if (sq_dist < nearest_sq_dist) {
-            nearest_surfel_idx = model.index(krow, kcol);
+            // nearest_surfel_idx = model.index(krow, kcol);
+            nearest_local_surfel_idx = model.to_linear_index(krow, kcol);
             nearest_sq_dist = sq_dist;
           }
         }
@@ -78,7 +79,7 @@ struct FindMergesKernel {
     }
 
     if (count >= MAX_MERGE_VIOLATIONS) {
-      merge_map[row][col] = nearest_surfel_idx;
+      merge_map[row][col] = nearest_local_surfel_idx;
     }
   }
 };
@@ -112,7 +113,7 @@ void PreventDoubleMerges_cpu(torch::TensorAccessor<int64_t, 1> merge_map) {
 template <Device dev>
 struct MergeKernel {
   const IndexMapAccessor<dev> indexmap;
-  const typename Accessor<dev, int64_t, 2>::T merge_map;
+  typename Accessor<dev, int64_t, 2>::T merge_map;
   SurfelModelAccessor<dev> model;
 
   MergeKernel(const IndexMap &indexmap, const torch::Tensor &merge_map,
@@ -122,8 +123,11 @@ struct MergeKernel {
         model(model) {}
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
-    const int64_t source_idx = merge_map[row][col];
-    if (source_idx < 0) return;
+    const int64_t local_source_idx = merge_map[row][col];
+    if (local_source_idx < 0) return;
+
+	int64_t source_idx = indexmap.index(local_source_idx);
+    merge_map[row][col] = source_idx;
 
     const int64_t target_idx = indexmap.index(row, col);
 
@@ -134,7 +138,6 @@ struct MergeKernel {
     model.set_position(target_idx, (model.position(target_idx) * tgt_conf +
                                     model.position(source_idx) * src_conf) /
                                        conf_total);
-
     model.set_normal(target_idx, (model.normal(target_idx) * tgt_conf +
                                   model.normal(source_idx) * src_conf) /
                                      conf_total);
@@ -142,7 +145,8 @@ struct MergeKernel {
                                  model.color(source_idx) * src_conf) /
                                     conf_total);
     model.confidences[target_idx] = conf_total;
-    model.times[target_idx] = max(model.times[target_idx], model.times[source_idx]);
+    model.times[target_idx] =
+        max(model.times[target_idx], model.times[source_idx]);
   }
 };
 }  // namespace
@@ -167,10 +171,9 @@ void SurfelFusionOp::Merge(const IndexMap &indexmap, torch::Tensor merge_map,
     Launch2DKernelCPU(kernel, indexmap.get_width(), indexmap.get_height());
   }
 
-  //auto linear_merge_map = merge_map.view({-1}).to(torch::kCPU);
-  //PreventDoubleMerges_cpu(linear_merge_map.accessor<int64_t, 1>());
-  
-  //merge_map.copy_(linear_merge_map.view(merge_map.sizes()), false);
+  auto linear_merge_map = merge_map.view({-1}).to(torch::kCPU);
+  PreventDoubleMerges_cpu(linear_merge_map.accessor<int64_t, 1>());
+  merge_map.copy_(linear_merge_map.view(merge_map.sizes()), false);
 
   if (ref_device.is_cuda()) {
     // auto dev_merge_map =

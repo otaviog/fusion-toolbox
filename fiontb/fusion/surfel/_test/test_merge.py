@@ -48,8 +48,8 @@ def _test():
         model_indexmap = model_raster.to_indexmap(device)
 
     # show_indexmap(model_indexmap, "model")
-    merge(model_indexmap, surfel_model, update_gl=True)
-
+    merge_count = merge(model_indexmap, surfel_model, update_gl=True)
+    print("Merged {}".format(merge_count))
     show_surfels(gl_context, [prev_model, surfel_model])
 
 

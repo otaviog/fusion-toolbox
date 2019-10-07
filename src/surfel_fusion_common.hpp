@@ -58,13 +58,16 @@ struct IndexMapAccessor {
   typename Accessor<dev, float, 3>::T normal_radius;
   typename Accessor<dev, uint8_t, 3>::T color_;
   typename Accessor<dev, int32_t, 3>::T indexmap;
-
+  typename Accessor<dev, int32_t, 2>::T linear_indexmap;
+  
   IndexMapAccessor(const IndexMap &params)
       : position_confidence(
             Accessor<dev, float, 3>::Get(params.position_confidence)),
         normal_radius(Accessor<dev, float, 3>::Get(params.normal_radius)),
         color_(Accessor<dev, uint8_t, 3>::Get(params.color)),
-        indexmap(Accessor<dev, int32_t, 3>::Get(params.indexmap)) {}
+        indexmap(Accessor<dev, int32_t, 3>::Get(params.indexmap)),
+        linear_indexmap(Accessor<dev, int32_t, 2>::Get(params.indexmap.view({-1, 3})))
+  {}
 
   FTB_DEVICE_HOST inline bool empty(int row, int col) const {
     return indexmap[row][col][1] == 0;
@@ -72,6 +75,14 @@ struct IndexMapAccessor {
 
   FTB_DEVICE_HOST inline int32_t index(int row, int col) const {
     return indexmap[row][col][0];
+  }
+
+  FTB_DEVICE_HOST inline int32_t index(int idx) const {
+    return linear_indexmap[idx][0];
+  }
+
+  FTB_DEVICE_HOST inline int32_t to_linear_index(int row, int col) const {
+    return row*indexmap.size(1) + col;
   }
 
   FTB_DEVICE_HOST inline int32_t time(int row, int col) const {
@@ -105,5 +116,7 @@ struct IndexMapAccessor {
   FTB_DEVICE_HOST inline int height() const {
     return position_confidence.size(0);
   }
+
+  
 };
 }  // namespace fiontb

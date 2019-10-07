@@ -1,3 +1,5 @@
+import math
+
 import torch
 import tenviz
 
@@ -12,7 +14,12 @@ from fiontb.fusion.surfel import SurfelFusion
 
 class SurfelSLAM:
     def __init__(self, max_surfels=1024*1024*30, device="cuda:0",
-                 tracking='frame-to-frame', stable_conf_thresh=10):
+                 tracking='frame-to-frame',
+                 max_merge_distance=0.005,
+                 normal_max_angle=math.radians(30),
+                 stable_conf_thresh=10,
+                 max_unstable_time=20, search_size=2, indexmap_scale=4,
+                 min_z_difference=0.5):
         self.device = device
 
         self.previous_fpcl = None
@@ -23,7 +30,7 @@ class SurfelSLAM:
              (0.5, 20, True),
              (1.0, 20, True)])
 
-        self.icp2 = MultiscaleAutogradICP(
+        self.icp = MultiscaleAutogradICP(
             [(0.25, 25, 0.05, True),
              (0.5, 25, 0.05, True),
              (1.0, 50, 0.05, True)])
@@ -34,8 +41,13 @@ class SurfelSLAM:
 
         self.model = SurfelModel(self.gl_context, max_surfels)
         self.fusion = SurfelFusion(self.model,
+                                   max_merge_distance=max_merge_distance,
+                                   normal_max_angle=normal_max_angle,
                                    stable_conf_thresh=stable_conf_thresh,
-                                   search_size=4)
+                                   max_unstable_time=max_unstable_time,
+                                   search_size=search_size,
+                                   indexmap_scale=indexmap_scale,
+                                   min_z_difference=min_z_difference)
 
         self.tracking = tracking
 

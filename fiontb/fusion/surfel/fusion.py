@@ -52,8 +52,11 @@ class SurfelFusion:
         self._pose_rtcam = None
 
         self._conf_cache = ConfidenceCache()
-        self._merge_live_surfels = MergeLiveSurfels(gl_context, max_normal_angle=normal_max_angle,
-                                                    search_size=search_size)
+
+        self._merge_live_surfels = MergeLiveSurfels(
+            gl_context, max_normal_angle=normal_max_angle,
+            search_size=search_size)
+
         self._merge_intern_surfels = Merge(
             max_distance=max_merge_distance,
             normal_max_angle=normal_max_angle,
@@ -91,6 +94,7 @@ class SurfelFusion:
 
         indexmap_size = int(
             width*self.indexmap_scale), int(height*self.indexmap_scale)
+        # indexmap_size = width, height
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
@@ -108,8 +112,8 @@ class SurfelFusion:
         stats.merged_count = self._merge_intern_surfels(
             model_indexmap, self.model, update_gl=True)
 
-        stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
-                                                 update_gl=True)
+        # stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
+        # update_gl=True)
 
         stats.removed_count += self._remove_unstable(
             model_indexmap.indexmap, self._time, self.model, update_gl=True)
