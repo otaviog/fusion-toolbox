@@ -41,12 +41,10 @@ def _test():
 
     merge_live = MergeLiveSurfels(gl_context, 2, math.radians(30))
     prev_model = surfel_model.clone()
-    
+
     with gl_context.current():
         model_indexmap = model_raster.to_indexmap(device)
-    #from ..indexmap import show_indexmap
-    #show_indexmap(model_indexmap)
-    
+
     new_surfels = merge_live(
         model_indexmap, live_surfels, proj_matrix,
         live_frame.info.rt_cam, width, height,
