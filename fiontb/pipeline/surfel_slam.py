@@ -24,9 +24,9 @@ class SurfelSLAM:
              (1.0, 20, True)])
 
         self.icp2 = MultiscaleAutogradICP(
-            [(0.25, 100, 20, False),
-             (0.5, 100, 20, False),
-             (1.0, 100, 20, False)])
+            [(0.25, 25, 0.05, True),
+             (0.5, 25, 0.05, True),
+             (1.0, 50, 0.05, True)])
 
         self.previous_fpcl = None
         self._previous_features = None
@@ -34,7 +34,8 @@ class SurfelSLAM:
 
         self.model = SurfelModel(self.gl_context, max_surfels)
         self.fusion = SurfelFusion(self.model,
-                                   stable_conf_thresh=stable_conf_thresh)
+                                   stable_conf_thresh=stable_conf_thresh,
+                                   search_size=4)
 
         self.tracking = tracking
 

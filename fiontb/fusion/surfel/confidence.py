@@ -1,6 +1,7 @@
 
 from fiontb.surfel import compute_confidences
 
+
 class ConfidenceCache:
     def __init__(self):
         self.width = -1

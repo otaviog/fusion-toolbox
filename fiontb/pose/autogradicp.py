@@ -25,6 +25,9 @@ class _ClosureBox:
             self.x[0][4] = float(x[4])
             self.x[0][5] = float(x[5])
         self.loss = self.closure()
+        if self.loss == 0:
+            return 0
+
         return self.loss.detach().cpu().item()
 
     def grad(self, x):
@@ -36,6 +39,9 @@ class _ClosureBox:
             self.x[0][4] = float(x[4])
             self.x[0][5] = float(x[5])
         self.loss = self.closure()*0.05
+        if self.loss == 0:
+            return 0
+
         self.loss.backward(torch.ones(1, 6, device="cuda:0"))
 
         grad = self.x.grad.cpu().numpy()
@@ -109,7 +115,14 @@ class AutogradICP:
         geom_weight = geom_weight / total_weight
         feat_weight = feat_weight / total_weight
 
+        import math
+        best_loss = math.inf
+        best_params = upsilon_omega
+
         def _closure():
+            nonlocal best_loss
+            nonlocal best_params
+
             optim.zero_grad()
             transform = SO3tExp.apply(upsilon_omega).squeeze()
 
@@ -154,13 +167,17 @@ class AutogradICP:
                 feat_loss = res.mean()
 
             loss = geom_loss*geom_weight + feat_loss*feat_weight
+
             if torch.isnan(loss):
-                import ipdb
-                ipdb.set_trace()
+                return 0
 
             if self.use_lbfgs:
                 loss.backward()
-            # print(loss)
+
+            if loss < best_loss:
+                best_loss = loss.clone()
+                best_params = upsilon_omega.detach().clone().squeeze(0)
+
             return loss
 
         if self.use_lbfgs:
@@ -168,9 +185,9 @@ class AutogradICP:
         else:
             box = _ClosureBox(_closure, upsilon_omega)
             scipy.optimize.fmin_bfgs(box.func, upsilon_omega.detach().cpu().numpy(),
-                                     box.grad, disp=False)
-
-        transform = SO3tExp.apply(upsilon_omega).detach().squeeze(0)
+                                     box.grad, #maxiter=self.num_iters
+                                     disp=False)
+        transform = SO3tExp.apply(best_params).squeeze(0)
         transform = _to_4x4(transform)
 
         if initial_transform is not None:

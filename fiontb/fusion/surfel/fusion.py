@@ -79,6 +79,8 @@ class SurfelFusion:
             live_surfels.itransform(rt_cam.cam_to_world)
             self.model.add_surfels(live_surfels, update_gl=True)
             self._time += 1
+            self.model.max_time = 1
+            self.model.max_confidence = live_surfels.confidences.max()
 
             self._update_pose_indexmap(
                 frame_pcl.kcam, rt_cam, gl_proj_matrix, width, height)

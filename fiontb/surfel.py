@@ -20,7 +20,7 @@ def compute_surfel_radii(cam_points, normals, kcam):
 
 
 def compute_confidences(frame_pcl, no_mask=False):
-    img_points = frame_pcl.image_points[:, :, :2].reshape(-1, 2)
+    img_points = frame_pcl.image_points[:, :, :2].view(-1, 2)
     img_mask = frame_pcl.mask.flatten()
 
     if not no_mask:
@@ -300,6 +300,7 @@ class SurfelModel:
     def add_surfels(self, new_surfels, update_gl=False):
         if new_surfels.size == 0:
             return
+
         new_indices = self.allocator.allocate(new_surfels.size)
         new_surfels = new_surfels.to(self.device)
         with self.gl_context.current():

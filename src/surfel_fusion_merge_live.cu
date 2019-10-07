@@ -69,10 +69,11 @@ struct LiveMergeKernel {
             live_pos.cross(model_pos).squaredNorm() / live_pos.squaredNorm();
 
         const Vector<float, 3> normal = target_indexmap.normal(krow, kcol);
-        if (dist < best_dist &&
-            (GetVectorsAngle(normal, live_normal) < max_normal_angle
+        if (dist < best_dist //&&
+            //(GetVectorsAngle(normal, live_normal) < max_normal_angle
              //|| abs(normal[2]) < 0.75f
-             )) {
+            // )
+			) {
           best_dist = dist;
           best = current;
         }

@@ -4,6 +4,7 @@
 
 import cv2
 import numpy as np
+from torchvision.transforms.functional import to_tensor
 
 from fiontb.filtering import bilateral_depth_filter
 
@@ -25,10 +26,11 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False):
                                      (width, height))
         frame.info.kcam = frame.info.kcam.scaled(scale)
 
+    features = frame.rgb_image
     if blur:
-        frame.rgb_image = cv2.blur(frame.rgb_image, (5, 5))
+        features = cv2.blur(features, (5, 5))
 
     if to_hsv:
-        frame.rgb_image = cv2.cvtColor(frame.rgb_image, cv2.COLOR_RGB2HSV)
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
 
-    return frame
+    return frame, to_tensor(features)
