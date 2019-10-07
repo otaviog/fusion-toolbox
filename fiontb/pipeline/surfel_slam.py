@@ -23,7 +23,7 @@ class SurfelSLAM:
              (0.5, 20, True),
              (1.0, 20, True)])
 
-        self.icp = MultiscaleAutogradICP(
+        self.icp2 = MultiscaleAutogradICP(
             [(0.25, 100, 20, False),
              (0.5, 100, 20, False),
              (1.0, 100, 20, False)])
@@ -69,7 +69,10 @@ class SurfelSLAM:
         if self.tracking == 'frame-to-frame':
             self.previous_fpcl = filtered_live_fpcl
         elif self.tracking == 'frame-to-model':
-            self.previous_fpcl = self.fusion.get_model_frame_pcl()
+            model_fpcl = self.fusion.get_model_frame_pcl()
+
+            self.previous_fpcl = (model_fpcl if model_fpcl is not None
+                                  else filtered_live_fpcl)
 
         self._previous_features = features
         return stats

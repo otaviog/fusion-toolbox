@@ -109,11 +109,11 @@ class SurfelFusion:
         stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
                                                  update_gl=True)
 
+        stats.removed_count += self._remove_unstable(
+            model_indexmap.indexmap, self._time, self.model, update_gl=True)
+
         self._update_pose_indexmap(
             frame_pcl.kcam, rt_cam, gl_proj_matrix, width, height)
-
-        stats.removed_count += self._remove_unstable(
-            self._pose_indexmap.indexmap, self._time, self.model, update_gl=True)
 
         self._time += 1
         self.model.max_time = self._time
@@ -121,8 +121,8 @@ class SurfelFusion:
         return stats
 
     def _update_pose_indexmap(self, kcam, rt_cam, gl_proj_matrix, width, height):
-        self._pose_raster.raster(gl_proj_matrix, rt_cam,
-                                 width, height)
+        self._pose_raster.raster(gl_proj_matrix, rt_cam, width, height,
+                                 stable_conf_thresh=self.stable_conf_thresh)
         self._pose_indexmap = self._pose_raster.to_indexmap()
         self._pose_kcam = kcam
         self._pose_rtcam = rt_cam
@@ -131,18 +131,27 @@ class SurfelFusion:
         indexmap = self._pose_indexmap
 
         features = None
-        
+
         if flip:
-            mask = (indexmap.indexmap[:, :, 1] == 1).int().flip([0]).bool()
+            render_mask = indexmap.indexmap[:, :, 1].flip([0])
+        else:
+            render_mask = indexmap.indexmap[:, :, 1]
+
+        mask = (render_mask == 1).bool()
+
+        if mask.sum() < 70000:
+            return None
+
+        if flip:
             points = indexmap.position_confidence[:, :, :3].clone().flip([0])
             normals = indexmap.normal_radius[:, :, :3].clone().flip([0])
             colors = indexmap.color.clone().flip([0])
 
             if self.model.features is not None:
                 features = torch.empty()
-                _SurfelFusionOp.CopyFeatures(indexmap.indexmap, surfels, features)    
+                _SurfelFusionOp.CopyFeatures(
+                    indexmap.indexmap, surfels, features)
         else:
-            mask = (indexmap.indexmap[:, :, 1] == 1).bool()
             points = indexmap.position_confidence[:, :, :3].clone()
             normals = indexmap.normal_radius[:, :, :3].clone()
             colors = indexmap.color.clone()

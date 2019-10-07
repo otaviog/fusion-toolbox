@@ -53,6 +53,7 @@ def _to_4x4(mtx):
 
     return ret
 
+
 class AutogradICP:
     def __init__(self, num_iters, learning_rate=0.05, use_lbfgs=False):
         self.num_iters = num_iters
@@ -137,10 +138,11 @@ class AutogradICP:
 
             if has_feat:
                 tgt_uv = Project.apply(trans_src, kcam.matrix)
-                tgt_uv2 = Project.apply(RigidTransform(transform) @ source_points,
-                                        kcam.matrix)
-                _, bmask = FeatureMap.apply(
-                    target_feats, tgt_uv2)
+                # tgt_uv2 = Project.apply(RigidTransform(transform) @ source_points,
+                #                        kcam.matrix)
+                # _, bmask = FeatureMap.apply(
+                #    target_feats, tgt_uv2)
+
                 tgt_feats, bound_mask = FeatureMap.apply(
                     target_feats, tgt_uv)
                 bound_mask = bound_mask.detach()

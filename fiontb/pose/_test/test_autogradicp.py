@@ -2,7 +2,7 @@ from pathlib import Path
 from cProfile import Profile
 
 import torch
-from torchvision.transforms import ToTensor
+from torchvision.transforms.functional import to_tensor
 import fire
 
 from fiontb.data.ftb import load_ftb
@@ -21,7 +21,6 @@ torch.set_printoptions(precision=10)
 
 _OTHER_FRAME_INDEX = 5
 _SAMPLE = "sample1"
-_TO_TENSOR = ToTensor()
 
 
 class _Tests:
@@ -70,8 +69,8 @@ class _Tests:
         fpcl0 = FramePointCloud.from_frame(frame).to(device)
         fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
 
-        image0 = _TO_TENSOR(frame.rgb_image).to(device)
-        image1 = _TO_TENSOR(next_frame.rgb_image).to(device)
+        image0 = to_tensor(frame.rgb_image).to(device)
+        image1 = to_tensor(next_frame.rgb_image).to(device)
 
         relative_rt = icp.estimate(fpcl1.kcam.to(device),
                                    source_points=fpcl1.points,
@@ -104,8 +103,8 @@ class _Tests:
         fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
         pcl1 = fpcl1.unordered_point_cloud(world_space=False)
 
-        image0 = _TO_TENSOR(frame.rgb_image).to(device)
-        image1 = _TO_TENSOR(next_frame.rgb_image).to(device)
+        image0 = to_tensor(frame.rgb_image).to(device)
+        image1 = to_tensor(next_frame.rgb_image).to(device)
 
         relative_rt = icp.estimate(
             fpcl1.kcam, source_points=fpcl1.points,
@@ -113,7 +112,7 @@ class _Tests:
             target_points=fpcl0.points, target_mask=fpcl0.mask,
             target_normals=fpcl0.normals,
             source_feats=image1, target_feats=image0,
-            geom_weight=0, feat_weight=1)
+            geom_weight=0.5, feat_weight=0.5)
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
@@ -167,8 +166,8 @@ class _Tests:
         fpcl1 = FramePointCloud.from_frame(next_frame).to(device)
         pcl1 = fpcl1.unordered_point_cloud(world_space=False)
 
-        image0 = _TO_TENSOR(frame.rgb_image).to(device)
-        image1 = _TO_TENSOR(next_frame.rgb_image).to(device)
+        image0 = to_tensor(frame.rgb_image).to(device)
+        image1 = to_tensor(next_frame.rgb_image).to(device)
 
         relative_rt = icp.estimate(
             fpcl1.kcam, source_points=fpcl1.points,
