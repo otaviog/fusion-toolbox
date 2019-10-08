@@ -23,8 +23,6 @@ torch.set_printoptions(precision=10)
 _OTHER_FRAME_INDEX = 1
 _SAMPLE = "sample2"
 
-_TO_TENSOR = ToTensor()
-
 
 class Tests:
     def geometric1(self):
@@ -33,8 +31,8 @@ class Tests:
 
         icp = ICPOdometry(25)
 
-        frame = prepare_frame(dataset[0], filter_depth=True)
-        next_frame = prepare_frame(
+        frame, _ = prepare_frame(dataset[0], filter_depth=True)
+        next_frame, _ = prepare_frame(
             dataset[_OTHER_FRAME_INDEX], filter_depth=True)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
@@ -58,24 +56,22 @@ class Tests:
         dataset = load_ftb(_TEST_DATA / _SAMPLE)
         device = "cuda:0"
 
-        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True)
-        next_frame = prepare_frame(
-            dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True)
+        frame, features0 = prepare_frame(
+            dataset[0], filter_depth=False, to_hsv=True)
+        next_frame, features1 = prepare_frame(
+            dataset[_OTHER_FRAME_INDEX], filter_depth=False, to_hsv=True)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
-        image = _TO_TENSOR(frame.rgb_image).to(device)
-        next_image = _TO_TENSOR(next_frame.rgb_image).to(device)
-
         icp = ICPOdometry(100)
         relative_rt = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+                                   source_feats=features1.to(device),
                                    target_points=fpcl.points,
                                    target_normals=fpcl.normals,
                                    target_mask=fpcl.mask,
-                                   target_feats=image,
-                                   source_feats=next_image.flatten(),
-                                   geom_weight=0.001,
+                                   target_feats=features0.to(device),
+                                   geom_weight=0.0,
                                    feat_weight=1.0)
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
@@ -95,8 +91,8 @@ class Tests:
             (1.0, 20, False)
         ])
 
-        frame = prepare_frame(dataset[0], filter_depth=True)
-        next_frame = prepare_frame(
+        frame, _ = prepare_frame(dataset[0], filter_depth=True)
+        next_frame, _ = prepare_frame(
             dataset[_OTHER_FRAME_INDEX], filter_depth=True)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
@@ -120,15 +116,13 @@ class Tests:
         dataset = load_ftb(_TEST_DATA / _SAMPLE)
         device = "cuda:0"
 
-        frame = prepare_frame(dataset[0], filter_depth=True, to_hsv=True)
-        next_frame = prepare_frame(
+        frame, features0 = prepare_frame(
+            dataset[0], filter_depth=True, to_hsv=True)
+        next_frame, features1 = prepare_frame(
             dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
-
-        image = _TO_TENSOR(frame.rgb_image).to(device)
-        next_image = _TO_TENSOR(next_frame.rgb_image).to(device)
 
         icp = MultiscaleICPOdometry([
             (0.25, 25, True),
@@ -137,11 +131,11 @@ class Tests:
             (1.0, 25, True)
         ])
         relative_rt = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+                                   source_feats=features0.to(device),
                                    target_points=fpcl.points,
                                    target_normals=fpcl.normals,
                                    target_mask=fpcl.mask,
-                                   target_feats=image,
-                                   source_feats=next_image,
+                                   target_feats=features1.to(device),
                                    geom_weight=0.5,
                                    feat_weight=0.5)
 

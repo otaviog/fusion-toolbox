@@ -189,35 +189,28 @@ class _CPUCopySurfelModelContext:
 
 class SurfelAllocator(_SurfelAllocator):
     def __init__(self, max_surfels):
-        super(SurfelAllocator, self).__init__(max_surfels, "cuda:0")
-        self.max_surfels = max_surfels
-        self.active_count = 0
-
-    def use(self, indices):
-        self.free_mask_byte[indices] = 0
-        self.free_mask_bit[indices] = False
-        self.active_count += indices.size(0)
+        super().__init__(max_surfels)
+        self.free_mask_byte = torch.ones((max_surfels),
+                                         dtype=torch.uint8,
+                                         device="cuda:0")
 
     def free(self, indices):
+        super().free(indices.cpu())
         self.free_mask_byte[indices] = 1
-        self.free_mask_bit[indices] = True
-        self.active_count -= indices.size(0)
 
     def allocate(self, num_elements):
-        unactive = torch.empty(num_elements, dtype=torch.int64)
-        self.find_free(unactive)
-        self.use(unactive)
-        return unactive
+        indices = torch.empty(num_elements, dtype=torch.int64)
+        super().allocate(indices)
+        self.free_mask_byte[indices] = 0
+        return indices
 
     def clear_all(self):
         self.free_mask_byte[:] = 1
-        self.free_mask_bit[:] = True
-        self.active_count = 0
+        self.free_all()
 
     def copy_(self, other):
         self.free_mask_byte = other.free_mask_byte.clone()
-        self.free_mask_bit = other.free_mask_bit.clone()
-        self.active_count = other.active_count
+        super().copy_(other)
 
 
 class SurfelModel:

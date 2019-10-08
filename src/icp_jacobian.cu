@@ -149,7 +149,7 @@ template <typename scalar_t>
 FTB_DEVICE_HOST inline scalar_t Df1_EuclideanDistance(
     scalar_t f1_nth_val, scalar_t f2_nth_val, scalar_t inv_forward_result) {
   if (inv_forward_result > 0)
-    return (f1_nth_val - f2_nth_val) * inv_forward_result;
+    return (f2_nth_val - f1_nth_val) * inv_forward_result;
   else
     return 0;
 }
@@ -237,6 +237,9 @@ struct HybridJacobianKernel {
       d_euc_v += df1_dist * dv;
     }
 
+    d_euc_v *= -1;
+
+#if 0
     scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
     kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
 
@@ -257,12 +260,29 @@ struct HybridJacobianKernel {
 	  0, 0, 1, Tsrc_point[1], -Tsrc_point[0], 0;
     // clang-format on
 
-    // J = K * J;
+    J = K * J;
     Eigen::Matrix<scalar_t, 1, 6> jacobian = pgrad * J;
 
     for (int k = 0; k < 6; ++k) out_jacobian[k] = jacobian(0, k);
 
     out_residual = feat_residual;
+#else
+    scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
+    kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
+
+    Vector<scalar_t, 3> gradk(d_euc_u * j00_proj, d_euc_v * j11_proj,
+                              d_euc_u * j02_proj + d_euc_v * j12_proj);
+    out_jacobian[0] = gradk[0];
+    out_jacobian[1] = gradk[1];
+    out_jacobian[2] = gradk[2];
+
+    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(gradk);
+    out_jacobian[3] = rot_twist[0];
+    out_jacobian[4] = rot_twist[1];
+    out_jacobian[5] = rot_twist[2];
+
+    out_residual = feat_residual;
+#endif
   }
 
   FTB_DEVICE_HOST void operator()(int ri) {
