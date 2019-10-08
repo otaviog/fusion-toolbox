@@ -239,34 +239,6 @@ struct HybridJacobianKernel {
 
     d_euc_v *= -1;
 
-#if 0
-    scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
-    kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
-
-    Eigen::Matrix<scalar_t, 1, 3> pgrad;
-    pgrad << d_euc_u * j00_proj, d_euc_v * j11_proj,
-        d_euc_u * j02_proj + d_euc_v * j12_proj;
-
-    Eigen::Matrix<scalar_t, 3, 3> K;
-    K << kcam.matrix[0][0], kcam.matrix[0][1], kcam.matrix[0][2],
-        kcam.matrix[1][0], kcam.matrix[1][1], kcam.matrix[1][2],
-        kcam.matrix[2][0], kcam.matrix[2][1], kcam.matrix[2][2];
-
-    Eigen::Matrix<scalar_t, 3, 6> J;
-    // clang-format off
-	J <<
-	  1, 0, 0, 0, Tsrc_point[2], -Tsrc_point[1],
-	  0, 1, 0, -Tsrc_point[2], 0, Tsrc_point[0],
-	  0, 0, 1, Tsrc_point[1], -Tsrc_point[0], 0;
-    // clang-format on
-
-    J = K * J;
-    Eigen::Matrix<scalar_t, 1, 6> jacobian = pgrad * J;
-
-    for (int k = 0; k < 6; ++k) out_jacobian[k] = jacobian(0, k);
-
-    out_residual = feat_residual;
-#else
     scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
     kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
 
@@ -282,7 +254,6 @@ struct HybridJacobianKernel {
     out_jacobian[5] = rot_twist[2];
 
     out_residual = feat_residual;
-#endif
   }
 
   FTB_DEVICE_HOST void operator()(int ri) {
