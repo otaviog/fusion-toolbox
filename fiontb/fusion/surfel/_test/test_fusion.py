@@ -11,6 +11,7 @@ from fiontb.frame import FramePointCloud
 from fiontb.surfel import SurfelModel
 from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
 from fiontb.sensor import DatasetSensor
+from fiontb._utils import profile
 
 from ..fusion import SurfelFusion
 
@@ -23,36 +24,36 @@ def _test():
 
     gl_context = tenviz.Context()
 
-    model = SurfelModel(gl_context, 1024*1024*20)
+    model = SurfelModel(gl_context, 1024*1024*50)
 
     fusion = SurfelFusion(model, normal_max_angle=math.radians(
         80), max_merge_distance=0.5)
 
     sensor_ui = FrameUI("Frame Control")
-    rec_ui = SurfelReconstructionUI(model, RunMode.STEP,
+    rec_ui = SurfelReconstructionUI(model, RunMode.PLAY,
                                     stable_conf_thresh=fusion.stable_conf_thresh)
     sensor = DatasetSensor(dataset)
     device = "cuda:0"
-    for _ in rec_ui:
-        frame = sensor.next_frame()
-        if frame is None:
-            break
+    with profile(Path(__file__).parent / "fusion.prof"):
+        for _ in rec_ui:
+            frame = sensor.next_frame()
+            if frame is None:
+                break
 
-        sensor_ui.update(frame)
+            sensor_ui.update(frame)
 
-        fpcl = FramePointCloud.from_frame(frame).to(device)
+            fpcl = FramePointCloud.from_frame(frame).to(device)
 
-        filtered_depth = bilateral_depth_filter(
-            torch.from_numpy(frame.depth_image).to(device),
-            torch.from_numpy(frame.depth_image > 0).to(device),
-            depth_scale=frame.info.depth_scale)
-        frame.depth_image = filtered_depth
-        filtered_fpcl = FramePointCloud.from_frame(frame).to(device)
-        fpcl.normals = filtered_fpcl.normals
+            filtered_depth = bilateral_depth_filter(
+                torch.from_numpy(frame.depth_image).to(device),
+                torch.from_numpy(frame.depth_image > 0).to(device),
+                depth_scale=frame.info.depth_scale)
+            frame.depth_image = filtered_depth
+            filtered_fpcl = FramePointCloud.from_frame(frame).to(device)
+            fpcl.normals = filtered_fpcl.normals
 
-        stats = fusion.fuse(fpcl, fpcl.rt_cam)
-        print("Frame {} - {}".format(rec_ui.frame_count, stats))
-
+            stats = fusion.fuse(fpcl, fpcl.rt_cam)
+            print("Frame {} - {}".format(rec_ui.frame_count, stats))
 
 if __name__ == '__main__':
     _test()

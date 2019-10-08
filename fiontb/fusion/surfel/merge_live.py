@@ -27,6 +27,7 @@ class MergeLiveSurfels:
             device=ref_device)
 
         self.live_raster.raster(live_surfels, gl_proj_matrix, width, height)
+        target_indexmap.synchronize()
         with self._gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)
             with surfel_model.map_as_tensors(ref_device) as mapped_model:

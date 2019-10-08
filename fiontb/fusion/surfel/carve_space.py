@@ -19,6 +19,7 @@ class CarveSpace:
         self._free_map = None
 
     def __call__(self, indexmap, current_time, model, update_gl=False):
+        indexmap.synchronize()
         ref_device = indexmap.position_confidence.device
         self._free_map = empty_ensured_size(
             self._free_map, indexmap.height,

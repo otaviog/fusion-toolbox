@@ -94,7 +94,6 @@ class SurfelFusion:
 
         indexmap_size = int(
             width*self.indexmap_scale), int(height*self.indexmap_scale)
-        # indexmap_size = width, height
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
@@ -137,6 +136,7 @@ class SurfelFusion:
         indexmap = self._pose_indexmap
 
         features = None
+        self._pose_indexmap.synchronize()
 
         if flip:
             render_mask = indexmap.indexmap[:, :, 1].flip([0])

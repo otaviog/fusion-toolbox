@@ -59,8 +59,9 @@ PYBIND11_MODULE(_cfiontb, m) {
   SurfelAllocator::RegisterPybind(m);
   IndexMap::RegisterPybind(m);
   MappedSurfelModel::RegisterPybind(m);
+  SurfelCloud::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
-
+  
   m.def("raster_indexmap", &RasterIndexmap);
 
   ICPJacobian::RegisterPybind(m);

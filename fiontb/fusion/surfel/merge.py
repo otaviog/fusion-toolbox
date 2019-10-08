@@ -26,6 +26,7 @@ class Merge:
                                              dtype=torch.int64,
                                              device=ref_device)
         with model.gl_context.current():
+            model_indexmap.synchronize()
             with model.map_as_tensors(ref_device) as mapped_model:
                 _SurfelFusionOp.merge(model_indexmap, self._merge_map, mapped_model, self.max_dist,
                                       self.normal_max_angle, self.search_size,
