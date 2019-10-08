@@ -112,27 +112,26 @@ class ICPOdometry:
             JtJ = Jt @ self.jacobian
             Jr = Jt @ self.residual
 
-            if False:
-                JtJ = JtJ.cpu().double()
-                upper_JtJ = torch.cholesky(JtJ)
+            JtJ = JtJ.cpu().double()
+            upper_JtJ = torch.cholesky(JtJ)
 
-                update = torch.cholesky_solve(
-                    Jr.view(-1, 1).cpu().double(), upper_JtJ).squeeze()
-            else:
-                update = JtJ.cpu().inverse() @ Jr.cpu()
+            update = torch.cholesky_solve(
+                Jr.view(-1, 1).cpu().double(), upper_JtJ).squeeze()
+
+            # update = JtJ.cpu().inverse() @ Jr.cpu()
 
             update_matrix = SE3.exp(
                 update.cpu()).to_matrix().to(device).to(dtype)
             best_transform = transform = update_matrix @ transform
 
-            loss = self.residual.mean().item()
+            # loss = self.residual.mean().item()
 
             # if loss < best_loss:
             #     best_loss = loss
             #     best_transform = transform
 
             # Uncomment the next line(s) for optimization debug
-            print(_, loss)
+            # print(_, loss)
 
         return best_transform
 

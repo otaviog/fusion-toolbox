@@ -96,6 +96,7 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_mod
             # cam space to world space
             rt_mtx = torch.tensor(curr_entry, dtype=torch.float)
             rt_mtx[:3, 1] *= -1
+
             assert rt_mtx.shape == (4, 4)
             trajectory.append(rt_mtx)
 

@@ -33,11 +33,14 @@ fiontb.pose.icp.geometric1:
 fiontb.pose.icp.color:
 	python3 -m fiontb.pose._test.test_icp color
 
+fiontb.pose.icp.hybrid:
+	python3 -m fiontb.pose._test.test_icp hybrid
+
 fiontb.pose.icp.multiscale-geometric:
 	python3 -m fiontb.pose._test.test_icp multiscale-geometric
 
-fiontb.pose.icp.multiscale-color:
-	python3 -m fiontb.pose._test.test_icp multiscale-color
+fiontb.pose.icp.multiscale-hybrid:
+	python3 -m fiontb.pose._test.test_icp multiscale-hybrid
 
 fiontb.pose.autogradicp.geometric:
 	python3 -m fiontb.pose._test.test_autogradicp geometric --profile=True

@@ -6,12 +6,12 @@ from natsort import natsorted
 import numpy as np
 
 from fiontb.frame import Frame, FrameInfo
-from fiontb.camera import KCamera, RTCamera
+from fiontb.camera import KCamera
 
 from .trajectory import read_log_file_trajectory
 
 ASUS_KCAM = KCamera(torch.tensor([[525, 0.0, 319.5],
-                                  [0.0, 525, 239.5],
+                                  [0.0, -525, 239.5],
                                   [0.0, 0.0, 1.0]], dtype=torch.float))
 
 
@@ -41,44 +41,8 @@ class ILRGBDDataset:
         return min(len(self.rgb_images), len(self.depth_images))
 
 
-def _read_json_trajectory(stream):
-    import json
-
-    trajectory = []
-    traj_dict = json.load(stream)
-    for node in traj_dict['nodes']:
-        pose = torch.tensor(node['pose'])
-        matrix = pose.reshape(4, 4).transpose(1, 0)
-        matrix[:3, :3] = matrix[:3, :3].transpose(1, 0)
-        if False:
-            matrix = torch.eye(4)
-            matrix[0, :3] = pose[:3]
-            matrix[1, :3] = pose[3:6]
-            matrix[2, :3] = pose[6:9]
-            matrix[:3, 3] = pose[6:]
-
-        trajectory.append(RTCamera(matrix))
-
-    return trajectory
-
-
-def _read_log_trajectory(stream):
-    lines = stream.readlines()
-
-    trajectory = []
-
-    for i in range(0, len(lines), 5):
-        matrix = [torch.tensor(list(map(float, lines[i + 1 + k].split())))
-                  for k in range(4)]
-        matrix = torch.stack(matrix)
-        matrix[:3, :3] = matrix[:3, :3].transpose(1, 0)
-        matrix[:3, 3] = -matrix[:3, 3]
-        matrix[:3, 0] *= -1
-        matrix[:3, 1] *= -1
-        rt_cam = RTCamera(matrix)
-        trajectory.append(rt_cam)
-
-    return trajectory
+_INV_Y_MTX = torch.eye(4)
+_INV_Y_MTX[1, 1] = -1
 
 
 def load_ilrgbd(base_dir, trajectory):
@@ -90,5 +54,11 @@ def load_ilrgbd(base_dir, trajectory):
 
     with open(str(trajectory), 'r') as stream:
         trajectory = read_log_file_trajectory(stream)
+
+    # Original IL-RGBD dataset uses positive kcam[1, 1]
+    # As we use negative kcam[1, 1] we invert the y-axis.
+    for rt_cam in trajectory:
+        rt_cam.matrix[:3, 1] *= -1
+        rt_cam.matrix = _INV_Y_MTX @ rt_cam.matrix
 
     return ILRGBDDataset(depth_images, rgb_images, trajectory)
