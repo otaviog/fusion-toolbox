@@ -40,7 +40,8 @@ def compute_confidences(frame_pcl, no_mask=False):
 
 
 class SurfelCloud:
-    def __init__(self, positions, confidences, normals, radii, colors, times, features=None):
+    def __init__(self, positions, confidences, normals, radii,
+                 colors, times, features=None):
         self.positions = positions
         self.confidences = confidences
         self.normals = normals
@@ -67,11 +68,12 @@ class SurfelCloud:
                    pcl.normals,
                    radii,
                    pcl.colors,
-                   time, features)
+                   time, features[:, frame_pcl.mask].view(-1, pcl.size))
 
     @classmethod
     def from_frame(cls, frame, confidences=None, time=0, features=None):
-        return cls.from_frame_pcl(FramePointCloud.from_frame(frame), confidences, time, features)
+        return cls.from_frame_pcl(FramePointCloud.from_frame(frame),
+                                  confidences, time, features)
 
     @property
     def device(self):
@@ -103,7 +105,8 @@ class SurfelCloud:
                            self.radii.to(device),
                            self.colors.to(device),
                            self.times.to(device),
-                           features=self.features.to(device) if self.features is not None else None)
+                           features=self.features.to(device)
+                           if self.features is not None else None)
 
     def __getitem__(self, *args):
         return SurfelCloud(
@@ -113,7 +116,8 @@ class SurfelCloud:
             self.radii[args],
             self.colors[args],
             self.times[args],
-            features=self.features[:, args] if self.features is not None else None)
+            features=self.features[:, args[0]]
+            if self.features is not None else None)
 
 
 class _MappedSurfelModelContext:

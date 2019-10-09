@@ -79,7 +79,7 @@ class FSFFusion:
             self.local_fusion.fuse(frame_pcl, rt_cam)
         else:
             local_surfels = self.local_fusion.to_surfel_cloud()
-            if self.global_model.allocator.active_count == 0:
+            if self.global_model.allocator.allocated_size == 0:
                 self.global_model.add_surfels(local_surfels, update_gl=True)
                 return
 

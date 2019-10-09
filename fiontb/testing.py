@@ -6,17 +6,20 @@ import cv2
 import numpy as np
 from torchvision.transforms.functional import to_tensor
 
+from fiontb.frame import estimate_normals
 from fiontb.filtering import bilateral_depth_filter
 
 
-def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False):
+def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
+                  compute_normals=False):
     height, width = frame.depth_image.shape
     height, width = int(height*scale), int(width*scale)
 
+    mask = frame.depth_image > 0
     if filter_depth:
         frame.depth_image = bilateral_depth_filter(
             frame.depth_image,
-            frame.depth_image > 0,
+            mask,
             depth_scale=frame.info.depth_scale).numpy()
 
     if scale < 1:
@@ -25,6 +28,16 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False):
         frame.rgb_image = cv2.resize(frame.rgb_image,
                                      (width, height))
         frame.info.kcam = frame.info.kcam.scaled(scale)
+
+    if compute_normals:
+        normal_depth_image = frame.depth_image
+        if not filter_depth:
+            normal_depth_image = bilateral_depth_filter(
+                frame.depth_image,
+                mask, depth_scale=frame.info.depth_scale).numpy()
+
+        frame.normal_image = estimate_normals(frame.depth_image, frame.info,
+                                              mask)
 
     features = frame.rgb_image
     if blur:

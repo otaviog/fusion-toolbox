@@ -30,7 +30,7 @@ class SurfelSLAM:
              (0.5, 20, True),
              (1.0, 20, True)])
 
-        self.icp = MultiscaleAutogradICP(
+        self.icp2 = MultiscaleAutogradICP(
             [(0.25, 25, 0.05, True),
              (0.5, 25, 0.05, True),
              (1.0, 50, 0.05, True)])

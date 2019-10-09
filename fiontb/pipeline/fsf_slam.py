@@ -24,7 +24,7 @@ class FSFSLAM:
              (0.5, 20, True),
              (1.0, 20, True)])
 
-        self.icp = MultiscaleAutogradICP(
+        self.icp1 = MultiscaleAutogradICP(
             [(0.25, 100, 20, False),
              (0.5, 100, 20, False),
              (1.0, 100, 20, False)])

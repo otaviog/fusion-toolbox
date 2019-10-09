@@ -218,6 +218,7 @@ class FramePointCloud:
         normals = None
         if frame.normal_image is not None:
             normals = ensure_torch(frame.normal_image)
+
         return FramePointCloud(image_points, mask, frame.info.kcam, frame.info.rt_cam,
                                normals=normals, colors=colors)
 
@@ -303,7 +304,7 @@ class FramePointCloud:
 def estimate_normals(depth_image, frame_info, mask,
                      method=EstimateNormalsMethod.CentralDifferences,
                      out_tensor=None):
-    image_points = depth_image_to_uvz(depth_image, frame_info)
+    image_points = depth_image_to_uvz(ensure_torch(depth_image), frame_info)
     xyz_img = frame_info.kcam.backproject(
         image_points.reshape(-1, 3)).reshape(image_points.shape)
 
