@@ -45,7 +45,7 @@ class _Tests:
                                        source_mask=fpcl1.mask,
                                        target_points=fpcl0.points,
                                        target_mask=fpcl0.mask,
-                                       target_normals=fpcl0.normals)
+                                       target_normals=fpcl0.normals)[0]
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
@@ -76,7 +76,7 @@ class _Tests:
                                    target_mask=fpcl0.mask,
                                    target_feats=features0.to(device),
                                    source_feats=features1.to(device),
-                                   geom_weight=0, feat_weight=1)
+                                   geom_weight=0, feat_weight=1)[0]
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
@@ -109,7 +109,7 @@ class _Tests:
             target_points=fpcl0.points, target_mask=fpcl0.mask,
             target_normals=fpcl0.normals,
             source_feats=image1, target_feats=image0,
-            geom_weight=0.5, feat_weight=0.5)
+            geom_weight=0.5, feat_weight=0.5)[0]
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
@@ -138,7 +138,7 @@ class _Tests:
             source_mask=fpcl1.mask,
             target_points=fpcl0.points, target_mask=fpcl0.mask,
             target_normals=fpcl0.normals,
-            geom_weight=1.0, feat_weight=0.0)
+            geom_weight=1.0, feat_weight=0.0)[0]
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
@@ -171,7 +171,7 @@ class _Tests:
             target_normals=fpcl0.normals,
             source_feats=features1.to(device),
             target_feats=features0.to(device),
-            geom_weight=0.5, feat_weight=0.5)
+            geom_weight=0.5, feat_weight=0.5)[0]
 
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 

@@ -36,6 +36,9 @@ fiontb.pose.icp.color:
 fiontb.pose.icp.hybrid:
 	python3 -m fiontb.pose._test.test_icp hybrid
 
+fiontb.pose.icp.fail:
+	python3 -m fiontb.pose._test.test_icp fail
+
 fiontb.pose.icp.multiscale-geometric:
 	python3 -m fiontb.pose._test.test_icp multiscale-geometric
 

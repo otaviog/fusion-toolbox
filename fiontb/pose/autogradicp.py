@@ -193,7 +193,7 @@ class AutogradICP:
         if initial_transform is not None:
             transform = transform @ _to_4x4(initial_transform)
 
-        return transform
+        return transform, True
 
 
 class MultiscaleAutogradICP(_MultiscaleOptimization):

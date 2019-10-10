@@ -88,7 +88,7 @@ class MultiscaleOptimization:
                     src_feats = source_feats
 
             scaled_kcam = kcam.scaled(scale)
-            transform = icp_instance.estimate(
+            transform, tracking_ok = icp_instance.estimate(
                 scaled_kcam, src_points, src_mask,
                 source_feats=src_feats,
                 target_points=tgt_points,
@@ -97,7 +97,9 @@ class MultiscaleOptimization:
                 transform=transform, geom_weight=geom_weight,
                 feat_weight=feat_weight)
 
-        return transform
+            if not tracking_ok:
+                return transform, False
+        return transform, True
 
     def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
         return self.estimate(target_frame.points, target_frame.normals,

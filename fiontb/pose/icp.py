@@ -25,8 +25,9 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters):
+    def __init__(self, num_iters, lost_track_threshhold=1e-3):
         self.num_iters = num_iters
+        self.lost_track_threshhold = lost_track_threshhold
 
         self.jacobian = None
         self.residual = None
@@ -94,6 +95,7 @@ class ICPOdometry:
 
         best_loss = math.inf
         best_transform = None
+        first_loss = None
 
         for _ in range(self.num_iters):
             if geom_only:
@@ -124,16 +126,20 @@ class ICPOdometry:
                 update.cpu()).to_matrix().to(device).to(dtype)
             best_transform = transform = update_matrix @ transform
 
-            # loss = self.residual.mean().item()
+            loss = abs(self.residual.mean().item())
 
-            # if loss < best_loss:
-            #     best_loss = loss
-            #     best_transform = transform
+            if first_loss is None:
+                first_loss = loss
+
+            if loss < best_loss:
+                best_loss = loss
+                best_transform = transform
 
             # Uncomment the next line(s) for optimization debug
-            # print(_, loss)
+            #print(_, loss)
+        #print(first_loss, best_loss)
 
-        return best_transform
+        return best_transform, loss < self.lost_track_threshhold
 
     def estimate_frame_to_frame(self, source_frame, target_frame,
                                 transform=None, geom_weight=1.0, feat_weight=1.0):
