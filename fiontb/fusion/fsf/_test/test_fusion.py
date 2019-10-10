@@ -19,7 +19,7 @@ def _test():
 
     gl_context = tenviz.Context()
 
-    fusion = FSFFusion(gl_context, 1024*1024*3, 2, 1024*1024*24)
+    fusion = FSFFusion(gl_context, 1024*1024*5, 2, 1024*1024*24)
     for i in range(len(dataset)):
         frame = prepare_frame(dataset[i])
 

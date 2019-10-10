@@ -1,3 +1,4 @@
+import math
 import torch
 import scipy.optimize
 
@@ -115,7 +116,6 @@ class AutogradICP:
         geom_weight = geom_weight / total_weight
         feat_weight = feat_weight / total_weight
 
-        import math
         best_loss = math.inf
         best_params = upsilon_omega
 

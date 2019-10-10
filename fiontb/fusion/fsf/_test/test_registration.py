@@ -12,7 +12,6 @@ from fiontb.testing import prepare_frame
 from ..registration import SurfelCloudRegistration
 
 
-
 def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
@@ -21,10 +20,16 @@ def _test():
 
     device = "cuda:0"
 
-    target_surfels = SurfelCloud.from_frame(
-        prepare_frame(dataset[0])).to(device)
-    source_surfels = SurfelCloud.from_frame(
-        prepare_frame(dataset[2])).to(device)
+    scale = .5
+    frame0, features0 = prepare_frame(
+        dataset[0], scale=scale, filter_depth=False, compute_normals=True)
+    frame1, features1 = prepare_frame(dataset[1], scale=scale, filter_depth=False,
+                                      compute_normals=True)
+
+    target_surfels = SurfelCloud.from_frame(frame0, time=0,
+                                            features=features0).to(device)
+    source_surfels = SurfelCloud.from_frame(frame1, time=15,
+                                            features=features1).to(device)
 
     registration = SurfelCloudRegistration(100, 0.05)
 

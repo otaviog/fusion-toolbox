@@ -11,7 +11,7 @@ from fiontb.fusion.fsf import FSFFusion
 
 
 class FSFSLAM:
-    def __init__(self, max_local_surfels, max_local_frames,
+    def __init__(self, max_local_surfels, max_local_frames, feature_size,
                  max_surfels=1024*1024*30, device="cuda:0",
                  tracking='frame-to-frame', stable_conf_thresh=10):
         self.device = device
@@ -24,7 +24,7 @@ class FSFSLAM:
              (0.5, 20, True),
              (1.0, 20, True)])
 
-        self.icp = MultiscaleAutogradICP(
+        self.icp1 = MultiscaleAutogradICP(
             [(0.25, 100, 20, False),
              (0.5, 100, 20, False),
              (1.0, 100, 20, False)])
@@ -34,7 +34,7 @@ class FSFSLAM:
         self.gl_context = tenviz.Context()
 
         self.fusion = FSFFusion(self.gl_context, max_local_surfels, max_local_frames,
-                                max_surfels,
+                                max_surfels, feature_size,
                                 stable_conf_thresh=stable_conf_thresh)
 
         self.tracking = tracking
@@ -59,6 +59,7 @@ class FSFSLAM:
         frame.depth_image = filtered_depth
         filtered_live_fpcl = FramePointCloud.from_frame(frame).to(device)
 
+        relative_cam = torch.eye(4, dtype=torch.float32)
         if self.previous_fpcl is not None:
             relative_cam = self.icp.estimate(
                 frame.info.kcam, filtered_live_fpcl.points,
@@ -70,10 +71,11 @@ class FSFSLAM:
                 target_feats=self._previous_features,
                 geom_weight=1.0, feat_weight=0.0)
 
-            self.rt_camera = self.rt_camera.integrate(relative_cam.cpu())
+            # self.rt_camera = self.rt_camera.integrate(relative_cam.cpu())
 
         live_fpcl.normals = filtered_live_fpcl.normals
-        stats = self.fusion.fuse(live_fpcl, self.rt_camera)
+
+        stats = self.fusion.fuse(live_fpcl, relative_cam, features)
 
         if self.tracking == 'frame-to-frame':
             self.previous_fpcl = filtered_live_fpcl
