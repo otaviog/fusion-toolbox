@@ -75,14 +75,14 @@ class SurfelSLAM:
                 target_mask=self.previous_fpcl.mask,
                 target_normals=self.previous_fpcl.normals,
                 target_feats=self._previous_features,
-                geom_weight=1.0, feat_weight=0.0)
+                geom_weight=0.5, feat_weight=0.5)
 
             self.rt_camera = self.rt_camera.integrate(relative_cam.cpu())
 
         live_fpcl.normals = filtered_live_fpcl.normals
         stats = self.fusion.fuse(live_fpcl, self.rt_camera, features)
 
-        if self.tracking == 'frame-to-frame':
+        if self.tracking == 'frame-to-frame' or self.model.max_time < 12:
             self.previous_fpcl = filtered_live_fpcl
             self._previous_features = features
         elif self.tracking == 'frame-to-model':

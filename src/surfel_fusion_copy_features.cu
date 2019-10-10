@@ -28,11 +28,12 @@ struct CopyFeaturesKernel {
     const int32_t surfel_index = indexmap[row][col][0];
 
     for (int64_t i = 0; i < out_features.size(0); ++i) {
+      const float value = model_features[i][surfel_index];
+	  
       if (flip)
-        out_features[i][out_features.size(0) - 1 - row][col] =
-            model_features[i][surfel_index];        
+        out_features[i][out_features.size(1) - 1 - row][col] = value;
       else
-        out_features[i][row][col] = model_features[i][surfel_index];
+        out_features[i][row][col] = value;
     }
   }
 };

@@ -130,7 +130,7 @@ class SurfelFusion:
 
     def _update_pose_indexmap(self, kcam, rt_cam, gl_proj_matrix, width, height):
         self._pose_raster.raster(gl_proj_matrix, rt_cam, width, height,
-                                 stable_conf_thresh=1)
+                                 stable_conf_thresh=3)
         self._pose_indexmap = self._pose_raster.to_indexmap()
         self._pose_kcam = kcam
         self._pose_rtcam = rt_cam
@@ -156,7 +156,7 @@ class SurfelFusion:
                                    device=self.model.device,
                                    dtype=torch.float)
             _SurfelFusionOp.copy_features(
-                indexmap.indexmap, self.model.features, features, flip)
+                indexmap.indexmap, self.model.features, features, True)
         if flip:
             points = indexmap.position_confidence[:, :, :3].clone().flip([0])
             normals = indexmap.normal_radius[:, :, :3].clone().flip([0])
@@ -165,16 +165,6 @@ class SurfelFusion:
             points = indexmap.position_confidence[:, :, :3].clone()
             normals = indexmap.normal_radius[:, :, :3].clone()
             colors = indexmap.color.clone()
-
-        if False:
-            import matplotlib.pyplot as plt
-            import ipdb; ipdb.set_trace()
-            features = features.transpose(1, 0).transpose(1, 2).cpu().numpy()
-            plt.figure()
-            plt.imshow(features)
-            plt.figure()
-            plt.imshow(colors.cpu().numpy())
-            plt.show()
 
         return FramePointCloud(
             None, mask, self._pose_kcam, self._pose_rtcam,
