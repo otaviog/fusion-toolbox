@@ -17,7 +17,7 @@ class KDTreeLayer(torch.autograd.Function):
     @staticmethod
     def setup(target_xyz):
         KDTreeLayer.target_xyz = target_xyz
-        KDTreeLayer.tree = cKDTree(
+        KDTreeLayer.tree = KDTree(
             target_xyz.cpu().numpy(),
             # balanced_tree=True
         )

@@ -63,12 +63,15 @@ class SurfelCloud:
             time = torch.full((pcl.size, ), time, dtype=torch.int32,
                               device=frame_pcl.points.device)
 
+        if features is not None:
+            features = features[:, frame_pcl.mask].view(-1, pcl.size)
+
         return cls(pcl.points,
                    confidences,
                    pcl.normals,
                    radii,
                    pcl.colors,
-                   time, features[:, frame_pcl.mask].view(-1, pcl.size))
+                   time, features)
 
     @classmethod
     def from_frame(cls, frame, confidences=None, time=0, features=None):
@@ -287,7 +290,9 @@ class SurfelModel:
                                    mapped.normals[active_mask].clone(),
                                    mapped.radii[active_mask].clone(),
                                    mapped.colors[active_mask].clone(),
-                                   mapped.times[active_mask].clone())
+                                   mapped.times[active_mask].clone(),
+                                   features=self.features[:, active_mask]
+                                   if self.features is not None else None)
 
     def free(self, indices, update_gl=False):
         self.allocator.free(indices)
@@ -344,3 +349,7 @@ class SurfelModel:
     @property
     def max_surfels(self):
         return self.allocator.max_surfels
+
+    @property
+    def allocated_size(self):
+        return self.allocator.allocated_size

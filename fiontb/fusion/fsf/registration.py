@@ -97,7 +97,7 @@ class SurfelCloudRegistration:
             diff = tgt_feat - source_features[:, valid]
             feat_loss = diff.norm(dim=0).mean()
 
-            loss = feat_loss # + norm_loss
+            loss = feat_loss + norm_loss
             if self.use_lbfgs:
                 loss.backward()
 
@@ -111,7 +111,7 @@ class SurfelCloudRegistration:
         else:
             box = _ClosureBox(_closure, upsilon_omega)
             scipy.optimize.fmin_bfgs(box.func, upsilon_omega.detach().cpu().numpy(),
-                                     box.grad, maxiter=200,
-                                     disp=False)
+                                     box.grad, maxiter=20,
+                                     disp=False, gtol=0.00001)
 
         return exp(upsilon_omega).detach().squeeze(0)
