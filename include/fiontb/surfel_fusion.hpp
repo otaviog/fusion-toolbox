@@ -88,6 +88,10 @@ struct SurfelFusionOp {
                     MappedSurfelModel model, float max_dist, float max_angle,
                     int neighbor_size, float stable_conf_thresh);
 
+  static void CopyFeatures(const torch::Tensor &indexmap,
+                           const torch::Tensor &model_features,
+                           torch::Tensor out_features, bool flip);
+
   static void RegisterPybind(pybind11::module &m);
 };
 }  // namespace fiontb

@@ -20,6 +20,7 @@ cuda_add_library(fiontb
   surfel_fusion_merge_live.cu
   surfel_fusion_carve_space.cu
   surfel_fusion_merge.cu
+  surfel_fusion_copy_features.cu
   kernel_indexmap.cu  
   icp_jacobian.cu
   downsample.cu

@@ -86,6 +86,14 @@ class SurfelCloud:
     def size(self):
         return self.positions.size(0)
 
+    @property
+    def has_features(self):
+        return self.features is not None
+
+    @property
+    def feature_size(self):
+        return self.features.size(0)
+
     def itransform(self, matrix):
         self.positions = RigidTransform(
             matrix.to(self.device)) @ self.positions
@@ -353,3 +361,11 @@ class SurfelModel:
     @property
     def allocated_size(self):
         return self.allocator.allocated_size
+
+    @property
+    def has_features(self):
+        return self.features is not None
+
+    @property
+    def feature_size(self):
+        return self.features.size(0)

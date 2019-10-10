@@ -19,7 +19,7 @@ class SurfelSLAM:
                  normal_max_angle=math.radians(30),
                  stable_conf_thresh=10,
                  max_unstable_time=20, search_size=2, indexmap_scale=4,
-                 min_z_difference=0.5):
+                 min_z_difference=0.5, feature_size=3):
         self.device = device
 
         self.previous_fpcl = None
@@ -39,7 +39,8 @@ class SurfelSLAM:
         self._previous_features = None
         self.gl_context = tenviz.Context()
 
-        self.model = SurfelModel(self.gl_context, max_surfels)
+        self.model = SurfelModel(
+            self.gl_context, max_surfels, feature_size=feature_size)
         self.fusion = SurfelFusion(self.model,
                                    max_merge_distance=max_merge_distance,
                                    normal_max_angle=normal_max_angle,
@@ -55,6 +56,8 @@ class SurfelSLAM:
         device = self.device
 
         live_fpcl = FramePointCloud.from_frame(frame).to(device)
+        if features is not None:
+            features = features.to(device)
 
         filtered_depth = bilateral_depth_filter(
             torch.from_numpy(frame.depth_image).to(device),
@@ -64,7 +67,7 @@ class SurfelSLAM:
         filtered_live_fpcl = FramePointCloud.from_frame(frame).to(device)
 
         if self.previous_fpcl is not None:
-            relative_cam = self.icp.estimate(
+            relative_cam, tracking_ok = self.icp.estimate(
                 frame.info.kcam, filtered_live_fpcl.points,
                 filtered_live_fpcl.mask,
                 source_feats=features,
@@ -77,15 +80,16 @@ class SurfelSLAM:
             self.rt_camera = self.rt_camera.integrate(relative_cam.cpu())
 
         live_fpcl.normals = filtered_live_fpcl.normals
-        stats = self.fusion.fuse(live_fpcl, self.rt_camera)
+        stats = self.fusion.fuse(live_fpcl, self.rt_camera, features)
 
         if self.tracking == 'frame-to-frame':
             self.previous_fpcl = filtered_live_fpcl
+            self._previous_features = features
         elif self.tracking == 'frame-to-model':
-            model_fpcl = self.fusion.get_model_frame_pcl()
+            model_fpcl, features = self.fusion.get_model_frame_pcl()
 
             self.previous_fpcl = (model_fpcl if model_fpcl is not None
                                   else filtered_live_fpcl)
+            self._previous_features = features
 
-        self._previous_features = features
         return stats

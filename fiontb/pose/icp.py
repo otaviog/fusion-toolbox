@@ -25,7 +25,7 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters, lost_track_threshhold=1e-3):
+    def __init__(self, num_iters, lost_track_threshhold=1e-2):
         self.num_iters = num_iters
         self.lost_track_threshhold = lost_track_threshhold
 

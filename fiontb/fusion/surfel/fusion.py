@@ -12,6 +12,8 @@ from .merge import Merge
 from .carve_space import CarveSpace
 from .remove_unstable import RemoveUnstable
 
+from fiontb._cfiontb import SurfelFusionOp as _SurfelFusionOp
+
 
 class FusionStats:
     """Surfel fusion step statistics.
@@ -69,10 +71,11 @@ class SurfelFusion:
         self.indexmap_scale = indexmap_scale
         self._time = 0
 
-    def fuse(self, frame_pcl, rt_cam):
+    def fuse(self, frame_pcl, rt_cam, features=None):
         frame_confs = self._conf_cache.get_confidences(frame_pcl)
         live_surfels = SurfelCloud.from_frame_pcl(
-            frame_pcl, confidences=frame_confs, time=self._time)
+            frame_pcl, confidences=frame_confs, time=self._time,
+            features=features)
 
         gl_proj_matrix = frame_pcl.kcam.get_opengl_projection_matrix(
             0.01, 100.0, dtype=torch.float)
@@ -127,7 +130,7 @@ class SurfelFusion:
 
     def _update_pose_indexmap(self, kcam, rt_cam, gl_proj_matrix, width, height):
         self._pose_raster.raster(gl_proj_matrix, rt_cam, width, height,
-                                 stable_conf_thresh=self.stable_conf_thresh)
+                                 stable_conf_thresh=1)
         self._pose_indexmap = self._pose_raster.to_indexmap()
         self._pose_kcam = kcam
         self._pose_rtcam = rt_cam
@@ -145,26 +148,37 @@ class SurfelFusion:
 
         mask = (render_mask == 1).bool()
 
-        if mask.sum() < 70000:
-            return None
+        if mask.sum() < 1000:
+            return None, None
 
+        if self.model.has_features:
+            features = torch.empty(self.model.feature_size, mask.size(0), mask.size(1),
+                                   device=self.model.device,
+                                   dtype=torch.float)
+            _SurfelFusionOp.copy_features(
+                indexmap.indexmap, self.model.features, features, flip)
         if flip:
             points = indexmap.position_confidence[:, :, :3].clone().flip([0])
             normals = indexmap.normal_radius[:, :, :3].clone().flip([0])
             colors = indexmap.color.clone().flip([0])
-
-            if self.model.features is not None:
-                features = torch.empty()
-                _SurfelFusionOp.CopyFeatures(
-                    indexmap.indexmap, surfels, features)
         else:
             points = indexmap.position_confidence[:, :, :3].clone()
             normals = indexmap.normal_radius[:, :, :3].clone()
             colors = indexmap.color.clone()
 
+        if False:
+            import matplotlib.pyplot as plt
+            import ipdb; ipdb.set_trace()
+            features = features.transpose(1, 0).transpose(1, 2).cpu().numpy()
+            plt.figure()
+            plt.imshow(features)
+            plt.figure()
+            plt.imshow(colors.cpu().numpy())
+            plt.show()
+
         return FramePointCloud(
             None, mask, self._pose_kcam, self._pose_rtcam,
-            points, normals, colors)
+            points, normals, colors), features
 
     @property
     def stable_conf_thresh(self):

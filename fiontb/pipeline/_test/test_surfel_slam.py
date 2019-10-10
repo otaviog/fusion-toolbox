@@ -6,14 +6,16 @@ from fiontb.data.ftb import load_ftb
 from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
 from fiontb.sensor import DatasetSensor
 from fiontb._utils import profile
+from fiontb.testing import get_color_feature
 
 from ..surfel_slam import SurfelSLAM
+
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 
 def _run_test(dataset):
-    slam = SurfelSLAM(tracking='frame-to-model')
+    slam = SurfelSLAM(tracking='frame-to-model', feature_size=3)
 
     sensor_ui = FrameUI("Frame Control")
     rec_ui = SurfelReconstructionUI(slam.model, RunMode.STEP,
@@ -28,7 +30,7 @@ def _run_test(dataset):
                 break
 
             sensor_ui.update(frame)
-            stats = slam.step(frame)
+            stats = slam.step(frame, features=get_color_feature(frame.rgb_image))
             print("Frame {} - {}".format(rec_ui.frame_count, stats))
 
 

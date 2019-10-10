@@ -53,7 +53,8 @@ void SurfelFusionOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<SurfelFusionOp>(m, "SurfelFusionOp")
       .def_static("merge_live", SurfelFusionOp::MergeLive)
       .def_static("carve_space", SurfelFusionOp::CarveSpace)
-      .def_static("merge", SurfelFusionOp::Merge);
+      .def_static("merge", SurfelFusionOp::Merge)
+      .def_static("copy_features", SurfelFusionOp::CopyFeatures);
 }
 
 }  // namespace fiontb

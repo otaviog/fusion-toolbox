@@ -47,3 +47,14 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
         features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
 
     return frame, to_tensor(features)
+
+
+def get_color_feature(rgb_image, to_hsv=True, blur=False):
+    features = rgb_image
+    if blur:
+        features = cv2.blur(features, (5, 5))
+
+    if to_hsv:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
+
+    return to_tensor(features)
