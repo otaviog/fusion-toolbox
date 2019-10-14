@@ -25,6 +25,26 @@ def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,
     return out_tensor
 
 
+class BilateralDepthFilter:
+    def __init__(self, filter_width=6, sigma_d=4.50000000225,
+                 sigma_r=29.9999880000072, depth_scale=1.0):
+        self.filter_width = 6
+        self.sigma_d = sigma_d
+        self.sigma_r = sigma_r
+        self.depth_scale = depth_scale
+
+        self._out_tensor = None
+
+    def __call__(self, depth, mask):
+        self._out_tensor = empty_ensured_size(self._out_tensor,
+                                              depth.size(0), depth.size(1),
+                                              device=depth.device,
+                                              dtype=depth.dtype)
+        _bilateral_depth_filter(depth, mask, self._out_tensor,
+                                self.filter_width, self.sigma_d, self.sigma_r,
+                                self.depth_scale)
+        return self._out_tensor
+
 class FeatureMap(torch.autograd.Function):
     @staticmethod
     def forward(ctx, image, uv):

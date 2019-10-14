@@ -49,11 +49,11 @@ void SurfelFusionOp::CopyFeatures(const torch::Tensor &indexmap,
   if (ref_device.is_cuda()) {
     CopyFeaturesKernel<kCUDA> kernel(indexmap, model_features, out_features,
                                      flip);
-    Launch2DKernelCUDA(kernel, indexmap.size(1), indexmap.size(0));
+    Launch2DKernelCUDA(kernel, out_features.size(2), out_features.size(1));
   } else {
     CopyFeaturesKernel<kCPU> kernel(indexmap, model_features, out_features,
                                     flip);
-    Launch2DKernelCPU(kernel, indexmap.size(1), indexmap.size(0));
+    Launch2DKernelCPU(kernel, out_features.size(2), out_features.size(1));
   }
 }
 }  // namespace fiontb

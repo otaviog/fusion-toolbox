@@ -9,13 +9,12 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-// TODO: keep the code from Bad-SLAM?
-
 namespace fiontb {
 
 namespace {
 template <Device dev, typename scalar_t>
 struct CentralDifferencesKernel {
+  // TODO: Code taken from Bad-SLAM? Verify the license before open-source
   const typename Accessor<dev, scalar_t, 3>::T xyz;
   const typename Accessor<dev, bool, 2>::T mask;
   typename Accessor<dev, scalar_t, 3>::T out_normal;
@@ -30,7 +29,7 @@ struct CentralDifferencesKernel {
     const int iwidth = xyz.size(1);
     const int iheight = xyz.size(0);
 
-    out_normal[row][col][0] = out_normal[row][col][1] =
+    out_normal[row][col][0] = out_normal[row][col][1] = 
         out_normal[row][col][2] = 0;
 
     if (!mask[row][col]) return;

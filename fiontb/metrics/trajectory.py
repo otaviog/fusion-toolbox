@@ -1,23 +1,58 @@
 import torch
+import numpy
+
+import fiontb.thirdparty.tumrgbd as _tumrgbd
 
 
-def ate_rmse(trajectory_true, trajectory_pred):
-    # TODO: Align using the method of Horn. TUM-RGBD have an implementation.
+def absolute_translational_error(trajectory_true, trajectory_pred, scale=1):
+    """Computes translational error. Code is a wrapper around TUM-RGBD source.
+    """
 
-    true2pred_space = trajectory_pred[0] @ trajectory_true[0].inverse()
+    xyz_true = numpy.matrix([rt_cam.center.cpu().numpy()
+                             for rt_cam in trajectory_true]).transpose()
+    xyz_pred = numpy.matrix([rt_cam.center.cpu().numpy()*scale
+                             for rt_cam in trajectory_pred]).transpose()
 
-    xyz_true = []
-    xyz_pred = []
-    for traj_true, traj_pred in zip(trajectory_true[1:], trajectory_pred[1:]):
-        traj_true = true2pred_space @ traj_true
+    _, _, trans_error = _tumrgbd.align(xyz_true, xyz_pred)
 
-        xyz_true.append(traj_true.matrix[:3, 3])
-        xyz_pred.append(traj_pred.matrix[:3, 3])
+    return torch.from_numpy(trans_error)
 
-    xyz_true = torch.stack(xyz_true)
-    xyz_pred = torch.stack(xyz_pred)
 
-    rmse = (xyz_true - xyz_pred).norm(dim=1)
-    rmse = rmse.mean().item()
+def rotational_error(trajectory_true, trajectory_pred, max_pairs=10000,
+                     fixed_delta=False, delta=1.0, delta_unit='s',
+                     offset=0.0, scale=1.0):
+    """Computes rotational error. Code is a wrapper around TUM-RGBD source.
 
-    return rmse
+    Args:
+
+         max_pairs (int): maximum number of pose comparisons (default:
+          10000, set to zero to disable downsampling).
+
+         fixed_delta (bool): only consider pose pairs that have a
+          distance of delta delta_unit (e.g., for evaluating the drift
+          per second/meter/radian).
+
+         delta (float): delta for evaluation (default: 1.0).
+
+         delta_unit (str): unit of delta. Options: \'s\' for seconds,
+          \'m\' for meters, \'rad\' for radians, \'f\' for frames;
+          default: \'s\')'. Default is 's'.
+
+         offset (float): time offset between ground-truth and
+          estimated trajectory (default: 0.0).
+
+         scale (float): scaling factor for the estimated trajectory
+          (default: 1.0).
+
+    """
+
+    result = _tumrgbd.evaluate_trajectory(
+        {i: rt_cam.matrix.cpu().numpy()
+         for i, rt_cam in enumerate(trajectory_true)},
+        {i: rt_cam.matrix.cpu().numpy()
+         for i, rt_cam in enumerate(trajectory_pred)},
+        max_pairs, fixed_delta, delta, delta_unit, offset, scale)
+
+    rot_error = numpy.array(result)[:, 5]
+
+    return torch.from_numpy(rot_error)

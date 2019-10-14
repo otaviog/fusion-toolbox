@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.ckdtree import cKDTree
 
 from .mesh import query_closest_points, mesh_accuracy, sample_points
-from .trajectory import ate_rmse
+from .trajectory import absolute_translational_error, rotational_error
 
 
 def chamfer_score(source_points, gt_points):

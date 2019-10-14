@@ -17,9 +17,9 @@ class KDTreeLayer(torch.autograd.Function):
     @staticmethod
     def setup(target_xyz):
         KDTreeLayer.target_xyz = target_xyz
-        KDTreeLayer.tree = KDTree(
+        KDTreeLayer.tree = cKDTree(
             target_xyz.cpu().numpy(),
-            # balanced_tree=True
+            balanced_tree=True
         )
         return KDTreeLayer.apply
 
@@ -32,7 +32,8 @@ class KDTreeLayer(torch.autograd.Function):
             xyz.detach().cpu().numpy(), k=k,
             distance_upper_bound=distance_upper_bound)
 
-        distance = torch.from_numpy(distance).to(ref_device).to(ref_dtype)
+        distance = torch.from_numpy(distance).to(
+            ref_device).to(ref_dtype).view(-1, k)
         index = torch.from_numpy(index.astype(
             numpy.int64)).to(ref_device).view(-1, k)
 

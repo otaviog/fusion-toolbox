@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import torch
-from torchvision.transforms import ToTensor
 import fire
 
 from fiontb.data.ftb import load_ftb
@@ -58,10 +57,13 @@ class Tests:
         device = "cuda:0"
 
         frame, features0 = prepare_frame(
-            dataset[0], filter_depth=True, to_hsv=True)
+            dataset[0], filter_depth=True, to_hsv=True, blur=True)
         next_frame, features1 = prepare_frame(
-            dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True)
+            dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True, blur=True)
 
+        import matplotlib.pyplot as plt
+        # plt.imshow(features0.cpu().transpose(1, 0).transpose(1, 2))
+        # plt.show()
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
@@ -90,9 +92,9 @@ class Tests:
         device = "cuda:0"
 
         frame, features0 = prepare_frame(
-            dataset[0], filter_depth=False, to_hsv=True)
+            dataset[0], filter_depth=True, to_hsv=True, blur=True)
         next_frame, features1 = prepare_frame(
-            dataset[_OTHER_FRAME_INDEX], filter_depth=False, to_hsv=True)
+            dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True, blur=True)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
@@ -125,7 +127,7 @@ class Tests:
             (0.25, 20, False),
             (0.5, 20, False),
             (1.0, 20, False)
-        ])
+        ], lost_track_threshold=1e-1)
 
         frame, _ = prepare_frame(dataset[0], filter_depth=True)
         next_frame, _ = prepare_frame(
@@ -154,15 +156,15 @@ class Tests:
         device = "cuda:0"
 
         frame, features0 = prepare_frame(
-            dataset[0], filter_depth=True, to_hsv=True)
+            dataset[0], filter_depth=True, to_hsv=True, blur=False)
         next_frame, features1 = prepare_frame(
-            dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True)
+            dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True, blur=False)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
         icp = MultiscaleICPOdometry([
-            (0.25, 25, True),
+            (0.25, 5, True),
             (0.5, 25, True),
             (0.75, 25, True),
             (1.0, 50, True)

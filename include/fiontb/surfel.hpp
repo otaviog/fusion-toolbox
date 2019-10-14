@@ -30,7 +30,6 @@ class SurfelAllocator {
 
   int get_free_size() const { return int(free_indices_.size()); }
 
-  
  private:
   int max_surfels_;
   std::deque<int32_t> free_indices_;

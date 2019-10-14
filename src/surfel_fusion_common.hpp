@@ -12,6 +12,7 @@ struct SurfelModelAccessor {
   typename Accessor<dev, float, 1>::T radii;
   typename Accessor<dev, uint8_t, 2>::T colors;
   typename Accessor<dev, int32_t, 1>::T times;
+  typename Accessor<dev, float, 2>::T features;
 
   SurfelModelAccessor(MappedSurfelModel params)
       : positions(Accessor<dev, float, 2>::Get(params.positions)),
@@ -19,7 +20,8 @@ struct SurfelModelAccessor {
         normals(Accessor<dev, float, 2>::Get(params.normals)),
         radii(Accessor<dev, float, 1>::Get(params.radii)),
         colors(Accessor<dev, uint8_t, 2>::Get(params.colors)),
-        times(Accessor<dev, int32_t, 1>::Get(params.times)) {}
+        times(Accessor<dev, int32_t, 1>::Get(params.times)),
+        features(Accessor<dev, float, 2>::Get(params.features)) {}
 
   SurfelModelAccessor(SurfelCloud params)
       : positions(Accessor<dev, float, 2>::Get(params.positions)),
@@ -27,7 +29,8 @@ struct SurfelModelAccessor {
         normals(Accessor<dev, float, 2>::Get(params.normals)),
         radii(Accessor<dev, float, 1>::Get(params.radii)),
         colors(Accessor<dev, uint8_t, 2>::Get(params.colors)),
-        times(Accessor<dev, int32_t, 1>::Get(params.times)) {}
+        times(Accessor<dev, int32_t, 1>::Get(params.times)),
+        features(Accessor<dev, float, 2>::Get(params.features)) {}
 
   FTB_DEVICE_HOST inline Vector<float, 3> position(int idx) const {
     return to_vec3<float>(positions[idx]);

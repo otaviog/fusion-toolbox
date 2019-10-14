@@ -9,6 +9,7 @@
 #include "dense_volume.hpp"
 #include "downsample.hpp"
 #include "filtering.hpp"
+#include "fsf.hpp"
 #include "icpodometry.hpp"
 #include "indexmap.hpp"
 #include "matching.hpp"
@@ -61,7 +62,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   MappedSurfelModel::RegisterPybind(m);
   SurfelCloud::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
-  
+  FSFOp::RegisterPybind(m);
+
   m.def("raster_indexmap", &RasterIndexmap);
 
   ICPJacobian::RegisterPybind(m);

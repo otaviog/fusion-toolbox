@@ -34,7 +34,8 @@ void MappedSurfelModel::RegisterPybind(pybind11::module &m) {
       .def_readwrite("normals", &MappedSurfelModel::normals)
       .def_readwrite("radii", &MappedSurfelModel::radii)
       .def_readwrite("colors", &MappedSurfelModel::colors)
-      .def_readwrite("times", &MappedSurfelModel::times);
+      .def_readwrite("times", &MappedSurfelModel::times)
+      .def_readwrite("features", &MappedSurfelModel::features);
 }
 
 void SurfelCloud::RegisterPybind(pybind11::module &m) {
@@ -46,6 +47,7 @@ void SurfelCloud::RegisterPybind(pybind11::module &m) {
       .def_readwrite("radii", &SurfelCloud::radii)
       .def_readwrite("colors", &SurfelCloud::colors)
       .def_readwrite("times", &SurfelCloud::times)
+      .def_readwrite("features", &SurfelCloud::features)
       .def_property("size", &SurfelCloud::get_size, nullptr);
 }
 

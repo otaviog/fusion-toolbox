@@ -51,6 +51,7 @@ class SurfelCloudRegistration:
         self.num_iters = num_iters
         self.learning_rate = learning_rate
         self.use_lbfgs = use_lbfgs
+        self.last_knn_index = None
 
     def estimate(self, target_surfels, source_surfels):
         dtype = target_surfels.positions.dtype
@@ -84,8 +85,11 @@ class SurfelCloudRegistration:
             transform = exp(upsilon_omega).squeeze()
             pos = RigidTransform(transform) @ source_surfels.positions
 
-            valid = KDTreeLayer.query(pos, 5, 1)
+            valid = KDTreeLayer.query(pos, 5)
+            self.last_knn_index = KDTreeLayer.last_query[1]
+
             tgt_norm = map_op(target_normals, pos)
+
             tgt_norm = tgt_norm[:, valid]
             tgt_norm = tgt_norm.transpose(1, 0).view(-1, 1, 3)
 

@@ -26,7 +26,7 @@ class FrameInfo:
 
         rt_cam (:obj:`fiontb.camera.RTCamera`): The extrinsic camera parameters.
 
-        timestamps (float or int): The frame timestamp.
+        timestamp (float or int): The frame timestamp.
     """
 
     def __init__(self, kcam=None, depth_scale=1.0, depth_bias=0.0, depth_max=4500.0,
@@ -85,6 +85,13 @@ class FrameInfo:
     def __repr__(self):
         return str(self)
 
+    def clone(self):
+        return FrameInfo(
+            self.kcam.clone(), self.depth_scale, self.depth_bias,
+            self.depth_max, self.timestamp,
+            None if self.rgb_kcam is None else self.rgb_kcam.clone(),
+            None if self.rt_cam is None else self.rt_cam.clone())
+
 
 class Frame:
     """A sensor frame.
@@ -116,6 +123,12 @@ class Frame:
         self.rgb_image = rgb_image
         self.fg_mask = fg_mask
         self.normal_image = normal_image
+
+    def clone(self):
+        return Frame(self.info.clone(), self.depth_image.copy(),
+                     None if self.rgb_image is None else self.rgb_image.copy(),
+                     None if self.fg_mask is None else self.fg_mask.copy(),
+                     None if self.normal_image is None else self.normal_image.copy())
 
 
 class _DepthImagePointCloud:
@@ -260,15 +273,14 @@ class FramePointCloud:
 
     def unordered_point_cloud(self, world_space=True, compute_normals=True):
         mask = self.mask.flatten()
-
         if compute_normals:
-            normals = self.normals.reshape(-1, 3)
+            normals = self.normals.view(-1, 3)
             normals = normals[mask]
         else:
             normals = None
 
-        pcl = PointCloud(self.points.reshape(-1, 3)[mask],
-                         self.colors.reshape(-1, 3)[mask]
+        pcl = PointCloud(self.points.view(-1, 3)[mask],
+                         self.colors.view(-1, 3)[mask]
                          if self.colors is not None else None,
                          normals)
 
@@ -290,7 +302,7 @@ class FramePointCloud:
 
     @property
     def device(self):
-        return self.image_points.device
+        return self.mask.device
 
     def __getitem__(self, *slices):
         slices = slices[0]
@@ -299,6 +311,31 @@ class FramePointCloud:
                                points=self.points[slices],
                                normals=self.normals[slices],
                                colors=self.colors[slices])
+
+    def plot_debug(self, show=True):
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.subplot(2, 3, 1)
+        plt.imshow(self.points[:, :, 0].cpu().numpy())
+
+        plt.subplot(2, 3, 2)
+        plt.imshow(self.points[:, :, 1].cpu().numpy())
+
+        plt.subplot(2, 3, 3)
+        plt.imshow(self.points[:, :, 2].cpu().numpy())
+
+        plt.subplot(2, 3, 4)
+        plt.imshow(self.mask.cpu().numpy())
+
+        plt.subplot(2, 3, 5)
+        plt.imshow(self.colors.cpu().numpy())
+
+        plt.subplot(2, 3, 6)
+        plt.imshow(self.normals.cpu().numpy())
+
+        if show:
+            plt.show()
 
 
 def estimate_normals(depth_image, frame_info, mask,

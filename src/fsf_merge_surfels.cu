@@ -38,6 +38,7 @@ struct MergeKernel {
     const int64_t target_idx = global_map[local_target_idx];
 
     global_model.set_position(
+        target_idx,
         (global_model.position(target_idx) + local_model.position(idx)) * .5);
   }
 };
@@ -49,6 +50,9 @@ void FSFOp::Merge(const torch::Tensor &knn_index,
                   const torch::Tensor &global_map,
                   MappedSurfelModel global_model) {
   const auto ref_device = knn_index.device();
+  local_model.CheckDevice(ref_device);
+  FTB_CHECK_DEVICE(ref_device, global_map);
+  global_model.CheckDevice(ref_device);
   if (ref_device.is_cuda()) {
     MergeKernel<kCUDA> kernel(knn_index, local_model, global_map, global_model);
     Launch1DKernelCUDA(kernel, knn_index.size(0));

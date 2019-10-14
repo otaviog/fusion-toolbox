@@ -11,6 +11,7 @@ template <Device dev>
 struct LiveMergeKernel {
   const IndexMapAccessor<dev> target_indexmap;
   const IndexMapAccessor<dev> live_indexmap;
+  const typename Accessor<dev, float, 3>::T live_features;
   SurfelModelAccessor<dev> surfel_model;
   const RTCamera<dev, float> rt_cam;
   const Eigen::Matrix3f normal_transform_matrix;
@@ -21,13 +22,15 @@ struct LiveMergeKernel {
   typename Accessor<dev, int64_t, 2>::T new_surfel_map;
 
   LiveMergeKernel(const IndexMap &target_indexmap,
-                  const IndexMap &live_indexmap, MappedSurfelModel surfel_model,
-                  RTCamera<dev, float> rt_cam,
+                  const IndexMap &live_indexmap,
+                  const torch::Tensor &live_features,
+                  MappedSurfelModel surfel_model, RTCamera<dev, float> rt_cam,
                   const Eigen::Matrix3f &normal_transform_matrix,
                   int search_size, float max_normal_angle,
                   torch::Tensor new_surfel_map)
       : target_indexmap(target_indexmap),
         live_indexmap(live_indexmap),
+        live_features(Accessor<dev, float, 3>::Get(live_features)),
         surfel_model(surfel_model),
         rt_cam(rt_cam),
         normal_transform_matrix(normal_transform_matrix),
@@ -104,6 +107,20 @@ struct LiveMergeKernel {
       surfel_model.set_color(best, (surfel_model.color(best) * model_conf +
                                     live_color * live_conf) /
                                        conf_total);
+      const int64_t feature_size =
+          min(surfel_model.features.size(0), live_features.size(0));
+      const int live_height = live_features.size(1);
+      for (int64_t i = 0; i < feature_size; ++i) {
+        const float model_feat_channel = surfel_model.features[i][best];
+        // Indexmap comes up side down
+        const float live_feat_channel =
+            live_features[i][live_height - 1 - row][col];
+
+        surfel_model.features[i][best] =
+            (model_feat_channel * model_conf + live_feat_channel * live_conf) /
+            conf_total;
+      }
+
       surfel_model.confidences[best] = conf_total;
       surfel_model.times[best] = live_indexmap.time(row, col);
     } else {
@@ -129,6 +146,7 @@ Eigen::Matrix3f GetNormalTransformMatrix(const torch::Tensor rt_cam) {
 
 void SurfelFusionOp::MergeLive(const IndexMap &target_indexmap,
                                const IndexMap &live_indexmap,
+                               const torch::Tensor &live_features,
                                MappedSurfelModel model,
                                const torch::Tensor &rt_cam, int search_size,
                                float max_normal_angle,
@@ -142,15 +160,15 @@ void SurfelFusionOp::MergeLive(const IndexMap &target_indexmap,
 
   Eigen::Matrix3f normal_transform_matrix(GetNormalTransformMatrix(rt_cam));
   if (reference_dev.is_cuda()) {
-    LiveMergeKernel<kCUDA> kernel(target_indexmap, live_indexmap, model,
-                                  RTCamera<kCUDA, float>(rt_cam),
+    LiveMergeKernel<kCUDA> kernel(target_indexmap, live_indexmap, live_features,
+                                  model, RTCamera<kCUDA, float>(rt_cam),
                                   normal_transform_matrix, search_size,
                                   max_normal_angle, new_surfels_map);
     Launch2DKernelCUDA(kernel, live_indexmap.get_width(),
                        live_indexmap.get_height());
   } else {
-    LiveMergeKernel<kCPU> kernel(target_indexmap, live_indexmap, model,
-                                 RTCamera<kCPU, float>(rt_cam),
+    LiveMergeKernel<kCPU> kernel(target_indexmap, live_indexmap, live_features,
+                                 model, RTCamera<kCPU, float>(rt_cam),
                                  normal_transform_matrix, search_size,
                                  max_normal_angle, new_surfels_map);
     Launch2DKernelCPU(kernel, live_indexmap.get_width(),

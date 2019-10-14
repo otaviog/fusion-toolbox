@@ -126,7 +126,7 @@ struct MergeKernel {
     const int64_t local_source_idx = merge_map[row][col];
     if (local_source_idx < 0) return;
 
-	int64_t source_idx = indexmap.index(local_source_idx);
+    int64_t source_idx = indexmap.index(local_source_idx);
     merge_map[row][col] = source_idx;
 
     const int64_t target_idx = indexmap.index(row, col);
@@ -144,6 +144,16 @@ struct MergeKernel {
     model.set_color(target_idx, (model.color(target_idx) * tgt_conf +
                                  model.color(source_idx) * src_conf) /
                                     conf_total);
+    
+    for (int64_t i = 0; i < model.features.size(0); ++i) {
+      const float tgt_feat_channel = model.features[i][target_idx];
+      const float src_feat_channel = model.features[i][source_idx];
+
+      model.features[i][target_idx] =
+          (tgt_feat_channel * tgt_conf + src_feat_channel * src_conf) /
+          conf_total;
+    }
+
     model.confidences[target_idx] = conf_total;
     model.times[target_idx] =
         max(model.times[target_idx], model.times[source_idx]);

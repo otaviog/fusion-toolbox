@@ -51,6 +51,7 @@ class MultiscaleOptimization:
 
         tgt_feats = None
         src_feats = None
+
         for scale, icp_instance, use_feats in self.estimators:
             if scale < 1.0:
                 tgt_points = downsample_xyz(target_points, target_mask, scale,
@@ -97,9 +98,8 @@ class MultiscaleOptimization:
                 transform=transform, geom_weight=geom_weight,
                 feat_weight=feat_weight)
 
-            if not tracking_ok:
-                return transform, False
-        return transform, True
+
+        return transform, tracking_ok
 
     def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
         return self.estimate(target_frame.points, target_frame.normals,

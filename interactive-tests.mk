@@ -85,6 +85,9 @@ fiontb.fusion.surfel.remove_unstable:
 fiontb.fusion.surfel.fusion:
 	python3 -m fiontb.fusion.surfel._test.test_fusion
 
+fiontb.fusion.surfel.model-tracking:
+	python3 -m fiontb.fusion.surfel._test.test_model_tracking
+
 fiontb.pipeline.surfel_slam.real-scene:
 	python3 -m fiontb.pipeline._test.test_surfel_slam real_scene
 
@@ -98,6 +101,9 @@ fiontb.fusion.fsf.registration:
 
 fiontb.fusion.fsf.fusion:	
 	python3 -m fiontb.fusion.fsf._test.test_fusion
+
+fiontb.fusion.fsf.merge:
+	python3 -m fiontb.fusion.fsf._test.test_merge
 
 fiontb.pipeline.fsf.real-scene:
 	python3 -m fiontb.pipeline._test.test_fsf_slam real_scene

@@ -10,6 +10,7 @@ from fiontb.pose.icp import MultiscaleICPOdometry
 from fiontb.pose.autogradicp import MultiscaleAutogradICP
 from fiontb.surfel import SurfelModel
 from fiontb.fusion.surfel import SurfelFusion
+from fiontb.filtering import BilateralDepthFilter
 
 
 class SurfelSLAM:
@@ -26,14 +27,10 @@ class SurfelSLAM:
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
         self.icp = MultiscaleICPOdometry(
-            [(0.25, 20, True),
+            [(0.25, 20, False),
              (0.5, 20, True),
-             (1.0, 20, True)])
-
-        self.icp2 = MultiscaleAutogradICP(
-            [(0.25, 25, 0.05, True),
-             (0.5, 25, 0.05, True),
-             (1.0, 50, 0.05, True)])
+             (1.0, 20, True)],
+            lost_track_threshold=1e-1)
 
         self.previous_fpcl = None
         self._previous_features = None
@@ -51,6 +48,8 @@ class SurfelSLAM:
                                    min_z_difference=min_z_difference)
 
         self.tracking = tracking
+
+        self._depth_filter = BilateralDepthFilter()
 
     def step(self, frame, features=None):
         device = self.device
@@ -75,7 +74,23 @@ class SurfelSLAM:
                 target_mask=self.previous_fpcl.mask,
                 target_normals=self.previous_fpcl.normals,
                 target_feats=self._previous_features,
-                geom_weight=0.5, feat_weight=0.5)
+                geom_weight=.2, feat_weight=.8)
+            print(tracking_ok)
+            #if not tracking_ok:
+            if False:
+                from fiontb.fusion.surfel.fusion import FusionStats
+
+                import matplotlib.pyplot as plt
+                plt.figure()
+                plt.imshow(features.transpose(1, 0).transpose(1, 2).cpu())
+
+                plt.figure()
+                plt.imshow(self._previous_features.transpose(
+                    1, 0).transpose(1, 2).cpu())
+
+                import ipdb
+                ipdb.set_trace()
+                return FusionStats()
 
             self.rt_camera = self.rt_camera.integrate(relative_cam.cpu())
 
@@ -86,10 +101,27 @@ class SurfelSLAM:
             self.previous_fpcl = filtered_live_fpcl
             self._previous_features = features
         elif self.tracking == 'frame-to-model':
-            model_fpcl, features = self.fusion.get_model_frame_pcl()
+            model_fpcl, model_features = self.fusion.get_model_frame_pcl()
 
-            self.previous_fpcl = (model_fpcl if model_fpcl is not None
-                                  else filtered_live_fpcl)
-            self._previous_features = features
+            if model_fpcl is not None:
+                if False:
+                    import matplotlib.pyplot as plt
+                    plt.figure()
+                    plt.imshow(frame.rgb_image)
+                    plt.figure()
+                    plt.imshow(model_fpcl.colors.cpu())
+
+                    plt.figure()
+                    plt.imshow(model_features.transpose(
+                        1, 0).transpose(1, 2).cpu())
+                    model_fpcl.plot_debug()
+
+                model_fpcl.points[:, :, 2] = self._depth_filter(
+                    model_fpcl.points[:, :, 2], model_fpcl.mask)
+                self.previous_fpcl = model_fpcl
+                self._previous_features = model_features
+            else:
+                self.previous_fpcl = filtered_live_fpcl
+                self._previous_features = features
 
         return stats

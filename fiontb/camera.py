@@ -1,6 +1,7 @@
 """Intrinsic and extrinsic camera handling.
 """
 import math
+import copy
 
 import numpy as np
 import quaternion
@@ -180,6 +181,12 @@ class KCamera:
                 and (self.undist_coeff == other.undist_coeff)
                 and (self.image_size == other.image_size))
 
+    def clone(self):
+        
+        return KCamera(self.matrix.clone(),
+                       copy.deepcopy(self.undist_coeff),
+                       self.image_size)
+
     def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
         return torch.from_numpy(tenviz.projection_from_kcam(
             self.matrix, near, far).to_matrix()).to(dtype)
@@ -328,7 +335,11 @@ class RTCamera:
         return _GL_HAND_MTX @ self.world_to_cam
 
     def integrate(self, matrix):
-        return RTCamera(matrix @ self.matrix)
+        return RTCamera(matrix.to(self.device) @ self.matrix)
+
+    @property
+    def device(self):
+        return self.matrix.device
 
     def translate(self, tx, ty, tz):
         return RTCamera(self.matrix @ torch.tensor([[1, 0, 0, tx],

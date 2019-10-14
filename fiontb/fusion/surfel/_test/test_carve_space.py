@@ -36,7 +36,7 @@ def _test():
     torch.manual_seed(110)
 
     num_violations = 500
-    violations_sampling = np.random.choice(surfel_model.allocator.active_count,
+    violations_sampling = np.random.choice(surfel_model.allocated_size,
                                            num_violations)
     violations = surfel_cloud[violations_sampling]
     violations.positions += (frame.info.rt_cam.center - violations.positions)\
@@ -47,7 +47,7 @@ def _test():
 
     prev_model = surfel_model.clone()
 
-    carve = CarveSpace(_STABLE_CONF_THRESH, search_size=2, min_z_difference=0.5)
+    carve = CarveSpace(_STABLE_CONF_THRESH, search_size=2)
 
     height, width = frame.depth_image.shape
 

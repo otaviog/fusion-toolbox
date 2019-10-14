@@ -25,9 +25,9 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters, lost_track_threshhold=1e-2):
+    def __init__(self, num_iters, lost_track_threshold=1e-2):
         self.num_iters = num_iters
-        self.lost_track_threshhold = lost_track_threshhold
+        self.lost_track_threshold = lost_track_threshold
 
         self.jacobian = None
         self.residual = None
@@ -115,16 +115,19 @@ class ICPOdometry:
             Jr = Jt @ self.residual
 
             JtJ = JtJ.cpu().double()
-            upper_JtJ = torch.cholesky(JtJ)
+            try:
+                # update = JtJ.cpu().inverse() @ Jr.cpu()
+                upper_JtJ = torch.cholesky(JtJ)
 
-            update = torch.cholesky_solve(
-                Jr.view(-1, 1).cpu().double(), upper_JtJ).squeeze()
-
-            # update = JtJ.cpu().inverse() @ Jr.cpu()
+                update = torch.cholesky_solve(
+                    Jr.view(-1, 1).cpu().double(), upper_JtJ).squeeze()
+            except:
+                best_loss = math.inf
+                break
 
             update_matrix = SE3.exp(
                 update.cpu()).to_matrix().to(device).to(dtype)
-            best_transform = transform = update_matrix @ transform
+            transform = update_matrix @ transform
 
             loss = abs(self.residual.mean().item())
 
@@ -136,10 +139,10 @@ class ICPOdometry:
                 best_transform = transform
 
             # Uncomment the next line(s) for optimization debug
-            #print(_, loss)
-        #print(first_loss, best_loss)
+            # print(_, loss)
+        # print(first_loss, best_loss)
 
-        return best_transform, loss < self.lost_track_threshhold
+        return best_transform, best_loss < self.lost_track_threshold
 
     def estimate_frame_to_frame(self, source_frame, target_frame,
                                 transform=None, geom_weight=1.0, feat_weight=1.0):
@@ -156,7 +159,8 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
     algorithm.
     """
 
-    def __init__(self, scale_iters, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+    def __init__(self, scale_iters, downsample_xyz_method=DownsampleXYZMethod.Nearest,
+                 lost_track_threshold=1e-2):
         """Initialize the multiscale ICP.
 
         Args:
@@ -170,6 +174,6 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
         """
 
         super().__init__(
-            [(scale, ICPOdometry(iters), use_feats)
+            [(scale, ICPOdometry(iters, lost_track_threshold), use_feats)
              for scale, iters, use_feats in scale_iters],
             downsample_xyz_method)

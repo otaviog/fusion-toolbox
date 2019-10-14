@@ -19,12 +19,12 @@ def _test():
 
     gl_context = tenviz.Context()
 
-    fusion = FSFFusion(gl_context, 1024*1024*5, 2, 1024*1024*24)
+    fusion = FSFFusion(gl_context, 1024*1024*5, 4, 1024*1024*24, 3)
     for i in range(len(dataset)):
-        frame = prepare_frame(dataset[i])
+        frame, feature = prepare_frame(dataset[i], to_hsv=True)
 
         frame_pcl = FramePointCloud.from_frame(frame)
-        fusion.fuse(frame_pcl, frame_pcl.rt_cam)
+        fusion.fuse(frame_pcl, frame_pcl.rt_cam.matrix, feature)
 
     show_surfels(gl_context, [fusion.global_model])
 

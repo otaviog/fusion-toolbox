@@ -42,7 +42,7 @@ struct IndexMap {
 };
 
 struct MappedSurfelModel {
-  torch::Tensor positions, confidences, normals, radii, colors, times;
+  torch::Tensor positions, confidences, normals, radii, colors, times, features;
 
   static void RegisterPybind(pybind11::module &m);
 
@@ -57,7 +57,7 @@ struct MappedSurfelModel {
 };
 
 struct SurfelCloud {
-  torch::Tensor positions, confidences, normals, radii, colors, times;
+  torch::Tensor positions, confidences, normals, radii, colors, times, features;
 
   static void RegisterPybind(pybind11::module &m);
 
@@ -75,9 +75,11 @@ struct SurfelCloud {
 
 struct SurfelFusionOp {
   static void MergeLive(const IndexMap &target_indexmap,
-                        const IndexMap &live_indexmap, MappedSurfelModel model,
-                        const torch::Tensor &rt_cam, int search_size,
-                        float max_normal_angle, torch::Tensor new_surfels_map);
+                        const IndexMap &live_indexmap,
+                        const torch::Tensor &live_features,
+                        MappedSurfelModel model, const torch::Tensor &rt_cam,
+                        int search_size, float max_normal_angle,
+                        torch::Tensor new_surfels_map);
 
   static void CarveSpace(const IndexMap &model_indexmap,
                          torch::Tensor free_mask, int curr_time,

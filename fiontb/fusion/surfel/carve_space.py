@@ -11,7 +11,7 @@ class CarveSpace:
     """
 
     def __init__(self, stable_conf_thresh,
-                 search_size=2, min_z_difference=.5):
+                 search_size=2, min_z_difference=5e-2):
         self.stable_conf_thresh = stable_conf_thresh
         self.search_size = search_size
         self.min_z_difference = min_z_difference

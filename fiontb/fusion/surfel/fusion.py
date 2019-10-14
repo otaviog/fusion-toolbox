@@ -103,7 +103,7 @@ class SurfelFusion:
 
         new_surfels = self._merge_live_surfels(
             model_indexmap, live_surfels, gl_proj_matrix,
-            rt_cam, width, height, self.model)
+            rt_cam, width, height, self.model, live_features=features)
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
 
@@ -114,8 +114,8 @@ class SurfelFusion:
         stats.merged_count = self._merge_intern_surfels(
             model_indexmap, self.model, update_gl=True)
 
-        # stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
-        # update_gl=True)
+        stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
+                                                 update_gl=True)
 
         stats.removed_count += self._remove_unstable(
             model_indexmap.indexmap, self._time, self.model, update_gl=True)
@@ -130,15 +130,13 @@ class SurfelFusion:
 
     def _update_pose_indexmap(self, kcam, rt_cam, gl_proj_matrix, width, height):
         self._pose_raster.raster(gl_proj_matrix, rt_cam, width, height,
-                                 stable_conf_thresh=3)
+                                 stable_conf_thresh=self.stable_conf_thresh*.5)
         self._pose_indexmap = self._pose_raster.to_indexmap()
         self._pose_kcam = kcam
         self._pose_rtcam = rt_cam
 
     def get_model_frame_pcl(self, flip=True):
         indexmap = self._pose_indexmap
-
-        features = None
         self._pose_indexmap.synchronize()
 
         if flip:
@@ -151,12 +149,14 @@ class SurfelFusion:
         if mask.sum() < 1000:
             return None, None
 
+        features = None
+
         if self.model.has_features:
-            features = torch.empty(self.model.feature_size, mask.size(0), mask.size(1),
+            features = torch.zeros(self.model.feature_size, mask.size(0), mask.size(1),
                                    device=self.model.device,
                                    dtype=torch.float)
             _SurfelFusionOp.copy_features(
-                indexmap.indexmap, self.model.features, features, True)
+                indexmap.indexmap, self.model.features, features, flip)
         if flip:
             points = indexmap.position_confidence[:, :, :3].clone().flip([0])
             normals = indexmap.normal_radius[:, :, :3].clone().flip([0])

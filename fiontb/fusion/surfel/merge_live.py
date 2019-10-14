@@ -15,10 +15,9 @@ class MergeLiveSurfels:
         self.live_raster = LiveIndexMapRaster(gl_context)
 
         self._new_surfels_map = None
-        self._gl_context = gl_context
 
     def __call__(self, target_indexmap, live_surfels, gl_proj_matrix,
-                 rt_cam, width, height, surfel_model):
+                 rt_cam, width, height, surfel_model, live_features=None):
         ref_device = target_indexmap.position_confidence.device
 
         self._new_surfels_map = empty_ensured_size(
@@ -28,11 +27,16 @@ class MergeLiveSurfels:
 
         self.live_raster.raster(live_surfels, gl_proj_matrix, width, height)
         target_indexmap.synchronize()
-        with self._gl_context.current():
+
+        if live_features is None:
+            live_features = torch.empty((0, 0, 0), device=ref_device,
+                                        dtype=torch.float)
+        with surfel_model.gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
                 SurfelFusionOp.merge_live(target_indexmap,
                                           live_indexmap,
+                                          live_features,
                                           mapped_model,
                                           rt_cam.cam_to_world.to(ref_device),
                                           self.search_size,

@@ -110,7 +110,7 @@ class FSFFusion:
         self.time += 1
 
         if self.time % self.max_local_frames == 0:
-            local_surfels = self.local_fusion.to_surfel_cloud()
+            local_surfels, _ = self.local_fusion.to_surfel_cloud()
             good_conf = local_surfels.confidences > 2
             local_surfels = local_surfels[good_conf]
 
@@ -123,18 +123,31 @@ class FSFFusion:
 
             local_surfels.itransform(self.accum_transform.matrix)
 
-            global_surfels = self.global_model.to_surfel_cloud()
+            global_surfels, global_map = self.global_model.to_surfel_cloud()
+
+            from .global_registration import GlobalRegistration
+            reg0 = GlobalRegistration()
+
+            transform = reg0.estimate(global_surfels, local_surfels)
+
+            local_surfels.itransform(transform)
 
             transform = self.registration.estimate(
                 global_surfels, local_surfels)
+            local_surfels.itransform(transform)
+
+            from .merge import Merge as MergeFSF
+            merge = MergeFSF()
+            merge(self.registration.last_knn_index,
+                  local_surfels, global_map, self.global_model)
             # self.registration.last_knn_index
 
             # new_surfels = self._merge_surfels(
             #    local_surfels, self.registration.last_knn_index,
             #    self.global_surfels, global_map)
 
-            local_surfels.itransform(transform)
-            self.global_model.add_surfels(local_surfels, update_gl=True)
+            # local_surfels.itransform(transform)
+            # self.global_model.add_surfels(local_surfels, update_gl=True)
             # TODO: perform merging
             self.local_fusion.reset()
         return FusionStats()
