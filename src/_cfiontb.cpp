@@ -57,6 +57,7 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   m.def("query_closest_points", &QueryClosestPoints);
 
+  SurfelOp::RegisterPybind(m);
   SurfelAllocator::RegisterPybind(m);
   IndexMap::RegisterPybind(m);
   MappedSurfelModel::RegisterPybind(m);
@@ -69,7 +70,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   ICPJacobian::RegisterPybind(m);
 
   ProjectOp::RegisterPybind(m);
-
+  RigidTransformOp::RegisterPybind(m);
+  
   m.def("so3t_exp_op_forward", &SO3tExpOp::Forward);
   m.def("so3t_exp_op_backward", &SO3tExpOp::Backward);
 

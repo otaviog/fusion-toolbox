@@ -15,6 +15,7 @@ uniform mat3 NormalModelview;
 uniform float StableThresh;
 
 out Surfel {
+  vec4 pos;
   vec4 pos_conf;
   vec4 normal_rad;
   vec3 color;
@@ -23,7 +24,6 @@ out Surfel {
 } surfel;
 
 void main() {
-  surfel.index = -1;
   if (in_mask == 1
 	  || (StableThresh > 0.0 && in_conf < StableThresh)) { // Filter non-stable
 	surfel.index = -1;
@@ -31,8 +31,9 @@ void main() {
 	return;
   }
 
-  gl_Position = ProjModelview*in_point;
+  //gl_Position = ProjModelview*in_point;
 
+  surfel.pos = in_point;
   surfel.pos_conf.xyz = (Modelview*in_point).xyz;
   surfel.pos_conf.w = in_conf;
   surfel.normal_rad.xyz = NormalModelview*in_normal;

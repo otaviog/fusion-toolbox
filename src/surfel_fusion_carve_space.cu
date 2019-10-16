@@ -37,7 +37,7 @@ struct CarveSpaceKernel {
     free_map[row][col] = -1;
 
     if (model.empty(row, col)) return;
-    if (model.time(row, col) == curr_time &&
+    if (model.time(row, col) == curr_time ||
         model.confidence(row, col) >= stable_thresh)
       return;
 

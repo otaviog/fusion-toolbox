@@ -65,7 +65,8 @@ class LiveIndexMapRaster(_BaseIndexMapRaster):
         with gl_context.current():
             self.program = tenviz.DrawProgram(
                 tenviz.DrawMode.Points, _SHADER_DIR / "live_indexmap.vert",
-                _SHADER_DIR / "indexmap.frag")
+                _SHADER_DIR / "indexmap.frag",
+                ignore_missing=True)
 
             self.positions = tenviz.buffer_create()
             self.confidences = tenviz.buffer_create()
@@ -85,7 +86,7 @@ class LiveIndexMapRaster(_BaseIndexMapRaster):
             self.program['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
             self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-        super(LiveIndexMapRaster, self).__init__(gl_context)
+        super().__init__(gl_context)
 
     _VIEW_MTX = torch.eye(4, dtype=torch.float32)
     _VIEW_MTX[2, 2] = -1
@@ -155,7 +156,75 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
             self.program['Modelview'] = tenviz.MatPlaceholder.Modelview
             self.program['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
 
-        super(ModelIndexMapRaster, self).__init__(surfel_model.gl_context)
+        super().__init__(surfel_model.gl_context)
+
+        self.surfel_model = surfel_model
+
+    def raster(self, proj_matrix, rt_cam, width, height,
+               stable_conf_thresh=None):
+        """Raster the surfel model to the framebuffers.
+
+        Args:
+
+            proj_matrix (:obj:`torch.Tensor`): OpenGL style projection
+             matrix reproducing the real camera one.
+
+            rt_cam (:obj:`fiontb.camera.RTCamera`): Viewpoint camera transformation.
+
+            width (int): Image width.
+
+            height (int): Image height.
+
+        """
+        gl_context = self.surfel_model.gl_context
+
+        with gl_context.current():
+            self.program['StableThresh'] = (
+                float(stable_conf_thresh)
+                if stable_conf_thresh is not None else -1.0)
+
+        gl_context.set_clear_color(0, 0, 0, 0)
+        gl_context.render(proj_matrix, rt_cam.opengl_view_cam,
+                          self.framebuffer,
+                          [self.program], width, height)
+
+class SurfelIndexMapRaster(_BaseIndexMapRaster):
+    """Rasterizer of :obj:`fiontb.fusion.surfel.model.SurfelModel` that
+    writes position, normal and the the surfels' index to
+    framebuffers.
+    """
+
+    def __init__(self, surfel_model):
+        """Args:
+
+            surfel_model
+             (:obj:`fiontb.fusion.surfel.model.SurfelModel`): Surfel model.
+
+        """
+
+        with surfel_model.gl_context.current():
+            self.program = tenviz.DrawProgram(
+                tenviz.DrawMode.Points,
+                vert_shader=_SHADER_DIR / "surfel_indexmap.vert",
+                frag_shader=_SHADER_DIR / "surfel_indexmap.frag",
+                geo_shader=_SHADER_DIR / "surfel_indexmap.geom",
+                ignore_missing=True
+            )
+
+            self.program['in_point'] = surfel_model.positions
+            self.program['in_normal'] = surfel_model.normals
+            self.program['in_color'] = surfel_model.colors
+            self.program['in_conf'] = surfel_model.confidences
+
+            self.program['in_radius'] = surfel_model.radii
+            self.program['in_mask'] = surfel_model.free_mask_gl
+            self.program['in_time'] = surfel_model.times
+
+            self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
+            self.program['Modelview'] = tenviz.MatPlaceholder.Modelview
+            self.program['NormalModelview'] = tenviz.MatPlaceholder.NormalModelview
+
+        super().__init__(surfel_model.gl_context)
 
         self.surfel_model = surfel_model
 

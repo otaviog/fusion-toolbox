@@ -12,7 +12,7 @@ class MultiscaleOptimization:
 
     def estimate(self, kcam, source_points, source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
-                 target_feats=None, transform=None, geom_weight=1.0, feat_weight=1.0):
+                 target_feats=None, transform=None, geom_weight=.5, feat_weight=.5):
         """Estimate the ICP odometry between a target frame points and normals
         against source points using the point-to-plane geometric
         error.
@@ -89,7 +89,7 @@ class MultiscaleOptimization:
                     src_feats = source_feats
 
             scaled_kcam = kcam.scaled(scale)
-            transform, tracking_ok = icp_instance.estimate(
+            result = icp_instance.estimate(
                 scaled_kcam, src_points, src_mask,
                 source_feats=src_feats,
                 target_points=tgt_points,
@@ -97,11 +97,24 @@ class MultiscaleOptimization:
                 target_feats=tgt_feats,
                 transform=transform, geom_weight=geom_weight,
                 feat_weight=feat_weight)
+            transform = result.transform
 
+        return result
 
-        return transform, tracking_ok
+    def estimate_frame(self, source_frame, target_frame, source_feats=None,
+                       target_feats=None, transform=None,
+                       geom_weight=.5, feat_weight=.5, device="cpu"):
+        from fiontb.frame import FramePointCloud
 
-    def estimate_frame_to_frame(self, target_frame, source_frame, transform=None):
-        return self.estimate(target_frame.points, target_frame.normals,
-                             target_frame.mask, source_frame.points, source_frame.mask,
-                             source_frame.kcam, transform)
+        source_frame = FramePointCloud.from_frame(source_frame).to(device)
+        target_frame = FramePointCloud.from_frame(target_frame).to(device)
+
+        return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
+                             source_feats=source_feats,
+                             target_points=target_frame.points,
+                             target_mask=target_frame.mask,
+                             target_normals=target_frame.normals,
+                             target_feats=target_feats,
+                             transform=transform,
+                             geom_weight=geom_weight,
+                             feat_weight=feat_weight)

@@ -18,14 +18,17 @@ fiontb.spatial.indexmap:
 # Pose
 #
 
-fiontb.pose.open3d.real:
-	python3 fiontb/pose/open3d_interop.py real
+fiontb.pose.open3d.rgbd-real:
+	python3 -m fiontb.pose.open3d_interop rgbd-real
 
-fiontb.pose.open3d.syn:
-	python3 fiontb/pose/open3d_interop.py syn
+fiontb.pose.open3d.rgbd-synthetic:
+	python3 -m fiontb.pose.open3d_interop rgbd-synthetic
 
-fiontb.pose.open3d.dataset:
-	python3 fiontb/pose/open3d_interop.py dataset
+fiontb.pose.open3d.coloricp-real:
+	python3 -m fiontb.pose.open3d_interop coloricp-real
+
+fiontb.pose.open3d.coloricp-synthetic:
+	python3 -m fiontb.pose.open3d_interop coloricp-synthetic
 
 fiontb.pose.icp.geometric1:
 	python3 -m fiontb.pose._test.test_icp geometric1
@@ -69,6 +72,9 @@ fiontb.surfel:
 
 fiontb.viz.surfelrender:
 	python3 -m fiontb.viz.surfelrender
+
+fiontb.fusion.surfel.indexmap.surfel-raster:
+	python3 -m fiontb.fusion.surfel._test.test_indexmap surfel-raster
 
 fiontb.fusion.surfel.merge_live:
 	python3 -m fiontb.fusion.surfel._test.test_merge_live

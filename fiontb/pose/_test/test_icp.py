@@ -8,7 +8,7 @@ import fire
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
 from fiontb.viz.show import show_pcls
-from fiontb.pose.icp import (ICPOdometry, MultiscaleICPOdometry)
+from fiontb.pose.icp import (ICPOdometry, MultiscaleICPOdometry, ICPVerifier)
 from fiontb.testing import prepare_frame
 
 from ._utils import evaluate
@@ -21,6 +21,8 @@ torch.set_printoptions(precision=10)
 
 _OTHER_FRAME_INDEX = 5
 _SAMPLE = "sample1"
+
+ICP_VERIFIER = ICPVerifier()
 
 
 class Tests:
@@ -37,13 +39,14 @@ class Tests:
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
-        relative_rt, tracking_ok = icp.estimate(
+        result = icp.estimate(
             next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
             target_points=fpcl.points,
             target_mask=fpcl.mask,
             target_normals=fpcl.normals)
 
-        print(tracking_ok)
+        relative_rt = result.transform
+        print("Tracking: ", ICP_VERIFIER(result))
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
@@ -61,25 +64,23 @@ class Tests:
         next_frame, features1 = prepare_frame(
             dataset[_OTHER_FRAME_INDEX], filter_depth=True, to_hsv=True, blur=True)
 
-        import matplotlib.pyplot as plt
-        # plt.imshow(features0.cpu().transpose(1, 0).transpose(1, 2))
-        # plt.show()
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
         icp = ICPOdometry(100)
-        relative_rt, tracking_ok = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
-                                                source_feats=features1.to(
-                                                    device),
-                                                target_points=fpcl.points,
-                                                target_normals=fpcl.normals,
-                                                target_mask=fpcl.mask,
-                                                target_feats=features0.to(
-                                                    device),
-                                                geom_weight=0.0,
-                                                feat_weight=1.0)
-        print(tracking_ok)
+        result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+                              source_feats=features1.to(
+                                  device),
+                              target_points=fpcl.points,
+                              target_normals=fpcl.normals,
+                              target_mask=fpcl.mask,
+                              target_feats=features0.to(
+                                  device),
+                              geom_weight=0.0,
+                              feat_weight=1.0)
+        print("Tracking: ", ICP_VERIFIER(result))
 
+        relative_rt = result.transform
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
@@ -100,18 +101,20 @@ class Tests:
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
         icp = ICPOdometry(100)
-        relative_rt, tracking_ok = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
-                                                source_feats=features1.to(
-                                                    device),
-                                                target_points=fpcl.points,
-                                                target_normals=fpcl.normals,
-                                                target_mask=fpcl.mask,
-                                                target_feats=features0.to(
-                                                    device),
-                                                geom_weight=0.5,
-                                                feat_weight=0.5)
+        result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+                              source_feats=features1.to(
+                                  device),
+                              target_points=fpcl.points,
+                              target_normals=fpcl.normals,
+                              target_mask=fpcl.mask,
+                              target_feats=features0.to(
+                                  device),
+                              geom_weight=0.5,
+                              feat_weight=0.5)
 
-        print(tracking_ok)
+        relative_rt = result.transform
+        print("Tracking: ", ICP_VERIFIER(result))
+
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
@@ -136,13 +139,14 @@ class Tests:
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
-        relative_rt, tracking_ok = icp.estimate(
+        result = icp.estimate(
             next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
             target_points=fpcl.points,
             target_normals=fpcl.normals,
             target_mask=fpcl.mask)
 
-        print(tracking_ok)
+        relative_rt = result.transform
+        print("Tracking: ", ICP_VERIFIER(result))
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
@@ -169,17 +173,19 @@ class Tests:
             (0.75, 25, True),
             (1.0, 50, True)
         ])
-        relative_rt, tracking_ok = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
-                                                source_feats=features1.to(
-                                                    device),
-                                                target_points=fpcl.points,
-                                                target_normals=fpcl.normals,
-                                                target_mask=fpcl.mask,
-                                                target_feats=features0.to(
-                                                    device),
-                                                geom_weight=0.5,
-                                                feat_weight=0.5)
-        print(tracking_ok)
+        result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+                              source_feats=features1.to(
+                                  device),
+                              target_points=fpcl.points,
+                              target_normals=fpcl.normals,
+                              target_mask=fpcl.mask,
+                              target_feats=features0.to(
+                                  device),
+                              geom_weight=0.5,
+                              feat_weight=0.5)
+        relative_rt = result.transform
+        print("Tracking: ", ICP_VERIFIER(result))
+
         evaluate(dataset, relative_rt, _OTHER_FRAME_INDEX)
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
@@ -201,13 +207,15 @@ class Tests:
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
-        relative_rt, tracking_ok = icp.estimate(
+        result = icp.estimate(
             next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
             target_points=fpcl.points,
             target_mask=fpcl.mask,
             target_normals=fpcl.normals)
 
-        print(tracking_ok)
+        relative_rt = result.transform
+        print("Tracking: ", ICP_VERIFIER(result))
+
         evaluate(dataset, relative_rt, last_frame_num)
 
         pcl0 = fpcl.unordered_point_cloud(world_space=False)

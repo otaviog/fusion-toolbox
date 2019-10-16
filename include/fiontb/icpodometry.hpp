@@ -8,7 +8,7 @@ class module;
 
 namespace fiontb {
 struct ICPJacobian {
-  static void EstimateGeometric(const torch::Tensor points0,
+  static int EstimateGeometric(const torch::Tensor points0,
                                 const torch::Tensor normals0,
                                 const torch::Tensor mask0,
                                 const torch::Tensor points1,
@@ -17,7 +17,7 @@ struct ICPJacobian {
                                 const torch::Tensor params,
                                 torch::Tensor jacobian, torch::Tensor residual);
 
-  static void EstimateHybrid(
+  static int EstimateHybrid(
       const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
       const torch::Tensor tgt_feat, const torch::Tensor tgt_mask,
       const torch::Tensor src_points, const torch::Tensor src_feats,

@@ -36,7 +36,7 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
                 frame.depth_image,
                 mask, depth_scale=frame.info.depth_scale).numpy()
 
-        frame.normal_image = estimate_normals(frame.depth_image, frame.info,
+        frame.normal_image = estimate_normals(normal_depth_image, frame.info,
                                               mask)
 
     features = frame.rgb_image

@@ -5,10 +5,11 @@ import math
 import torch
 from tenviz.pose import SE3
 
-from fiontb.downsample import (DownsampleXYZMethod)
-from fiontb._cfiontb import (ICPJacobian as _ICPJacobian)
+from fiontb.downsample import DownsampleXYZMethod
+from fiontb._cfiontb import ICPJacobian as _ICPJacobian
 from fiontb._utils import empty_ensured_size
 
+from .result import ICPResult
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 # pylint: disable=invalid-name
@@ -25,9 +26,8 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters, lost_track_threshold=1e-2):
+    def __init__(self, num_iters):
         self.num_iters = num_iters
-        self.lost_track_threshold = lost_track_threshold
 
         self.jacobian = None
         self.residual = None
@@ -70,7 +70,6 @@ class ICPOdometry:
             that aligns source points to target points.
 
         """
-        # assert source_points.is_cuda, "At least source_points must be a cuda tensor."
 
         device = target_points.device
         dtype = source_points.dtype
@@ -96,15 +95,17 @@ class ICPOdometry:
         best_loss = math.inf
         best_transform = None
         first_loss = None
+        best_match_count = None
+        best_JtJ = None
 
         for _ in range(self.num_iters):
             if geom_only:
-                _ICPJacobian.estimate_geometric(
+                match_count = _ICPJacobian.estimate_geometric(
                     target_points, target_normals, target_mask,
                     source_points, source_mask, kcam, transform,
                     self.jacobian, self.residual)
             else:
-                _ICPJacobian.estimate_hybrid(
+                match_count = _ICPJacobian.estimate_hybrid(
                     target_points, target_normals, target_feats,
                     target_mask, source_points, source_feats,
                     source_mask, kcam, transform, geom_weight, feat_weight,
@@ -137,15 +138,27 @@ class ICPOdometry:
             if loss < best_loss:
                 best_loss = loss
                 best_transform = transform
+                best_match_count = match_count
+                best_JtJ = JtJ
 
             # Uncomment the next line(s) for optimization debug
-            # print(_, loss)
-        # print(first_loss, best_loss)
+            #print(_, loss)
 
-        return best_transform, best_loss < self.lost_track_threshold
+        #print(first_loss, best_loss)
 
-    def estimate_frame_to_frame(self, source_frame, target_frame,
-                                transform=None, geom_weight=1.0, feat_weight=1.0):
+        return ICPResult(best_transform, best_JtJ,
+                         loss, best_loss, best_match_count /
+                         source_points.size(0),
+                         match_count / source_points.size(0))
+
+    def estimate_frame(self, source_frame, target_frame,
+                       transform=None, geom_weight=1.0, feat_weight=1.0,
+                       device="cpu"):
+        from fiontb.frame import FramePointCloud
+
+        source_frame = FramePointCloud.from_frame(source_frame).to(device)
+        target_frame = FramePointCloud.from_frame(target_frame).to(device)
+        
         return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
                              target_points=target_frame.points,
                              target_mask=target_frame.mask,
@@ -159,8 +172,7 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
     algorithm.
     """
 
-    def __init__(self, scale_iters, downsample_xyz_method=DownsampleXYZMethod.Nearest,
-                 lost_track_threshold=1e-2):
+    def __init__(self, scale_iters, downsample_xyz_method=DownsampleXYZMethod.Nearest):
         """Initialize the multiscale ICP.
 
         Args:
@@ -174,6 +186,6 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
         """
 
         super().__init__(
-            [(scale, ICPOdometry(iters, lost_track_threshold), use_feats)
+            [(scale, ICPOdometry(iters), use_feats)
              for scale, iters, use_feats in scale_iters],
             downsample_xyz_method)

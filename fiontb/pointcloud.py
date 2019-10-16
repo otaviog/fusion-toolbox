@@ -88,7 +88,7 @@ class PointCloud:
             return pcl
 
         pcl.points = Vector3dVector(self.points.squeeze())
-        pcl.colors = Vector3dVector(self.colors.squeeze())
+        pcl.colors = Vector3dVector(self.colors.squeeze().float()/255.0)
 
         if self.normals is not None:
             pcl.normals = Vector3dVector(self.normals)

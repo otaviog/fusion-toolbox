@@ -6,8 +6,10 @@ import tenviz
 from fiontb.frame import FramePointCloud
 from fiontb.camera import RigidTransform, normal_transform_matrix
 from fiontb._cfiontb import (
+    SurfelOp as _SurfelOp,
     MappedSurfelModel, SurfelAllocator as _SurfelAllocator,
     SurfelCloud as CppSurfelCloud)
+import fiontb._utils as _utils
 
 
 def compute_surfel_radii(cam_points, normals, kcam):
@@ -18,6 +20,18 @@ def compute_surfel_radii(cam_points, normals, kcam):
                       normals[:, 2].squeeze().abs())
 
     return radii
+
+
+class ComputeConfidences:
+    def __init__(self):
+        self._confidences = None
+
+    def __call__(self, kcam, weight, width, height):
+        self._confidences = _utils.empty_ensured_size(self._confidences, height, width,
+                                                      dtype=torch.float,
+                                                      device=kcam.device)
+        _SurfelOp.compute_confidences(kcam.matrix, weight, self._confidences)
+        return self._confidences
 
 
 def compute_confidences(frame_pcl, no_mask=False):
@@ -32,7 +46,7 @@ def compute_confidences(frame_pcl, no_mask=False):
 
     confidences = torch.norm(
         img_points - camera_center, p=2, dim=1)
-    confidences = confidences / confidences.max()
+    confidences = confidences / 400  # confidences.max()
 
     confidences = torch.exp(-torch.pow(confidences, 2) /
                             (2.0*math.pow(0.6, 2)))
@@ -52,10 +66,13 @@ class SurfelCloud:
         self.features = features
 
     @classmethod
-    def from_frame_pcl(cls, frame_pcl, confidences=None, time=0, features=None, world_space=False):
-        pcl = frame_pcl.unordered_point_cloud(world_space=world_space)
+    def from_frame_pcl(cls, frame_pcl, confidences=None, confidence_weight=0.5,
+                       time=0, features=None):
+        pcl = frame_pcl.unordered_point_cloud(world_space=False)
         if confidences is None:
-            confidences = compute_confidences(frame_pcl)
+            confidences = ComputeConfidences()(
+                frame_pcl.kcam, confidence_weight,
+                frame_pcl.width, frame_pcl.height)[frame_pcl.mask]
 
         radii = compute_surfel_radii(pcl.points, pcl.normals,
                                      frame_pcl.kcam)
@@ -75,9 +92,9 @@ class SurfelCloud:
                    time, features)
 
     @classmethod
-    def from_frame(cls, frame, confidences=None, time=0, features=None, world_space=False):
+    def from_frame(cls, frame, confidences=None, time=0, features=None):
         return cls.from_frame_pcl(FramePointCloud.from_frame(frame),
-                                  confidences, time, features, world_space=world_space)
+                                  confidences, time, features)
 
     @property
     def device(self):

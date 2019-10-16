@@ -9,7 +9,7 @@ import cv2
 from fiontb.camera import RTCamera, KCamera
 from fiontb.frame import Frame, FrameInfo
 
-KCAMERA = KCamera.from_params(flen_x=525.0, flen_y=525.0,
+KCAMERA = KCamera.from_params(flen_x=525.0, flen_y=-525.0,
                               center_point=(319.5, 239.5))
 DEFAULT_DEPTH_SCALE = 1.0/5000.0
 
@@ -51,7 +51,7 @@ class TUMRGBDDataset:
         return info
 
 
-def read_trajectory(gt_filepath):
+def read_trajectory(gt_filepath, inv_y=False):
     gt_traj = {}
 
     with open(gt_filepath, 'r') as stream:
@@ -73,6 +73,8 @@ def read_trajectory(gt_filepath):
             cam_mtx[0:3, 0:3] = rot_mtx
             cam_mtx[0:3, 3] = [tx, ty, tz]
 
+            if inv_y:
+                cam_mtx[:3, 1] *= -1
             gt_traj[timestamp] = RTCamera(cam_mtx)
 
     return gt_traj
@@ -104,7 +106,7 @@ def load_tumrgbd(base_path, assoc_offset=0.0, assoc_max_diff=0.2, depth_scale=No
 
     rgbs = read_file_list(str(base_path / "rgb.txt"))
     depths = read_file_list(str(base_path / "depth.txt"))
-    gt_traj = read_trajectory(str(base_path / "groundtruth.txt"))
+    gt_traj = read_trajectory(str(base_path / "groundtruth.txt"), inv_y=True)
 
     depth_rgb = associate(depths, rgbs, assoc_offset, assoc_max_diff)
     depth_gt = associate(depths, gt_traj, assoc_offset, assoc_max_diff)

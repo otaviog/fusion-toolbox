@@ -25,10 +25,10 @@ def _test():
 
     frame1 = dataset[1]
     surfel_model.add_surfels(
-        SurfelCloud.from_frame(dataset[0]))
+        SurfelCloud.from_frame(dataset[0], time=1))
 
     surfel_model.add_surfels(
-        SurfelCloud.from_frame(frame1).transform(
+        SurfelCloud.from_frame(frame1, time=1).transform(
             frame1.info.rt_cam.cam_to_world),
         update_gl=True)
 

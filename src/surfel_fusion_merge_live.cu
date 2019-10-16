@@ -47,8 +47,10 @@ struct LiveMergeKernel {
     if (live_indexmap.empty(row, col)) return;
 
     const Vector<float, 3> live_pos(live_indexmap.position(row, col));
+
     const float lambda =
         sqrt(live_pos[0] * live_pos[0] + live_pos[1] * live_pos[1] + 1);
+    const Vector<float, 3> ray(live_pos[0], live_pos[1], 1);
 
     const Vector<float, 3> live_normal(live_indexmap.normal(row, col));
 
@@ -73,14 +75,12 @@ struct LiveMergeKernel {
         if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
           continue;
 
-        const float dist =
-            live_pos.cross(model_pos).squaredNorm() / live_pos.squaredNorm();
+        const float dist = ray.cross(model_pos).norm() / ray.norm();
 
         const Vector<float, 3> normal = target_indexmap.normal(krow, kcol);
         if (dist < best_dist &&
-            (GetVectorsAngle(normal, live_normal) < max_normal_angle
-             //|| abs(normal[2]) < 0.75f
-             )) {
+            (GetVectorsAngle(normal, live_normal) < .5  // max_normal_angle
+             || abs(normal[2]) < 0.75f)) {
           best_dist = dist;
           best = current;
         }
@@ -92,35 +92,43 @@ struct LiveMergeKernel {
       const float model_conf = surfel_model.confidences[best];
       const float conf_total = live_conf + model_conf;
 
-      const Vector<float, 3> live_world_pos = rt_cam.Transform(live_pos);
-      surfel_model.set_position(best,
-                                (surfel_model.position(best) * model_conf +
-                                 live_world_pos * live_conf) /
-                                    conf_total);
-      const Vector<float, 3> live_world_normal =
-          normal_transform_matrix * live_normal;
-      surfel_model.set_normal(best, (surfel_model.normal(best) * model_conf +
-                                     live_world_normal * live_conf) /
-                                        conf_total);
+      const float live_radius = live_indexmap.radius(row, col);
+      const float model_radius = surfel_model.radii[best];
 
-      const Vector<float, 3> live_color(live_indexmap.color(row, col));
-      surfel_model.set_color(best, (surfel_model.color(best) * model_conf +
-                                    live_color * live_conf) /
-                                       conf_total);
-      const int64_t feature_size =
-          min(surfel_model.features.size(0), live_features.size(0));
-      const int live_height = live_features.size(1);
-      for (int64_t i = 0; i < feature_size; ++i) {
-        const float model_feat_channel = surfel_model.features[i][best];
-        // Indexmap comes up side down
-        const float live_feat_channel =
-            live_features[i][live_height - 1 - row][col];
+      if (live_radius < (1.0 + 0.5) * model_radius) {
+        const Vector<float, 3> live_world_pos = rt_cam.Transform(live_pos);
+        surfel_model.set_position(best,
+                                  (surfel_model.position(best) * model_conf +
+                                   live_world_pos * live_conf) /
+                                      conf_total);
+        const Vector<float, 3> live_world_normal =
+            normal_transform_matrix * live_normal;
+        surfel_model.set_normal(best, (surfel_model.normal(best) * model_conf +
+                                       live_world_normal * live_conf) /
+                                          conf_total);
 
-        surfel_model.features[i][best] =
-            (model_feat_channel * model_conf + live_feat_channel * live_conf) /
-            conf_total;
+        const Vector<float, 3> live_color(live_indexmap.color(row, col));
+        surfel_model.set_color(best, (surfel_model.color(best) * model_conf +
+                                      live_color * live_conf) /
+                                         conf_total);
+        const int64_t feature_size =
+            min(surfel_model.features.size(0), live_features.size(0));
+        const int live_height = live_features.size(1);
+        for (int64_t i = 0; i < feature_size; ++i) {
+          const float model_feat_channel = surfel_model.features[i][best];
+          // Indexmap comes up side down
+          const float live_feat_channel =
+              live_features[i][live_height - 1 - row][col];
+
+#if 1
+          surfel_model.features[i][best] = (model_feat_channel * model_conf +
+                                            live_feat_channel * live_conf) /
+                                           conf_total;
+#else
+          surfel_model.features[i][best] = live_feat_channel;
+#endif
+        }
       }
-
       surfel_model.confidences[best] = conf_total;
       surfel_model.times[best] = live_indexmap.time(row, col);
     } else {

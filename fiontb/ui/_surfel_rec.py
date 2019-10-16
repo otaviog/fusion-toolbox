@@ -5,6 +5,7 @@ import torch
 import cv2
 
 import tenviz
+import tenviz.io
 
 from fiontb.viz.surfelrender import SurfelRender, RenderMode
 from fiontb.spatial.trigoctree import TrigOctree
@@ -17,10 +18,12 @@ class RunMode(Enum):
 
 class SurfelReconstructionUI:
     def __init__(self, surfel_model, run_mode=RunMode.PLAY, inverse=False, gt_mesh=None,
-                 stable_conf_thresh=10.0):
+                 stable_conf_thresh=10.0, time_thresh=20):
         self.run_mode = run_mode
         self.surfel_render = SurfelRender(surfel_model)
+
         self.stable_conf_thresh = stable_conf_thresh
+        self.time_thresh = time_thresh
 
         scene = [self.surfel_render]
         if gt_mesh is not None:
@@ -79,6 +82,15 @@ class SurfelReconstructionUI:
     def toggle_camera_mode(self):
         self._use_camera_view = not self._use_camera_view
 
+    def save_model(self, output_filename):
+        cloud = self.surfel_model.to_surfel_cloud()[0]
+        good_confs = cloud.confidences > self.stable_conf_thresh
+        cloud = cloud[good_confs]
+        tenviz.io.write_3dobject(
+            output_filename, cloud.positions.cpu().numpy(),
+            normals=cloud.normals,
+            colors=cloud.colors)
+
     def __iter__(self):
         self.frame_count = 0
         use_camera_view = False
@@ -96,6 +108,8 @@ class SurfelReconstructionUI:
                    'g': self.show_unstable_too,
                    'h': self.toggle_camera_mode,
                    'j': self._eval_accuracy,
+                   'v': lambda: self.save_model("model-{}.ply".format(
+                       self.surfel_model.max_time))
                    }
         print("""Key controls:
         q: quit

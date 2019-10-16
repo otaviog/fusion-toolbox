@@ -30,7 +30,7 @@ void main() {
   vs_out.pos = in_pos;
   vs_out.color = in_color;
   vs_out.normal = in_normal;
-  vs_out.radius = in_radius*0.5;
+  vs_out.radius = in_radius;
   vs_out.conf = in_conf;
   vs_out.time = in_time;
   vs_out.id = gl_VertexID;
@@ -40,5 +40,4 @@ void main() {
 	  vs_out.time = -1;
 	}
   }
-
 }

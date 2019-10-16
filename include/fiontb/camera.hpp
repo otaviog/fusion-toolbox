@@ -18,6 +18,7 @@ struct KCamera {
 
   KCamera(const torch::Tensor matrix)
       : matrix(Accessor<dev, scalar_t, 2>::Get(matrix)) {}
+
   FTB_DEVICE_HOST Eigen::Vector2i Project(
       const Vector<scalar_t, 3> point) const {
     const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
@@ -67,6 +68,13 @@ struct KCamera {
     j11 = fy / z;
     j12 = -point[1] * fy / z_sqr;
   }
+
+#ifdef __CUDACC__
+#pragma nv_exec_check_disable
+#endif
+  FTB_DEVICE_HOST Vector<scalar_t, 2> get_center() const {
+    return Vector<scalar_t, 2>(matrix[0][2], matrix[1][2]);
+  }
 };
 
 struct ProjectOp {
@@ -100,7 +108,13 @@ struct RTCamera {
 
     return Eigen::Matrix<scalar_t, 3, 1>(px, py, pz);
   }
+
   const typename Accessor<dev, scalar_t, 2>::T rt_matrix;
 };
 
+struct RigidTransformOp {
+  static void Rodrigues(const torch::Tensor &rot_matrix, torch::Tensor rodrigues);
+
+  static void RegisterPybind(pybind11::module &m);
+};
 }  // namespace fiontb

@@ -155,7 +155,7 @@ def align(model, data):
 This script computes the relative pose error from the ground truth trajectory
 and the estimated trajectory.
 """
-
+import random
 
 def find_closest_index(L, t):
     """

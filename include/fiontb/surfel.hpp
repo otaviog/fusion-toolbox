@@ -21,7 +21,7 @@ class SurfelAllocator {
   void FreeAll();
 
   void Copy_(const SurfelAllocator &other);
-  
+
   int get_max_size() const { return max_surfels_; }
 
   int get_allocated_size() const {
@@ -35,4 +35,13 @@ class SurfelAllocator {
   std::deque<int32_t> free_indices_;
 };
 
+struct SurfelOp {
+  static void ComputeConfidences(const torch::Tensor &kcam, float weight,
+                                 torch::Tensor confidences);
+
+  static void ComputeRadii(const torch::Tensor &kcam,
+                           const torch::Tensor &normals, torch::Tensor radii);
+
+  static void RegisterPybind(pybind11::module &m);
+};
 }  // namespace fiontb

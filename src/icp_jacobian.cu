@@ -11,8 +11,39 @@
 #include "pointgrid.hpp"
 
 namespace fiontb {
-namespace {
+template <Device dev>
+struct AtomicInt {
+  AtomicInt(int value = 0) : value(value) {}
+  inline void operator++() { ++value; }
+  // std::atomic<int> value;
+  void Free() {}
+  int32_t get() const { return value; }
+  int32_t value;
+};
 
+template <>
+struct AtomicInt<kCUDA> {
+  AtomicInt() : value(nullptr) {}
+
+  void Alloc() {
+    cudaMalloc((void **)&value, sizeof(int32_t));
+    cudaMemset(value, 0, sizeof(int32_t));
+  }
+
+  void Free() { cudaFree(value); }
+#pragma nv_exec_check_disable
+  __device__ inline void operator++() { atomicAdd(value, 1); }
+
+  int32_t get() const {
+    int cpu_value;
+    cudaMemcpy(&cpu_value, value, sizeof(int32_t),
+               cudaMemcpyKind::cudaMemcpyDeviceToHost);
+    return cpu_value;
+  }
+  int32_t *value;
+};
+
+namespace {
 template <Device dev, typename scalar_t>
 class PointGrid : public BasePointGrid<dev> {
  public:
@@ -36,6 +67,8 @@ struct GeometricJacobianKernel {
 
   typename Accessor<dev, scalar_t, 2>::T jacobian;
   typename Accessor<dev, scalar_t, 1>::T residual;
+
+  AtomicInt<dev> match_count;
 
   GeometricJacobianKernel(PointGrid<dev, scalar_t> tgt,
                           const torch::Tensor &src_points,
@@ -73,6 +106,8 @@ struct GeometricJacobianKernel {
       return;
 
     if (tgt.empty(src_uv[1], src_uv[0])) return;
+
+    ++match_count;
     const Vector<scalar_t, 3> tgt_point(
         to_vec3<scalar_t>(tgt.points[src_uv[1]][src_uv[0]]));
     const Vector<scalar_t, 3> tgt_normal(
@@ -93,7 +128,7 @@ struct GeometricJacobianKernel {
 
 }  // namespace
 
-void ICPJacobian::EstimateGeometric(
+int ICPJacobian::EstimateGeometric(
     const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
     const torch::Tensor tgt_mask, const torch::Tensor src_points,
     const torch::Tensor src_mask, const torch::Tensor kcam,
@@ -112,13 +147,20 @@ void ICPJacobian::EstimateGeometric(
   FTB_CHECK_DEVICE(reference_dev, jacobian);
   FTB_CHECK_DEVICE(reference_dev, residual);
 
+  int num_matches;
+  
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
         src_points.scalar_type(), "EstimateICPJacobian", [&] {
           GeometricJacobianKernel<kCUDA, scalar_t> kernel(
               PointGrid<kCUDA, scalar_t>(tgt_points, tgt_normals, tgt_mask),
               src_points, src_mask, kcam, rt_cam, jacobian, residual);
+          kernel.match_count.Alloc();
           Launch1DKernelCUDA(kernel, src_points.size(0));
+
+          num_matches = kernel.match_count.get();
+          kernel.match_count.Free();
+
         });
   } else {
     AT_DISPATCH_FLOATING_TYPES(
@@ -127,8 +169,11 @@ void ICPJacobian::EstimateGeometric(
               PointGrid<kCPU, scalar_t>(tgt_points, tgt_normals, tgt_mask),
               src_points, src_mask, kcam, rt_cam, jacobian, residual);
           Launch1DKernelCPU(kernel, src_points.size(0));
+
+          num_matches = kernel.match_count.get();
         });
   }
+  return num_matches;
 }
 
 namespace {
@@ -170,6 +215,8 @@ struct HybridJacobianKernel {
 
   typename Accessor<dev, scalar_t, 2>::T jacobian;
   typename Accessor<dev, scalar_t, 1>::T residual;
+
+  AtomicInt<dev> match_count;
 
   HybridJacobianKernel(
       const PointGrid<dev, scalar_t> tgt, FeatureMap<dev, scalar_t> tgt_featmap,
@@ -281,6 +328,7 @@ struct HybridJacobianKernel {
     if (ui < 0 || ui >= width || vi < 0 || vi >= height) return;
     if (tgt.empty(vi, ui)) return;
 
+    ++match_count;
     scalar_t feat_jacobian[6], feat_residual;
     feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] =
         feat_jacobian[4] = feat_jacobian[5] = 0;
@@ -304,7 +352,7 @@ struct HybridJacobianKernel {
 
 }  // namespace
 
-void ICPJacobian::EstimateHybrid(
+int ICPJacobian::EstimateHybrid(
     const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
     const torch::Tensor tgt_feats, const torch::Tensor tgt_mask,
     const torch::Tensor src_points, const torch::Tensor src_feats,
@@ -325,6 +373,7 @@ void ICPJacobian::EstimateHybrid(
   FTB_CHECK_DEVICE(reference_dev, jacobian);
   FTB_CHECK_DEVICE(reference_dev, residual);
 
+  int num_matches;
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
         src_points.scalar_type(), "EstimateHybrid", ([&] {
@@ -334,7 +383,11 @@ void ICPJacobian::EstimateHybrid(
               src_feats, src_mask, KCamera<kCUDA, scalar_t>(kcam),
               RTCamera<kCUDA, scalar_t>(rt_cam), geom_weight, feat_weight,
               jacobian, residual);
+          kernel.match_count.Alloc();
           Launch1DKernelCUDA(kernel, src_points.size(0));
+
+          num_matches = kernel.match_count.get();
+          kernel.match_count.Free();
         }));
   } else {
     AT_DISPATCH_FLOATING_TYPES(src_points.scalar_type(), "EstimateHybrid", [&] {
@@ -345,8 +398,11 @@ void ICPJacobian::EstimateHybrid(
           RTCamera<kCPU, scalar_t>(rt_cam), geom_weight, feat_weight, jacobian,
           residual);
       Launch1DKernelCPU(kernel, src_points.size(0));
+
+      num_matches = kernel.match_count.get();
     });
   }
+  return num_matches;
 }
 
 void ICPJacobian::RegisterPybind(pybind11::module &m) {

@@ -103,6 +103,7 @@ class DatasetViewer:
 
         self.visited_idxs.add(idx)
 
+        rt_cam.matrix = rt_cam.matrix.float()
         world_space = RigidTransform(rt_cam.cam_to_world) @ cam_space
 
         with self.wcontext.current():

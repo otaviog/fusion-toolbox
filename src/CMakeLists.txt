@@ -12,9 +12,11 @@ cuda_add_library(fiontb
   dense_volume.cpp
   sparse_volume.cpp
   tsdf_fusion.cpp
+  camera.cpp
   camera.cu
   so3.cu
   surfel.cpp
+  surfel.cu
   surfel_allocator.cpp
   surfel_fusion.cpp
   surfel_fusion_merge_live.cu
@@ -45,7 +47,8 @@ set_property(TARGET fiontb PROPERTY CXX_STANDARD 14)
 add_library(_cfiontb SHARED _cfiontb.cpp)
 set_property(TARGET _cfiontb PROPERTY CXX_STANDARD 14)
 set_target_properties(_cfiontb PROPERTIES PREFIX "")
-set_target_properties(_cfiontb PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/fiontb)
+set_target_properties(_cfiontb PROPERTIES LIBRARY_OUTPUT_DIRECTORY
+  ${CMAKE_SOURCE_DIR}/fiontb)
 target_compile_options(_cfiontb PRIVATE -Wall -Wextra -pedantic)
 target_link_libraries(_cfiontb fiontb)
 

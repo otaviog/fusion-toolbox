@@ -9,8 +9,8 @@ import torch
 import tenviz
 
 from fiontb._utils import ensure_torch, empty_ensured_size
-from fiontb._cfiontb import (project_op_forward as _project_op_forward,
-                             project_op_backward as _project_op_backward)
+from fiontb._cfiontb import (ProjectOp as _ProjectOp,
+                             RigidTransformOp as _RigidTransformOp)
 
 _GL_HAND_MTX = torch.eye(4, dtype=torch.float)
 _GL_HAND_MTX[2, 2] = -1
@@ -162,6 +162,10 @@ class KCamera:
                        self.image_size)
 
     @property
+    def device(self):
+        return self.matrix.device
+
+    @property
     def pixel_center(self):
         """Center pixel.
         """
@@ -182,7 +186,7 @@ class KCamera:
                 and (self.image_size == other.image_size))
 
     def clone(self):
-        
+
         return KCamera(self.matrix.clone(),
                        copy.deepcopy(self.undist_coeff),
                        self.image_size)
@@ -196,12 +200,12 @@ class Project(torch.autograd.Function):
     @staticmethod
     def forward(ctx, points, intrinsics):
         ctx.save_for_backward(points, intrinsics)
-        return _project_op_forward(points, intrinsics)
+        return _ProjectOp.forward(points, intrinsics)
 
     @staticmethod
     def backward(ctx, dy_grad):
         points, intrinsics = ctx.saved_tensors
-        return _project_op_backward(dy_grad, points, intrinsics), None
+        return _ProjectOp.backward(dy_grad, points, intrinsics), None
 
 
 class RigidTransform:
@@ -242,6 +246,14 @@ class RigidTransform:
 
         return (mtx_a @ mtx_b)[:3, :4]
 
+    def rodrigues(self):
+        rodrigues = torch.empty(3, dtype=self.matrix.dtype)
+        _RigidTransformOp.rodrigues(self.matrix.cpu(), rodrigues)
+        return rodrigues
+
+    def translation(self):
+        return self.matrix[:3, 3]
+
 
 def normal_transform_matrix(matrix):
     """Returns the transposed inverse of transformation matrix. Suitable
@@ -270,7 +282,7 @@ class RTCamera:
     """
 
     def __init__(self, matrix):
-        self.matrix = ensure_torch(matrix).float()
+        self.matrix = ensure_torch(matrix)
 
     @classmethod
     def create_from_pos_rot(cls, position, rotation_matrix):
@@ -352,6 +364,9 @@ class RTCamera:
 
     def clone(self):
         return RTCamera(self.matrix.clone())
+
+    def difference(self, other):
+        return RigidTransform(self.world_to_cam * other.matrix)
 
     @property
     def center(self):

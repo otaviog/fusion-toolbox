@@ -312,6 +312,14 @@ class FramePointCloud:
                                normals=self.normals[slices],
                                colors=self.colors[slices])
 
+    @property
+    def width(self):
+        return self.mask.size(1)
+
+    @property
+    def height(self):
+        return self.mask.size(0)
+
     def plot_debug(self, show=True):
         import matplotlib.pyplot as plt
 
