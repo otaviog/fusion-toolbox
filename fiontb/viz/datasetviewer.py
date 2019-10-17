@@ -28,6 +28,7 @@ class DatasetViewer:
         self.context = tenviz.Context(640, 480)
 
         with self.context.current():
+            # TODO: fix tensorviz creating viewer without `current()`
             axis = tenviz.create_axis_grid(-1, 1, 10)
 
         self.cam_viewer = self.context.viewer(

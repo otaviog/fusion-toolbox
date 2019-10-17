@@ -30,16 +30,16 @@ class _BaseIndexMapRaster:
         with self.gl_context.current():
             indexmap = IndexMap()
             indexmap.position_confidence = self.framebuffer[0].to_tensor(
-                non_blocking=True)
+                non_blocking=False)
             indexmap.normal_radius = self.framebuffer[1].to_tensor(
-                non_blocking=True)
-            indexmap.color = self.framebuffer[2].to_tensor(non_blocking=True)
+                non_blocking=False)
+            indexmap.color = self.framebuffer[2].to_tensor(non_blocking=False)
             indexmap.indexmap = self.framebuffer[3].to_tensor(
-                non_blocking=True)
+                non_blocking=False)
 
         if device is not None:
             indexmap = indexmap.to(str(device))
-
+        
         return indexmap
 
     def to_frame(self, frame_info):

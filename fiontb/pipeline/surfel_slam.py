@@ -6,7 +6,8 @@ import tenviz
 from fiontb.frame import FramePointCloud
 from fiontb.filtering import bilateral_depth_filter
 from fiontb.camera import RTCamera
-from fiontb.pose.icp import MultiscaleICPOdometry, ICPVerifier
+from fiontb.pose.icp import MultiscaleICPOdometry
+from fiontb.pose import ICPVerifier
 from fiontb.pose.autogradicp import MultiscaleAutogradICP
 from fiontb.surfel import SurfelModel
 from fiontb.fusion.surfel import SurfelFusion

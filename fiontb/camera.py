@@ -186,14 +186,17 @@ class KCamera:
                 and (self.image_size == other.image_size))
 
     def clone(self):
-
         return KCamera(self.matrix.clone(),
                        copy.deepcopy(self.undist_coeff),
                        self.image_size)
 
+    def get_projection_params(self, near, far):
+        return tenviz.projection_from_kcam(
+            self.matrix, near, far)
+
     def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
-        return torch.from_numpy(tenviz.projection_from_kcam(
-            self.matrix, near, far).to_matrix()).to(dtype)
+        return torch.from_numpy(
+            self.get_projection_params(near, far).to_matrix()).to(dtype)
 
 
 class Project(torch.autograd.Function):
@@ -344,10 +347,13 @@ class RTCamera:
 
     @property
     def opengl_view_cam(self):
-        return _GL_HAND_MTX @ self.world_to_cam
+        return _GL_HAND_MTX @ self.world_to_cam.float()
 
     def integrate(self, matrix):
         return RTCamera(matrix.to(self.device) @ self.matrix)
+
+    def transform(self, matrix):
+        return RTCamera(self.matrix @ matrix.to(self.device))
 
     @property
     def device(self):

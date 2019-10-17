@@ -13,7 +13,7 @@ from .result import ICPResult
 
 
 class RGBDOdometry:
-    def __init__(self, color_only, iterations=None):
+    def __init__(self, color_only=False, iterations=None):
         self.color_only = color_only
 
         if iterations is None:

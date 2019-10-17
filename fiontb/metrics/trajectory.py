@@ -1,7 +1,32 @@
 import torch
 import numpy
+import tenviz.pose
 
 import fiontb.thirdparty.tumrgbd as _tumrgbd
+
+
+def align_trajectories(trajectory_true, trajectory_pred, scale=1):
+    xyz_true = numpy.matrix([rt_cam.center.cpu().numpy()
+                             for rt_cam in trajectory_true.values()]).transpose()
+    xyz_pred = numpy.matrix([rt_cam.center.cpu().numpy()*scale
+                             for rt_cam in trajectory_pred.values()]).transpose()
+    rot, trans, _ = _tumrgbd.align(xyz_true, xyz_pred)
+
+    trans = torch.from_numpy(trans).double().squeeze()
+    rot = torch.from_numpy(rot).double()
+
+    align = tenviz.pose.Pose.from_rotation_matrix_translation(
+        rot, trans).to_matrix().inverse()
+
+    return {time: rt_cam.transform(align)
+            for time, rt_cam in trajectory_pred.items()}
+
+
+def set_start_at_identity(trajectory):
+    base = trajectory[next(iter(trajectory))].matrix.inverse()
+
+    return {time: rt_cam.transform(base)
+            for time, rt_cam in trajectory.items()}
 
 
 def absolute_translational_error(trajectory_true, trajectory_pred, scale=1):
@@ -9,9 +34,9 @@ def absolute_translational_error(trajectory_true, trajectory_pred, scale=1):
     """
 
     xyz_true = numpy.matrix([rt_cam.center.cpu().numpy()
-                             for rt_cam in trajectory_true]).transpose()
+                             for rt_cam in trajectory_true.values()]).transpose()
     xyz_pred = numpy.matrix([rt_cam.center.cpu().numpy()*scale
-                             for rt_cam in trajectory_pred]).transpose()
+                             for rt_cam in trajectory_pred.values()]).transpose()
 
     _, _, trans_error = _tumrgbd.align(xyz_true, xyz_pred)
 
@@ -47,10 +72,10 @@ def rotational_error(trajectory_true, trajectory_pred, max_pairs=10000,
     """
 
     result = _tumrgbd.evaluate_trajectory(
-        {i: rt_cam.matrix.cpu().numpy()
-         for i, rt_cam in enumerate(trajectory_true)},
-        {i: rt_cam.matrix.cpu().numpy()
-         for i, rt_cam in enumerate(trajectory_pred)},
+        {time: rt_cam.matrix.cpu().numpy()
+         for time, rt_cam in trajectory_true.items()},
+        {time: rt_cam.matrix.cpu().numpy()
+         for time, rt_cam in trajectory_pred.items()},
         max_pairs, fixed_delta, delta, delta_unit, offset, scale)
 
     rot_error = numpy.array(result)[:, 5]

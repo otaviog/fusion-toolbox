@@ -2,6 +2,13 @@ about:
 	@echo "Empirical test tasks"
 
 #########
+# Viz
+#
+
+fiontb.viz.trajectoryviewer:
+	python3 -m fiontb.viz.trajectoryviewer
+
+#########
 # Filtering
 #
 
