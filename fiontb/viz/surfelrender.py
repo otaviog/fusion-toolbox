@@ -71,14 +71,18 @@ class SurfelRender(tenviz.DrawProgram):
 
 def show_surfels(gl_context, surfels_list, title="Surfels",
                  max_time=10, max_conf=10, view_matrix=None):
+    from fiontb.fusion.surfel.indexmap import SurfelIndexMapRaster
+
     scene = [SurfelRender(surfels) for surfels in surfels_list]
     viewer = gl_context.viewer(scene, tenviz.CameraManipulator.WASD)
+
+    raster = SurfelIndexMapRaster(surfels_list[0])
 
     if view_matrix is not None:
         viewer.set_camera_matrix(view_matrix.clone().numpy())
     else:
         viewer.reset_view()
-    viewer.set_title(title)
+    viewer.title = title
 
     print("""Keys:
     r: Show colors
@@ -111,6 +115,26 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
                 snode.set_render_mode(mode_dict[key])
                 snode.set_max_time(max_time)
                 snode.set_max_confidence(max_conf)
+
+        if key == 'l':
+            import matplotlib.pyplot as plt
+
+            raster.raster(torch.from_numpy(viewer.projection_matrix),
+                          torch.from_numpy(viewer.camera_matrix),
+                          viewer.width, viewer.height)
+            indexmap = raster.to_indexmap()
+            _, ax = plt.subplots()
+            indices = indexmap.indexmap.cpu().flip([0]).numpy()[:, :, 0]
+            ax.imshow(indices)
+
+            def _format_coord(x, y):
+                return "{} {} {}".format(x, y, indices[int(y), int(x)])
+
+            ax.format_coord = _format_coord
+
+            plt.figure()
+            plt.imshow(indexmap.color.cpu().flip([0]).numpy())
+            plt.show()
 
 
 def _test():

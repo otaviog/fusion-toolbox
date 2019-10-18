@@ -57,7 +57,7 @@ inline void Launch2DKernelCUDA(Kernel kern, int width, int height) {
 
 template <typename Kernel>
 inline void Launch1DKernelCPU(Kernel kern, int size) {
-#pragma omp parallel for  
+  //#pragma omp parallel for  
   for (int i = 0; i < size; ++i) {
     kern(i);
   }
@@ -65,7 +65,7 @@ inline void Launch1DKernelCPU(Kernel kern, int size) {
 
 template <typename Kernel>
 inline void Launch2DKernelCPU(Kernel kern, int width, int height) {
-#pragma omp parallel for
+  //#pragma omp parallel for
   for (int row = 0; row < height; ++row) {
     for (int col = 0; col < width; ++col) {
       kern(row, col);

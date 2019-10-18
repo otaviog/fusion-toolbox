@@ -4,14 +4,17 @@
 import unittest
 from pathlib import Path
 
+import fire
 import numpy as np
 import cv2
 import torch
+import tenviz
 
 from fiontb.camera import KCamera
-from fiontb.frame import FrameInfo, estimate_normals, EstimateNormalsMethod
+from fiontb.frame import FrameInfo, estimate_normals, EstimateNormalsMethod, FramePointCloud
 from fiontb.ui import convert_normals_to_rgb
-import tenviz
+from fiontb.data.ftb import load_ftb
+
 
 # pylint: disable=missing-docstring, no-self-use
 
@@ -33,3 +36,26 @@ class TestFrame(unittest.TestCase):
 
         torch.testing.assert_allclose(normals_gpu.cpu(), normals_cpu,
                                       1.0, 0.0)
+
+
+class Tests:
+    def normals(self):
+        dataset = load_ftb(Path(__file__).parent /
+                           "../../test-data/rgbd/sample1")
+
+        pcl = FramePointCloud.from_frame(dataset[0]).unordered_point_cloud(
+            world_space=False, compute_normals=True)
+
+        context = tenviz.Context()
+        with context.current():
+            points = tenviz.create_point_cloud(pcl.points, pcl.colors.float()/255, point_size=4)
+            
+            normals = tenviz.create_quiver(pcl.points, pcl.normals*.005,
+                                           torch.ones(pcl.size, 3))
+        viewer = context.viewer([points, normals], cam_manip=tenviz.CameraManipulator.WASD)
+
+        viewer.show(1)
+
+
+if __name__ == '__main__':
+    fire.Fire(Tests)

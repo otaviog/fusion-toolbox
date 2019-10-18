@@ -83,8 +83,9 @@ class SurfelFusion:
             conf_weight = max(angular_vel, pos_vel)
             conf_weight = min(conf_weight, 0.01)
             conf_weight = max(1 - (conf_weight / 0.01), 0.5) * 1
-        self._last_rt_cam = rt_cam
 
+        self._last_rt_cam = rt_cam
+        print(conf_weight)
         live_surfels = SurfelCloud.from_frame_pcl(
             frame_pcl, time=self._time,
             features=features, confidence_weight=conf_weight)

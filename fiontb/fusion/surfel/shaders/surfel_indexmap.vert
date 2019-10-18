@@ -34,9 +34,10 @@ void main() {
   //gl_Position = ProjModelview*in_point;
 
   surfel.pos = in_point;
-  surfel.pos_conf.xyz = (Modelview*in_point).xyz;
+  //surfel.pos_conf.xyz = (Modelview*in_point).xyz;
+  surfel.pos_conf.xyz = in_point.xyz;
   surfel.pos_conf.w = in_conf;
-  surfel.normal_rad.xyz = NormalModelview*in_normal;
+  surfel.normal_rad.xyz = in_normal;
   surfel.normal_rad.w = in_radius;
   surfel.color = in_color;
   surfel.index = gl_VertexID;

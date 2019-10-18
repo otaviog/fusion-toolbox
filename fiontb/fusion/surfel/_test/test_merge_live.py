@@ -24,11 +24,15 @@ def _test():
 
     surfel_model = SurfelModel(gl_context, 640*480*2)
 
-    surfel_model.add_surfels(
-        SurfelCloud.from_frame(dataset[0]), update_gl=True)
+    model_surfels = SurfelCloud.from_frame(dataset[0])
+    torch.manual_seed(10)
+    model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
+
+    surfel_model.add_surfels(model_surfels, update_gl=True)
 
     live_frame = dataset[14]
     live_surfels = SurfelCloud.from_frame(live_frame)
+    live_surfels.radii *= 0.25
 
     height, width = live_frame.depth_image.shape
     proj_matrix = live_frame.info.kcam.get_opengl_projection_matrix(
@@ -50,8 +54,10 @@ def _test():
         live_frame.info.rt_cam, width, height,
         surfel_model)
 
+    live_surfels.itransform(rt_cam.matrix)
     surfel_model.add_surfels(new_surfels.to("cuda:0"), update_gl=True)
-    show_surfels(gl_context, [prev_model, surfel_model])
+    show_surfels(gl_context, [prev_model, SurfelModel.from_surfel_cloud(gl_context, live_surfels),
+                              surfel_model])
 
 
 if __name__ == '__main__':

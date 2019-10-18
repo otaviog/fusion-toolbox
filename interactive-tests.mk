@@ -2,6 +2,13 @@ about:
 	@echo "Empirical test tasks"
 
 #########
+# Frame
+#
+
+fiontb.frame.normals:
+	python3 -m fiontb._test.test_frame normals
+
+#########
 # Viz
 #
 

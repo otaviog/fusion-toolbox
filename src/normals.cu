@@ -29,7 +29,7 @@ struct CentralDifferencesKernel {
     const int iwidth = xyz.size(1);
     const int iheight = xyz.size(0);
 
-    out_normal[row][col][0] = out_normal[row][col][1] = 
+    out_normal[row][col][0] = out_normal[row][col][1] =
         out_normal[row][col][2] = 0;
 
     if (!mask[row][col]) return;
@@ -86,18 +86,14 @@ struct CentralDifferencesKernel {
       bottom_to_top = top - center;
     }
 
-    Vector<scalar_t, 3> normal = left_to_right.cross(bottom_to_top);
+    // Vector<scalar_t, 3> normal = left_to_right.cross(bottom_to_top);
+    Vector<scalar_t, 3> normal = bottom_to_top.cross(left_to_right);
     const scalar_t length = normal.norm();
     if (!(length > 1e-6f)) {
       normal = Vector<scalar_t, 3>(0, 0, -1);
     } else {
       normal.normalize();
     }
-
-    const Vector<scalar_t, 3> xvec =
-        ((center + left) * 0.5) - ((center + right) * 0.5);
-    const Vector<scalar_t, 3> yvec =
-        (center + top) * 0.5 - (center + bottom) * 0.5;
 
     out_normal[row][col][0] = normal[0];
     out_normal[row][col][1] = normal[1];
@@ -197,7 +193,7 @@ void EstimateNormals(const torch::Tensor xyz_image,
                      EstimateNormalsMethod method) {
   FTB_CHECK_DEVICE(xyz_image.device(), mask_image);
   FTB_CHECK_DEVICE(xyz_image.device(), out_normals);
-  
+
   if (xyz_image.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "EstimateNormals", [&] {
       _EstimateNormals<kCUDA, scalar_t>(xyz_image, mask_image, out_normals,

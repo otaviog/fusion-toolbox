@@ -10,6 +10,7 @@ import tenviz
 
 from fiontb.frame import Frame
 from fiontb._cfiontb import IndexMap
+from fiontb.camera import RTCamera
 
 _SHADER_DIR = Path(__file__).parent / "shaders"
 
@@ -39,7 +40,7 @@ class _BaseIndexMapRaster:
 
         if device is not None:
             indexmap = indexmap.to(str(device))
-        
+
         return indexmap
 
     def to_frame(self, frame_info):
@@ -183,10 +184,16 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
                 float(stable_conf_thresh)
                 if stable_conf_thresh is not None else -1.0)
 
+        if isinstance(rt_cam, RTCamera):
+            view_cam = rt_cam.opengl_view_cam
+        else:
+            view_cam = rt_cam
+
         gl_context.set_clear_color(0, 0, 0, 0)
-        gl_context.render(proj_matrix, rt_cam.opengl_view_cam,
+        gl_context.render(proj_matrix, view_cam,
                           self.framebuffer,
                           [self.program], width, height)
+
 
 class SurfelIndexMapRaster(_BaseIndexMapRaster):
     """Rasterizer of :obj:`fiontb.fusion.surfel.model.SurfelModel` that
@@ -251,8 +258,13 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
                 float(stable_conf_thresh)
                 if stable_conf_thresh is not None else -1.0)
 
+        if isinstance(rt_cam, RTCamera):
+            view_cam = rt_cam.opengl_view_cam
+        else:
+            view_cam = rt_cam
+
         gl_context.set_clear_color(0, 0, 0, 0)
-        gl_context.render(proj_matrix, rt_cam.opengl_view_cam,
+        gl_context.render(proj_matrix, view_cam,
                           self.framebuffer,
                           [self.program], width, height)
 

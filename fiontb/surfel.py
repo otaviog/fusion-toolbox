@@ -92,9 +92,13 @@ class SurfelCloud:
                    time, features)
 
     @classmethod
-    def from_frame(cls, frame, confidences=None, time=0, features=None):
+    def from_frame(cls, frame, confidences=None, confidence_weight=0.5,
+                   time=0, features=None):
         return cls.from_frame_pcl(FramePointCloud.from_frame(frame),
-                                  confidences, time, features)
+                                  confidences=confidences,
+                                  confidence_weight=confidence_weight,
+                                  time=time,
+                                  features=features)
 
     @property
     def device(self):

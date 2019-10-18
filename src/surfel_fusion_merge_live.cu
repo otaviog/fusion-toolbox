@@ -69,7 +69,11 @@ struct LiveMergeKernel {
       for (int kcol = xstart; kcol <= xend; kcol++) {
         if (target_indexmap.empty(krow, kcol)) continue;
 
-        const int current = target_indexmap.index(krow, kcol);
+        int current = target_indexmap.index(krow, kcol);
+
+        if (current == 511360) {
+          current += 1;
+        }
 
         const Vector<float, 3> model_pos = target_indexmap.position(krow, kcol);
         if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
