@@ -9,7 +9,7 @@ from fiontb.downsample import DownsampleXYZMethod
 from fiontb._cfiontb import ICPJacobian as _ICPJacobian
 from fiontb._utils import empty_ensured_size
 
-from .result import ICPResult
+from .result import ICPResult, ICPVerifier
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 # pylint: disable=invalid-name
@@ -113,21 +113,24 @@ class ICPOdometry:
 
             Jt = self.jacobian.transpose(1, 0)
             JtJ = Jt @ self.jacobian
+
             Jr = Jt @ self.residual
 
             JtJ = JtJ.cpu().double()
+            Jr = Jr.view(-1, 1).cpu().double()
+
             try:
                 # update = JtJ.cpu().inverse() @ Jr.cpu()
                 upper_JtJ = torch.cholesky(JtJ)
 
                 update = torch.cholesky_solve(
-                    Jr.view(-1, 1).cpu().double(), upper_JtJ).squeeze()
+                    Jr, upper_JtJ).squeeze()
             except:
                 best_loss = math.inf
                 break
 
             update_matrix = SE3.exp(
-                update.cpu()).to_matrix().to(device).to(dtype)
+                update).to_matrix().to(device).to(dtype)
             transform = update_matrix @ transform
 
             loss = abs(self.residual.mean().item())
@@ -158,7 +161,7 @@ class ICPOdometry:
 
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
         target_frame = FramePointCloud.from_frame(target_frame).to(device)
-        
+
         return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
                              target_points=target_frame.points,
                              target_mask=target_frame.mask,

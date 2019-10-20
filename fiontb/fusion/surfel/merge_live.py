@@ -17,7 +17,7 @@ class MergeLiveSurfels:
         self._new_surfels_map = None
 
     def __call__(self, target_indexmap, live_surfels, gl_proj_matrix,
-                 rt_cam, width, height, surfel_model, live_features=None):
+                 rt_cam, width, height, time, surfel_model, live_features=None):
         ref_device = target_indexmap.position_confidence.device
 
         self._new_surfels_map = empty_ensured_size(
@@ -31,6 +31,9 @@ class MergeLiveSurfels:
         if live_features is None:
             live_features = torch.empty((0, 0, 0), device=ref_device,
                                         dtype=torch.float)
+
+        model_merge_map = torch.full((target_indexmap.height, target_indexmap.width, 3), 2147483647,
+                                     dtype=torch.int32, device=ref_device)
         with surfel_model.gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
@@ -41,6 +44,8 @@ class MergeLiveSurfels:
                                           rt_cam.cam_to_world.to(ref_device),
                                           self.search_size,
                                           self.max_normal_angle,
+                                          time,
+                                          model_merge_map,
                                           self._new_surfels_map)
 
         new_surfels_index = self._new_surfels_map[self._new_surfels_map > -1]

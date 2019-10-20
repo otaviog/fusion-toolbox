@@ -132,4 +132,100 @@ void ConcatRTMatrix(const torch::Tensor &left_mtx,
         }
       }));
 }
+
+namespace {
+template <Device dev, typename scalar_t>
+struct TransformPointsKernel {
+  const typename Accessor<dev, scalar_t, 2>::T matrix;
+  typename Accessor<dev, scalar_t, 2>::T points;
+
+  TransformPointsKernel(const torch::Tensor &matrix, torch::Tensor points)
+      : matrix(Accessor<dev, scalar_t, 2>::Get(matrix)),
+        points(Accessor<dev, scalar_t, 2>::Get(points)) {}
+
+  FTB_DEVICE_HOST void operator()(int idx) {
+    const auto point = points[idx];
+
+    const scalar_t x = matrix[0][0] * point[0] + matrix[0][1] * point[1] +
+                       matrix[0][2] * point[2] + matrix[0][3];
+    const scalar_t y = matrix[1][0] * point[0] + matrix[1][1] * point[1] +
+                       matrix[1][2] * point[2] + matrix[1][3];
+    const scalar_t z = matrix[2][0] * point[0] + matrix[2][1] * point[1] +
+                       matrix[2][2] * point[2] + matrix[2][3];
+    points[idx][0] = x;
+    points[idx][1] = y;
+    points[idx][2] = z;
+  }
+};
+}  // namespace
+
+void RigidTransformOp::TransformPoints(const torch::Tensor &matrix,
+                                       torch::Tensor points) {
+  const auto ref_device = matrix.device();
+
+  FTB_CHECK_DEVICE(ref_device, points);
+
+  AT_DISPATCH_ALL_TYPES(matrix.scalar_type(), "TransformPoints", [&] {
+    if (ref_device.is_cuda()) {
+      TransformPointsKernel<kCUDA, scalar_t> kernel(matrix, points);
+      Launch1DKernelCUDA(kernel, points.size(0));
+    } else {
+      TransformPointsKernel<kCPU, scalar_t> kernel(matrix, points);
+      Launch1DKernelCPU(kernel, points.size(0));
+    }
+  });
+}
+
+namespace {
+template <Device dev, typename scalar_t>
+struct TransformNormalsKernel {
+  const Eigen::Matrix<scalar_t, 3, 3> matrix;
+  typename Accessor<dev, scalar_t, 2>::T normals;
+
+  TransformNormalsKernel(const Eigen::Matrix<scalar_t, 3, 3> matrix,
+                         torch::Tensor normals)
+      : matrix(matrix), normals(Accessor<dev, scalar_t, 2>::Get(normals)) {}
+
+  FTB_DEVICE_HOST void operator()(int idx) {
+    const auto normal = normals[idx];
+
+    const scalar_t x = matrix(0, 0) * normal[0] + matrix(0, 1) * normal[1] +
+                       matrix(0, 2) * normal[2];
+    const scalar_t y = matrix(1, 0) * normal[0] + matrix(1, 1) * normal[1] +
+                       matrix(1, 2) * normal[2];
+    const scalar_t z = matrix(2, 0) * normal[0] + matrix(2, 1) * normal[1] +
+                       matrix(2, 2) * normal[2];
+    normals[idx][0] = x;
+    normals[idx][1] = y;
+    normals[idx][2] = z;
+  }
+};
+}  // namespace
+
+void RigidTransformOp::TransformNormals(const torch::Tensor &matrix,
+                                        torch::Tensor normals) {
+  const auto ref_device = matrix.device();
+
+  FTB_CHECK_DEVICE(ref_device, normals);
+
+  const auto matrix_cpu = matrix.cpu();
+  AT_DISPATCH_FLOATING_TYPES(matrix.scalar_type(), "TransformNormals", [&] {
+    const auto cpu_acc = matrix_cpu.accessor<scalar_t, 2>();
+    Eigen::Matrix<scalar_t, 3, 3> eigen_matrix;
+
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j) eigen_matrix << cpu_acc[i][j];
+
+    Eigen::Matrix<scalar_t, 3, 3> normal_matrix =
+        normal_matrix.inverse().transpose();
+
+    if (ref_device.is_cuda()) {
+      TransformNormalsKernel<kCUDA, scalar_t> kernel(normal_matrix, normals);
+      Launch1DKernelCUDA(kernel, normals.size(0));
+    } else {
+      TransformNormalsKernel<kCPU, scalar_t> kernel(normal_matrix, normals);
+      Launch1DKernelCPU(kernel, normals.size(0));
+    }
+  });
+}
 }  // namespace fiontb

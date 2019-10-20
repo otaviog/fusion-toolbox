@@ -226,10 +226,14 @@ class RigidTransform:
 
     def inplace(self, points):
         points = points.view(-1, 3)
-        points @= self.matrix[:3, :3].transpose(1, 0)
-        points += self.matrix[:3, 3]
+        _RigidTransformOp.transform_inplace(self.matrix, points)
         return points
-
+    
+    def inplace_normals(self, normals):
+        normals = normals.view(-1, 3)
+        _RigidTransformOp.transform_inplace(self.matrix, normals)
+        return normals
+    
     def outplace(self, points, out):
         points = points.view(-1, 3, 1)
         torch.matmul(self.matrix[:3, :3], points, out=out)

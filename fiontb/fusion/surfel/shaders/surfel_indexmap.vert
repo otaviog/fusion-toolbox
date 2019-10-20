@@ -9,8 +9,6 @@ layout (location = 5) in int in_mask;
 layout (location = 6) in int in_time;
 
 uniform mat4 ProjModelview;
-uniform mat4 Modelview;
-uniform mat3 NormalModelview;
 
 uniform float StableThresh;
 
@@ -34,7 +32,6 @@ void main() {
   //gl_Position = ProjModelview*in_point;
 
   surfel.pos = in_point;
-  //surfel.pos_conf.xyz = (Modelview*in_point).xyz;
   surfel.pos_conf.xyz = in_point.xyz;
   surfel.pos_conf.w = in_conf;
   surfel.normal_rad.xyz = in_normal;

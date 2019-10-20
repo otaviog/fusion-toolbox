@@ -115,6 +115,10 @@ struct RTCamera {
 struct RigidTransformOp {
   static void Rodrigues(const torch::Tensor &rot_matrix, torch::Tensor rodrigues);
 
+  static void TransformPoints(const torch::Tensor &matrix, torch::Tensor points);
+
+  static void TransformNormals(const torch::Tensor &matrix, torch::Tensor normals);
+  
   static void RegisterPybind(pybind11::module &m);
 };
 }  // namespace fiontb

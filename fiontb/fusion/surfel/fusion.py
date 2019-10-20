@@ -73,22 +73,10 @@ class SurfelFusion:
         self._time = 0
         self._last_rt_cam = None
 
-    def fuse(self, frame_pcl, rt_cam, features=None):
-        conf_weight = 1
-        if self._last_rt_cam is not None:
-            pose = rt_cam.difference(self._last_rt_cam)
-            angular_vel = pose.rodrigues().norm().item()
-            pos_vel = pose.translation().norm().item()
-
-            conf_weight = max(angular_vel, pos_vel)
-            conf_weight = min(conf_weight, 0.01)
-            conf_weight = max(1 - (conf_weight / 0.01), 0.5) * 1
-
-        self._last_rt_cam = rt_cam
-        print(conf_weight)
+    def fuse(self, frame_pcl, rt_cam, features=None, confidence_weight=1.0):
         live_surfels = SurfelCloud.from_frame_pcl(
             frame_pcl, time=self._time,
-            features=features, confidence_weight=conf_weight)
+            features=features, confidence_weight=confidence_weight)
 
         gl_proj_matrix = frame_pcl.kcam.get_opengl_projection_matrix(
             0.01, 100.0, dtype=torch.float)
@@ -116,7 +104,7 @@ class SurfelFusion:
 
         new_surfels = self._merge_live_surfels(
             model_indexmap, live_surfels, gl_proj_matrix,
-            rt_cam, width, height, self.model, live_features=features)
+            rt_cam, width, height, self._time, self.model, live_features=features)
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
 
@@ -160,7 +148,7 @@ class SurfelFusion:
         mask = (render_mask == 1).bool()
 
         A = mask.sum().item()/(mask.size(0)*mask.size(1))
-        print(A)
+        print("Fill ratio: ", A)
         if A < fill_ratio:
             return None, None
 

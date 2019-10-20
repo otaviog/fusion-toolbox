@@ -11,7 +11,6 @@
 #include "filtering.hpp"
 #include "fsf.hpp"
 #include "icpodometry.hpp"
-#include "indexmap.hpp"
 #include "matching.hpp"
 #include "metrics.hpp"
 #include "normals.hpp"
@@ -64,8 +63,6 @@ PYBIND11_MODULE(_cfiontb, m) {
   SurfelCloud::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
   FSFOp::RegisterPybind(m);
-
-  m.def("raster_indexmap", &RasterIndexmap);
 
   ICPJacobian::RegisterPybind(m);
 

@@ -25,7 +25,7 @@ cuda_add_library(fiontb
   surfel_fusion_copy_features.cu
   fsf.cpp
   fsf_merge_surfels.cu
-  kernel_indexmap.cu  
+  # kernel_indexmap.cu  
   icp_jacobian.cu
   downsample.cu
   dense_matcher.cu

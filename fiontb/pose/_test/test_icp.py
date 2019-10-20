@@ -10,7 +10,7 @@ from fiontb.frame import FramePointCloud
 from fiontb.viz.show import show_pcls
 from fiontb.pose.icp import (ICPOdometry, MultiscaleICPOdometry, ICPVerifier)
 from fiontb.testing import prepare_frame
-
+from fiontb._utils import profile
 from ._utils import evaluate
 
 # pylint: disable=no-self-use
@@ -173,16 +173,19 @@ class Tests:
             (0.75, 25, True),
             (1.0, 50, True)
         ])
-        result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
-                              source_feats=features1.to(
-                                  device),
-                              target_points=fpcl.points,
-                              target_normals=fpcl.normals,
-                              target_mask=fpcl.mask,
-                              target_feats=features0.to(
-                                  device),
-                              geom_weight=0.5,
-                              feat_weight=0.5)
+
+        with profile(Path(__file__).parent / "icp-multiscale-hybrid.prof"):
+            for i in range(5):
+                result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+                                      source_feats=features1.to(
+                                          device),
+                                      target_points=fpcl.points,
+                                      target_normals=fpcl.normals,
+                                      target_mask=fpcl.mask,
+                                      target_feats=features0.to(
+                                          device),
+                                      geom_weight=0.5,
+                                      feat_weight=0.5)
         relative_rt = result.transform
         print("Tracking: ", ICP_VERIFIER(result))
 

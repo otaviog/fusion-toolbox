@@ -7,6 +7,7 @@ from fiontb.data.ftb import load_ftb
 from fiontb.data import set_cameras_to_start_at_eye
 from fiontb.frame import FramePointCloud
 from fiontb.surfel import SurfelModel
+from fiontb.pose import ICPVerifier
 from fiontb.pose.icp import MultiscaleICPOdometry
 from fiontb.testing import prepare_frame
 from fiontb.viz.show import show_pcls
@@ -43,7 +44,7 @@ def _test():
         (0.25, 20, True),
         (0.5, 20, True),
         (1.0, 20, True)
-    ], lost_track_threshold=1e-1)
+    ])
 
     next_frame, next_features = prepare_frame(
         dataset[_LAST_FRAME], compute_normals=True, filter_depth=True, to_hsv=True)
@@ -51,7 +52,7 @@ def _test():
     next_features = next_features.to(device)
 
     fpcl, features = fusion.get_model_frame_pcl(flip=True)
-    if False:
+    if True:
         fpcl.plot_debug(show=False)
         next_fpcl.plot_debug(show=False)
         import matplotlib.pyplot as plt
@@ -62,19 +63,19 @@ def _test():
         plt.imshow(next_features.transpose(1, 0).transpose(1, 2).cpu())
         plt.show()
 
-    relative_rt, tracking_ok = icp.estimate(
+    result = icp.estimate(
         next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
         target_points=fpcl.points,
         target_normals=fpcl.normals,
         target_mask=fpcl.mask,
         source_feats=next_features,
-        target_feats=features, geom_weight=.2, feat_weight=.8)
+        target_feats=features, geom_weight=.5, feat_weight=.5)
 
-    print(tracking_ok)
+    print(ICPVerifier()(result))
 
     pcl0 = fpcl.unordered_point_cloud(world_space=True)
     pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    align = fpcl.rt_cam.integrate(relative_rt.to(device))
+    align = fpcl.rt_cam.integrate(result.transform.to(device))
     pcl2 = pcl1.transform(align.cam_to_world.to(device))
 
     show_pcls([pcl0, pcl1, pcl2])

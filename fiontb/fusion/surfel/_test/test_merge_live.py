@@ -24,14 +24,15 @@ def _test():
 
     surfel_model = SurfelModel(gl_context, 640*480*2)
 
-    model_surfels = SurfelCloud.from_frame(dataset[0])
+    model_surfels = SurfelCloud.from_frame(dataset[0], time=0, confidence_weight=25).to(device)
     torch.manual_seed(10)
-    model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
+    # model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
+    model_surfels.radii *= 0.25
 
     surfel_model.add_surfels(model_surfels, update_gl=True)
 
     live_frame = dataset[14]
-    live_surfels = SurfelCloud.from_frame(live_frame)
+    live_surfels = SurfelCloud.from_frame(live_frame, time=1, confidence_weight=40).to(device)
     live_surfels.radii *= 0.25
 
     height, width = live_frame.depth_image.shape
@@ -41,7 +42,7 @@ def _test():
     rt_cam = live_frame.info.rt_cam
     model_raster = ModelIndexMapRaster(surfel_model)
     model_raster.raster(
-        proj_matrix, rt_cam, width, height)
+        proj_matrix, rt_cam, width*4, height*4)
 
     merge_live = MergeLiveSurfels(gl_context, 2, math.radians(30))
     prev_model = surfel_model.clone()
@@ -51,7 +52,7 @@ def _test():
 
     new_surfels = merge_live(
         model_indexmap, live_surfels, proj_matrix,
-        live_frame.info.rt_cam, width, height,
+        live_frame.info.rt_cam, width, height, 1,
         surfel_model)
 
     live_surfels.itransform(rt_cam.matrix)

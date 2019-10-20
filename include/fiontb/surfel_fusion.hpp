@@ -79,6 +79,8 @@ struct SurfelFusionOp {
                         const torch::Tensor &live_features,
                         MappedSurfelModel model, const torch::Tensor &rt_cam,
                         int search_size, float max_normal_angle,
+                        int time,
+                        torch::Tensor model_merge_map,
                         torch::Tensor new_surfels_map);
 
   static void CarveSpace(const IndexMap &model_indexmap,

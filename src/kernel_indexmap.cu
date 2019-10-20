@@ -37,7 +37,7 @@ __global__ void RasterIndexmap_gpu_kernel(
   const float pz = pm[2][0] * hpoint[0] + pm[2][1] * hpoint[1] + pm[2][2] * hpoint[2] + pm[2][3];
   const float pw = pm[3][0] * hpoint[0] + pm[3][1] * hpoint[1] + pm[3][2] * hpoint[2] + pm[3][3];
 
-  // TODO: is doing this inverse right?
+  // TODO: is doing this flip right?
   const int frag_x = width - (px / pw + 1.0f) * 0.5f * width;
   const int frag_y = height - (py / pw + 1.0f) * 0.5f * height;
 
@@ -56,6 +56,15 @@ __global__ void RasterIndexmap_gpu_kernel(
     }
   }
 
+  while (true) {
+    int z = *zaddr;
+    int idx = *idxaddr;
+
+    if (atomicMin(zaddr, myz) == z) {
+      if (atomicCAS(idxaddr, idx, my_idx) == idx)
+    }
+  }
+  
   // Depth passed
 
   indexmap[frag_y][frag_x] = point_idx;

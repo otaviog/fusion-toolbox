@@ -1,9 +1,11 @@
 #version 420
 
 layout(points) in;
-layout(triangle_strip, max_vertices=4) out;
+layout(triangle_strip, max_vertices = 4) out;
 
 uniform mat4 ProjModelview;
+uniform mat4 Modelview;
+uniform mat3 NormalModelview;
 
 in Surfel {
   vec4 pos;
@@ -12,7 +14,8 @@ in Surfel {
   vec3 color;
   flat int index;
   flat int time;
-} vert[];
+}
+vert[];
 
 out GeomSurfel {
   vec4 pos_conf;
@@ -21,15 +24,15 @@ out GeomSurfel {
   vec2 tc;
   flat int index;
   flat int time;
-} frag;
-
+}
+frag;
 
 void main() {
   if (vert[0].index < 0) {
-	gl_Position = vec4(-10000, -10000, 10000, -10);
-	EmitVertex();
-	EndPrimitive();
-	return;
+    gl_Position = vec4(-10000, -10000, 10000, -10);
+    EmitVertex();
+    EndPrimitive();
+    return;
   }
 
   vec3 pos = vert[0].pos.xyz;
@@ -38,30 +41,32 @@ void main() {
   vec3 v = vec3(normalize(cross(normal, u)));
 
   float radius = vert[0].normal_rad.w;
-  //float radius = .1;
-  float aspect = 1.0;
-  u *= radius*aspect;
+  u *= radius;
   v *= radius;
 
-  frag.pos_conf = vert[0].pos_conf;
-  frag.normal_rad = vert[0].normal_rad;
+  frag.pos_conf.xyz = (Modelview * vec4(vert[0].pos_conf.xyz, 1)).xyz;
+  frag.pos_conf.w = vert[0].pos_conf.w;
+
+  frag.normal_rad.xyz = NormalModelview * vert[0].normal_rad.xyz;
+  frag.normal_rad.w = vert[0].normal_rad.w;
+
   frag.color = vert[0].color;
   frag.index = vert[0].index;
   frag.time = vert[0].time;
 
-  gl_Position = ProjModelview*vec4(pos - u - v, 1.0f);
+  gl_Position = ProjModelview * vec4(pos - u - v, 1.0f);
   frag.tc = vec2(-1, -1);
   EmitVertex();
 
-  gl_Position = ProjModelview*vec4(pos + u - v, 1.0);
+  gl_Position = ProjModelview * vec4(pos + u - v, 1.0);
   frag.tc = vec2(1, -1);
   EmitVertex();
 
-  gl_Position = ProjModelview*vec4(pos - u + v, 1.0);
+  gl_Position = ProjModelview * vec4(pos - u + v, 1.0);
   frag.tc = vec2(-1, 1);
   EmitVertex();
 
-  gl_Position = ProjModelview*vec4(pos + u + v, 1.0);
+  gl_Position = ProjModelview * vec4(pos + u + v, 1.0);
   frag.tc = vec2(-1, -1);
   EmitVertex();
   EndPrimitive();

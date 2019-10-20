@@ -96,6 +96,15 @@ struct IndexMapAccessor {
     return row * indexmap.size(1) + col;
   }
 
+  FTB_DEVICE_HOST inline void to_rowcol_index(int linear, int *orow,
+                                                 int *ocol) const {
+    int row = linear / width();
+    int col = linear - row * width();
+
+    *orow = row;
+    *ocol = col;
+  }
+
   FTB_DEVICE_HOST inline int32_t time(int row, int col) const {
     return indexmap[row][col][2];
   }

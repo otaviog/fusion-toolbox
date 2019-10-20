@@ -294,7 +294,7 @@ class FramePointCloud:
             self.image_points.to(device)
             if self.image_points is not None else None,
             self.mask.to(device),
-            self.kcam,
+            self.kcam.to(device),
             self.rt_cam,
             self._points.to(device) if self._points is not None else None,
             self._normals.to(device) if self._normals is not None else None,

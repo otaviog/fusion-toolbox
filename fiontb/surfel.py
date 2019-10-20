@@ -117,11 +117,16 @@ class SurfelCloud:
         return self.features.size(0)
 
     def itransform(self, matrix):
-        self.positions = RigidTransform(
-            matrix.to(self.device)) @ self.positions
-        normal_matrix = normal_transform_matrix(matrix).to(self.device)
-        self.normals = (
-            normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
+        if False:
+            self.positions = RigidTransform(
+                matrix.to(self.device)) @ self.positions
+            normal_matrix = normal_transform_matrix(matrix).to(self.device)
+            self.normals = (
+                normal_matrix @ self.normals.view(-1, 3, 1)).squeeze()
+        else:
+            transform = RigidTransform(matrix.to(self.device))
+            transform.inplace(self.positions)
+            transform.inplace_normals(self.normals)
 
     def transform(self, matrix):
         normal_matrix = normal_transform_matrix(matrix).to(self.device)

@@ -76,6 +76,8 @@ class MultiscaleOptimization:
                         source_feats.unsqueeze(0), scale_factor=scale, mode='bilinear',
                         align_corners=False)
                     src_feats = src_feats.squeeze(0)
+
+                torch.cuda.synchronize()
             else:
                 tgt_points = target_points
                 tgt_normals = target_normals

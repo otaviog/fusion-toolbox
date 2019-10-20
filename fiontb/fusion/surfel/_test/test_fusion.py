@@ -30,7 +30,7 @@ def _test():
         80), max_merge_distance=0.5)
 
     sensor_ui = FrameUI("Frame Control")
-    rec_ui = SurfelReconstructionUI(model, RunMode.STEP,
+    rec_ui = SurfelReconstructionUI(model, RunMode.PLAY,
                                     stable_conf_thresh=fusion.stable_conf_thresh)
     sensor = DatasetSensor(dataset)
     device = "cuda:0"
