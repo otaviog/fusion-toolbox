@@ -119,6 +119,7 @@ class ICPOdometry:
             JtJ = JtJ.cpu().double()
             Jr = Jr.view(-1, 1).cpu().double()
 
+            import ipdb; ipdb.set_trace()
             try:
                 # update = JtJ.cpu().inverse() @ Jr.cpu()
                 upper_JtJ = torch.cholesky(JtJ)
