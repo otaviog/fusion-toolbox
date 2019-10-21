@@ -102,8 +102,8 @@ class SurfelSLAM:
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
         self.icp = MultiscaleICPOdometry(
-            [(0.25, 25, False),
-             (0.5, 25, False),
+            [(0.25, 25, True),
+             (0.5, 25, True),
              (1.0, 25, True)])
         self.icp_verifier = ICPVerifier()
 

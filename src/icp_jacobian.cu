@@ -148,7 +148,7 @@ int ICPJacobian::EstimateGeometric(
   FTB_CHECK_DEVICE(reference_dev, residual);
 
   int num_matches;
-  
+
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
         src_points.scalar_type(), "EstimateICPJacobian", [&] {
@@ -160,7 +160,6 @@ int ICPJacobian::EstimateGeometric(
 
           num_matches = kernel.match_count.get();
           kernel.match_count.Free();
-
         });
   } else {
     AT_DISPATCH_FLOATING_TYPES(
@@ -213,17 +212,21 @@ struct HybridJacobianKernel {
 
   scalar_t geom_weight, feat_weight;
 
-  typename Accessor<dev, scalar_t, 2>::T jacobian;
-  typename Accessor<dev, scalar_t, 1>::T residual;
+  typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
+  typename Accessor<dev, scalar_t, 2>::T Jr_partial;
+  typename Accessor<dev, scalar_t, 1>::T squared_residual;
 
   AtomicInt<dev> match_count;
 
-  HybridJacobianKernel(
-      const PointGrid<dev, scalar_t> tgt, FeatureMap<dev, scalar_t> tgt_featmap,
-      const torch::Tensor &src_points, const torch::Tensor &src_feats,
-      const torch::Tensor &src_mask, KCamera<dev, scalar_t> kcam,
-      RTCamera<dev, scalar_t> rt_cam, scalar_t geom_weight,
-      scalar_t feat_weight, torch::Tensor jacobian, torch::Tensor residual)
+  HybridJacobianKernel(const PointGrid<dev, scalar_t> tgt,
+                       FeatureMap<dev, scalar_t> tgt_featmap,
+                       const torch::Tensor &src_points,
+                       const torch::Tensor &src_feats,
+                       const torch::Tensor &src_mask,
+                       KCamera<dev, scalar_t> kcam,
+                       RTCamera<dev, scalar_t> rt_cam, scalar_t geom_weight,
+                       scalar_t feat_weight, torch::Tensor JtJ_partial,
+                       torch::Tensor Jr_partial, torch::Tensor squared_residual)
       : tgt(tgt),
         tgt_featmap(tgt_featmap),
         src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
@@ -233,8 +236,9 @@ struct HybridJacobianKernel {
         rt_cam(rt_cam),
         geom_weight(geom_weight),
         feat_weight(feat_weight),
-        jacobian(Accessor<dev, scalar_t, 2>::Get(jacobian)),
-        residual(Accessor<dev, scalar_t, 1>::Get(residual)) {}
+        JtJ_partial(Accessor<dev, scalar_t, 3>::Get(JtJ_partial)),
+        Jr_partial(Accessor<dev, scalar_t, 2>::Get(Jr_partial)),
+        squared_residual(Accessor<dev, scalar_t, 1>::Get(squared_residual)) {}
 
   FTB_DEVICE_HOST void ComputeGeometricTerm(
       const Vector<scalar_t, 3> &Tsrc_point, int ui, int vi,
@@ -304,14 +308,15 @@ struct HybridJacobianKernel {
   }
 
   FTB_DEVICE_HOST void operator()(int ri) {
-    jacobian[ri][0] = 0.0f;
-    jacobian[ri][1] = 0.0f;
-    jacobian[ri][2] = 0.0f;
-    jacobian[ri][3] = 0.0f;
-    jacobian[ri][4] = 0.0f;
-    jacobian[ri][5] = 0.0f;
-    residual[ri] = 0.0f;
+    for (int k = 0; k < 6; k++) Jr_partial[ri][k] = 0;
 
+    for (int krow = 0; krow < 6; krow++) {
+      for (int kcol = 0; kcol < 6; kcol++) {
+        JtJ_partial[ri][krow][kcol] = 0;
+      }
+    }
+
+    squared_residual[ri] = 0;
     if (src_mask[ri] == 0) return;
 
     const int width = tgt.points.size(1);
@@ -340,13 +345,30 @@ struct HybridJacobianKernel {
     }
     ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
     ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);
+
+    scalar_t jacobian[6];
+
 #pragma unroll
     for (int k = 0; k < 6; ++k) {
-      jacobian[ri][k] =
+      jacobian[k] =
           geom_jacobian[k] * geom_weight + feat_jacobian[k] * feat_weight;
     }
 
-    residual[ri] = geom_residual * geom_weight + feat_residual * feat_weight;
+    const scalar_t residual =
+        geom_residual * geom_weight + feat_residual * feat_weight;
+
+    squared_residual[ri] = residual * residual;
+#pragma unroll
+    for (int k = 0; k < 6; ++k) {
+      Jr_partial[ri][k] = jacobian[k] * residual;
+    }
+#pragma unroll
+    for (int krow = 0; krow < 6; ++krow) {
+#pragma unroll
+      for (int kcol = 0; kcol < 6; ++kcol) {
+        JtJ_partial[ri][krow][kcol] = jacobian[kcol] * jacobian[krow];
+      }
+    }
   }
 };
 
@@ -358,7 +380,8 @@ int ICPJacobian::EstimateHybrid(
     const torch::Tensor src_points, const torch::Tensor src_feats,
     const torch::Tensor src_mask, const torch::Tensor kcam,
     const torch::Tensor rt_cam, float geom_weight, float feat_weight,
-    torch::Tensor jacobian, torch::Tensor residual) {
+    torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+    torch::Tensor squared_residual) {
   const auto reference_dev = src_points.device();
   FTB_CHECK_DEVICE(reference_dev, tgt_points);
   FTB_CHECK_DEVICE(reference_dev, tgt_normals);
@@ -370,8 +393,9 @@ int ICPJacobian::EstimateHybrid(
 
   FTB_CHECK_DEVICE(reference_dev, kcam);
   FTB_CHECK_DEVICE(reference_dev, rt_cam);
-  FTB_CHECK_DEVICE(reference_dev, jacobian);
-  FTB_CHECK_DEVICE(reference_dev, residual);
+  FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
+  FTB_CHECK_DEVICE(reference_dev, Jr_partial);
+  FTB_CHECK_DEVICE(reference_dev, squared_residual);
 
   int num_matches;
   if (reference_dev.is_cuda()) {
@@ -382,7 +406,7 @@ int ICPJacobian::EstimateHybrid(
               tgt, FeatureMap<kCUDA, scalar_t>(tgt_feats), src_points,
               src_feats, src_mask, KCamera<kCUDA, scalar_t>(kcam),
               RTCamera<kCUDA, scalar_t>(rt_cam), geom_weight, feat_weight,
-              jacobian, residual);
+              JtJ_partial, Jr_partial, squared_residual);
           kernel.match_count.Alloc();
           Launch1DKernelCUDA(kernel, src_points.size(0));
 
@@ -395,8 +419,8 @@ int ICPJacobian::EstimateHybrid(
       HybridJacobianKernel<kCPU, scalar_t> kernel(
           tgt, FeatureMap<kCPU, scalar_t>(tgt_feats), src_points, src_feats,
           src_mask, KCamera<kCPU, scalar_t>(kcam),
-          RTCamera<kCPU, scalar_t>(rt_cam), geom_weight, feat_weight, jacobian,
-          residual);
+          RTCamera<kCPU, scalar_t>(rt_cam), geom_weight, feat_weight,
+          JtJ_partial, Jr_partial, squared_residual);
       Launch1DKernelCPU(kernel, src_points.size(0));
 
       num_matches = kernel.match_count.get();
