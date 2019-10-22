@@ -100,16 +100,11 @@ class ICPOdometry:
         best_JtJ = None
 
         for _ in range(self.num_iters):
-            self.jacobian = torch.zeros(source_points.size(0), 6, 6,
-                                        device=device, dtype=dtype)
-            self.residual = torch.zeros(source_points.size(0), 6,
-                                        device=device, dtype=dtype)
-
             if geom_only:
                 match_count = _ICPJacobian.estimate_geometric(
                     target_points, target_normals, target_mask,
                     source_points, source_mask, kcam, transform,
-                    self.jacobian, self.residual)
+                    self.jacobian, self.residual, self.squared_residual)
             else:
                 match_count = _ICPJacobian.estimate_hybrid(
                     target_points, target_normals, target_feats,
@@ -117,33 +112,28 @@ class ICPOdometry:
                     source_mask, kcam, transform, geom_weight, feat_weight,
                     self.jacobian, self.residual, self.squared_residual)
 
-            if False:
-                Jt = self.jacobian.transpose(1, 0)
-                JtJ = Jt @ self.jacobian
+            Jr = self.residual.sum(0)
+            JtJ = self.jacobian.sum(0)
+            loss = self.squared_residual.sum()
 
-                Jr = Jt @ self.residual
-
-                JtJ = JtJ.cpu().double()
-                Jr = Jr.view(-1, 1).cpu().double()
-            else:
-                JtJ = self.jacobian.sum(0).cpu().double()
-                Jr = self.residual.sum(0).view(-1, 1).cpu().double()
-
+            # import ipdb; ipdb.set_trace()
+            JtJ = JtJ.cpu().double()
             try:
                 # update = JtJ.cpu().inverse() @ Jr.cpu()
-                upper_JtJ = torch.cholesky(JtJ)
 
+                upper_JtJ = torch.cholesky(JtJ)
+                Jr = Jr.cpu().view(-1, 1).double()
                 update = torch.cholesky_solve(
                     Jr, upper_JtJ).squeeze()
             except:
-                best_loss = math.inf
+                loss = best_loss = math.inf
                 break
 
             update_matrix = SE3.exp(
                 update).to_matrix().to(device).to(dtype)
             transform = update_matrix @ transform
 
-            loss = abs(self.squared_residual.mean().item())
+            loss = loss.item() / match_count
 
             if loss < best_loss:
                 best_loss = loss
@@ -151,7 +141,7 @@ class ICPOdometry:
                 best_match_count = match_count
                 best_JtJ = JtJ
 
-            # Uncomment the next line(s) for optimization debug
+            # Uncomment the next line(s) for debug
             #print(_, loss)
 
         return ICPResult(best_transform, best_JtJ,

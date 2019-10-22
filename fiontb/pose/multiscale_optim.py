@@ -52,47 +52,44 @@ class MultiscaleOptimization:
         tgt_feats = None
         src_feats = None
 
-        for scale, icp_instance, use_feats in self.estimators:
+        pyramid = []
+
+        for scale, _, use_feats in self.estimators:
+
             if scale < 1.0:
-                tgt_points = downsample_xyz(target_points, target_mask, scale,
-                                            method=self.downsample_xyz_method)
-                tgt_normals = downsample_xyz(target_normals, target_mask, scale,
-                                             normalize=True,
-                                             method=self.downsample_xyz_method)
+                target_points = downsample_xyz(target_points, target_mask, scale,
+                                               method=self.downsample_xyz_method)
+                target_normals = downsample_xyz(target_normals, target_mask, scale,
+                                                normalize=True,
+                                                method=self.downsample_xyz_method)
 
-                tgt_mask = downsample_mask(target_mask, scale)
+                target_mask = downsample_mask(target_mask, scale)
 
-                src_points = downsample_xyz(source_points, source_mask, scale,
-                                            normalize=False,
-                                            method=self.downsample_xyz_method)
-                src_mask = downsample_mask(source_mask, scale)
+                source_points = downsample_xyz(source_points, source_mask, scale,
+                                               normalize=False,
+                                               method=self.downsample_xyz_method)
+                source_mask = downsample_mask(source_mask, scale)
 
                 if has_feats and use_feats:
-                    tgt_feats = torch.nn.functional.interpolate(
+                    target_feats = torch.nn.functional.interpolate(
                         target_feats.unsqueeze(0), scale_factor=scale, mode='bilinear',
-                        align_corners=False)
-                    tgt_feats = tgt_feats.squeeze(0)
-                    src_feats = torch.nn.functional.interpolate(
+                        align_corners=False).squeeze(0)
+
+                    source_feats = torch.nn.functional.interpolate(
                         source_feats.unsqueeze(0), scale_factor=scale, mode='bilinear',
-                        align_corners=False)
-                    src_feats = src_feats.squeeze(0)
+                        align_corners=False).squeeze(0)
 
+                kcam = kcam.scaled(scale)
                 torch.cuda.synchronize()
-            else:
-                tgt_points = target_points
-                tgt_normals = target_normals
-                tgt_mask = target_mask
 
-                src_points = source_points
-                src_mask = source_mask
+            pyramid.append((target_points, target_normals, target_mask, source_points, source_mask,
+                            target_feats, source_feats, kcam))
 
-                if use_feats:
-                    tgt_feats = target_feats
-                    src_feats = source_feats
-
-            scaled_kcam = kcam.scaled(scale)
+        for icp_instance, (tgt_points, tgt_normals, tgt_mask, src_points, src_mask,
+                           tgt_feats, src_feats, pyr_kcam) in zip(self.estimators, pyramid[::-1]):
+            icp_instance = icp_instance[1]
             result = icp_instance.estimate(
-                scaled_kcam, src_points, src_mask,
+                pyr_kcam, src_points, src_mask,
                 source_feats=src_feats,
                 target_points=tgt_points,
                 target_mask=tgt_mask, target_normals=tgt_normals,

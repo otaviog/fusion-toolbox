@@ -4,6 +4,7 @@
 #include <torch/csrc/utils/pybind.h>
 
 #include "accessor.hpp"
+#include "atomic_int.hpp"
 #include "camera.hpp"
 #include "error.hpp"
 #include "feature_map.hpp"
@@ -11,37 +12,6 @@
 #include "pointgrid.hpp"
 
 namespace fiontb {
-template <Device dev>
-struct AtomicInt {
-  AtomicInt(int value = 0) : value(value) {}
-  inline void operator++() { ++value; }
-  // std::atomic<int> value;
-  void Free() {}
-  int32_t get() const { return value; }
-  int32_t value;
-};
-
-template <>
-struct AtomicInt<kCUDA> {
-  AtomicInt() : value(nullptr) {}
-
-  void Alloc() {
-    cudaMalloc((void **)&value, sizeof(int32_t));
-    cudaMemset(value, 0, sizeof(int32_t));
-  }
-
-  void Free() { cudaFree(value); }
-#pragma nv_exec_check_disable
-  __device__ inline void operator++() { atomicAdd(value, 1); }
-
-  int32_t get() const {
-    int cpu_value;
-    cudaMemcpy(&cpu_value, value, sizeof(int32_t),
-               cudaMemcpyKind::cudaMemcpyDeviceToHost);
-    return cpu_value;
-  }
-  int32_t *value;
-};
 
 namespace {
 template <Device dev, typename scalar_t>
@@ -62,36 +32,46 @@ struct GeometricJacobianKernel {
   PointGrid<dev, scalar_t> tgt;
   const typename Accessor<dev, scalar_t, 2>::T src_points;
   const typename Accessor<dev, bool, 1>::T src_mask;
-  KCamera<dev, scalar_t> kcam;
-  RTCamera<dev, scalar_t> rt_cam;
+  const KCamera<dev, scalar_t> kcam;
+  const RTCamera<dev, scalar_t> rt_cam;
 
-  typename Accessor<dev, scalar_t, 2>::T jacobian;
-  typename Accessor<dev, scalar_t, 1>::T residual;
+  typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
+  typename Accessor<dev, scalar_t, 2>::T Jr_partial;
+  typename Accessor<dev, scalar_t, 1>::T squared_residual;
 
   AtomicInt<dev> match_count;
 
   GeometricJacobianKernel(PointGrid<dev, scalar_t> tgt,
                           const torch::Tensor &src_points,
                           const torch::Tensor &src_mask,
-                          KCamera<dev, scalar_t> kcam,
-                          RTCamera<dev, scalar_t> rt_cam,
-                          torch::Tensor jacobian, torch::Tensor residual)
+                          const KCamera<dev, scalar_t> kcam,
+                          const RTCamera<dev, scalar_t> rt_cam,
+                          torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+                          torch::Tensor squared_residual)
       : tgt(tgt),
         src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
         src_mask(Accessor<dev, bool, 1>::Get(src_mask)),
         kcam(kcam),
         rt_cam(rt_cam),
-        jacobian(Accessor<dev, scalar_t, 2>::Get(jacobian)),
-        residual(Accessor<dev, scalar_t, 1>::Get(residual)) {}
+        JtJ_partial(Accessor<dev, scalar_t, 3>::Get(JtJ_partial)),
+        Jr_partial(Accessor<dev, scalar_t, 2>::Get(Jr_partial)),
+        squared_residual(Accessor<dev, scalar_t, 1>::Get(squared_residual)) {}
 
   FTB_DEVICE_HOST void operator()(int ri) {
-    jacobian[ri][0] = 0;
-    jacobian[ri][1] = 0;
-    jacobian[ri][2] = 0;
-    jacobian[ri][3] = 0;
-    jacobian[ri][4] = 0;
-    jacobian[ri][5] = 0;
-    residual[ri] = 0;
+#pragma unroll
+    for (int k = 0; k < 6; k++) {
+      Jr_partial[ri][k] = 0;
+    }
+
+#pragma unroll
+    for (int krow = 0; krow < 6; krow++) {
+#pragma unroll
+      for (int kcol = 0; kcol < 6; kcol++) {
+        JtJ_partial[ri][krow][kcol] = 0;
+      }
+    }
+
+    squared_residual[ri] = 0;
 
     if (src_mask[ri] == 0) return;
 
@@ -108,32 +88,50 @@ struct GeometricJacobianKernel {
     if (tgt.empty(src_uv[1], src_uv[0])) return;
 
     ++match_count;
+
+    if (ri == 15) {
+      ++match_count;
+    }
     const Vector<scalar_t, 3> tgt_point(
         to_vec3<scalar_t>(tgt.points[src_uv[1]][src_uv[0]]));
     const Vector<scalar_t, 3> tgt_normal(
         to_vec3<scalar_t>(tgt.normals[src_uv[1]][src_uv[0]]));
 
-    jacobian[ri][0] = tgt_normal[0];
-    jacobian[ri][1] = tgt_normal[1];
-    jacobian[ri][2] = tgt_normal[2];
+    scalar_t jacobian[6];
+    jacobian[0] = tgt_normal[0];
+    jacobian[1] = tgt_normal[1];
+    jacobian[2] = tgt_normal[2];
 
     const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(tgt_normal);
-    jacobian[ri][3] = rot_twist[0];
-    jacobian[ri][4] = rot_twist[1];
-    jacobian[ri][5] = rot_twist[2];
+    jacobian[3] = rot_twist[0];
+    jacobian[4] = rot_twist[1];
+    jacobian[5] = rot_twist[2];
 
-    residual[ri] = (tgt_point - Tsrc_point).dot(tgt_normal);
+    const scalar_t residual = (tgt_point - Tsrc_point).dot(tgt_normal);
+    squared_residual[ri] = residual * residual;
+
+#pragma unroll
+    for (int k = 0; k < 6; ++k) {
+      Jr_partial[ri][k] = jacobian[k] * residual;
+    }
+#pragma unroll
+    for (int krow = 0; krow < 6; ++krow) {
+#pragma unroll
+      for (int kcol = 0; kcol < 6; ++kcol) {
+        JtJ_partial[ri][krow][kcol] = jacobian[kcol] * jacobian[krow];
+      }
+    }
   }
 };
 
 }  // namespace
 
 int ICPJacobian::EstimateGeometric(
-    const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
-    const torch::Tensor tgt_mask, const torch::Tensor src_points,
-    const torch::Tensor src_mask, const torch::Tensor kcam,
-    const torch::Tensor rt_cam, torch::Tensor jacobian,
-    torch::Tensor residual) {
+    const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
+    const torch::Tensor &tgt_mask, const torch::Tensor &src_points,
+    const torch::Tensor &src_mask, const torch::Tensor &kcam,
+    const torch::Tensor &rt_cam, torch::Tensor JtJ_partial,
+    torch::Tensor Jr_partial, torch::Tensor squared_residual) {
   const auto reference_dev = src_points.device();
 
   FTB_CHECK_DEVICE(reference_dev, tgt_points);
@@ -144,8 +142,9 @@ int ICPJacobian::EstimateGeometric(
   FTB_CHECK_DEVICE(reference_dev, kcam);
   FTB_CHECK_DEVICE(reference_dev, rt_cam);
 
-  FTB_CHECK_DEVICE(reference_dev, jacobian);
-  FTB_CHECK_DEVICE(reference_dev, residual);
+  FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
+  FTB_CHECK_DEVICE(reference_dev, Jr_partial);
+  FTB_CHECK_DEVICE(reference_dev, squared_residual);
 
   int num_matches;
 
@@ -154,7 +153,8 @@ int ICPJacobian::EstimateGeometric(
         src_points.scalar_type(), "EstimateICPJacobian", [&] {
           GeometricJacobianKernel<kCUDA, scalar_t> kernel(
               PointGrid<kCUDA, scalar_t>(tgt_points, tgt_normals, tgt_mask),
-              src_points, src_mask, kcam, rt_cam, jacobian, residual);
+              src_points, src_mask, kcam, rt_cam, JtJ_partial, Jr_partial,
+              squared_residual);
           kernel.match_count.Alloc();
           Launch1DKernelCUDA(kernel, src_points.size(0));
 
@@ -166,10 +166,13 @@ int ICPJacobian::EstimateGeometric(
         src_points.scalar_type(), "EstimateICPJacobian", [&] {
           GeometricJacobianKernel<kCPU, scalar_t> kernel(
               PointGrid<kCPU, scalar_t>(tgt_points, tgt_normals, tgt_mask),
-              src_points, src_mask, kcam, rt_cam, jacobian, residual);
+              src_points, src_mask, kcam, rt_cam, JtJ_partial, Jr_partial,
+              squared_residual);
+          kernel.match_count.Alloc();
           Launch1DKernelCPU(kernel, src_points.size(0));
 
           num_matches = kernel.match_count.get();
+          kernel.match_count.Free();
         });
   }
   return num_matches;
@@ -207,8 +210,8 @@ struct HybridJacobianKernel {
   const typename Accessor<dev, scalar_t, 2>::T src_feats;
   const typename Accessor<dev, bool, 1>::T src_mask;
 
-  KCamera<dev, scalar_t> kcam;
-  RTCamera<dev, scalar_t> rt_cam;
+  const KCamera<dev, scalar_t> kcam;
+  const RTCamera<dev, scalar_t> rt_cam;
 
   scalar_t geom_weight, feat_weight;
 
@@ -218,15 +221,13 @@ struct HybridJacobianKernel {
 
   AtomicInt<dev> match_count;
 
-  HybridJacobianKernel(const PointGrid<dev, scalar_t> tgt,
-                       FeatureMap<dev, scalar_t> tgt_featmap,
-                       const torch::Tensor &src_points,
-                       const torch::Tensor &src_feats,
-                       const torch::Tensor &src_mask,
-                       KCamera<dev, scalar_t> kcam,
-                       RTCamera<dev, scalar_t> rt_cam, scalar_t geom_weight,
-                       scalar_t feat_weight, torch::Tensor JtJ_partial,
-                       torch::Tensor Jr_partial, torch::Tensor squared_residual)
+  HybridJacobianKernel(
+      const PointGrid<dev, scalar_t> tgt, FeatureMap<dev, scalar_t> tgt_featmap,
+      const torch::Tensor &src_points, const torch::Tensor &src_feats,
+      const torch::Tensor &src_mask, const KCamera<dev, scalar_t> kcam,
+      const RTCamera<dev, scalar_t> rt_cam, scalar_t geom_weight,
+      scalar_t feat_weight, torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+      torch::Tensor squared_residual)
       : tgt(tgt),
         tgt_featmap(tgt_featmap),
         src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
@@ -317,6 +318,7 @@ struct HybridJacobianKernel {
     }
 
     squared_residual[ri] = 0;
+
     if (src_mask[ri] == 0) return;
 
     const int width = tgt.points.size(1);
@@ -333,40 +335,57 @@ struct HybridJacobianKernel {
     if (ui < 0 || ui >= width || vi < 0 || vi >= height) return;
     if (tgt.empty(vi, ui)) return;
 
-    ++match_count;
-    scalar_t feat_jacobian[6], feat_residual;
-    feat_jacobian[0] = feat_jacobian[1] = feat_jacobian[2] = feat_jacobian[3] =
-        feat_jacobian[4] = feat_jacobian[5] = 0;
-    feat_residual = 0;
-    scalar_t geom_jacobian[6], geom_residual;
+    const float zdiff = abs(Tsrc_point[2] - tgt.points[vi][ui][2]);
+    if (zdiff > 0.5) return;
 
-    if (ri == 228479) {
-      geom_residual = 0;
-    }
+    ++match_count;
+
+    scalar_t feat_jacobian[6], feat_residual;
     ComputeFeatTerm(ri, Tsrc_point, u, v, feat_jacobian, feat_residual);
+
+    scalar_t geom_jacobian[6], geom_residual;
     ComputeGeometricTerm(Tsrc_point, ui, vi, geom_jacobian, geom_residual);
 
-    scalar_t jacobian[6];
+    scalar_t geom_JtJ_partial[6][6];
+    scalar_t geom_Jtr_partial[6];
 
-#pragma unroll
+    scalar_t feat_JtJ_partial[6][6];
+    scalar_t feat_Jtr_partial[6];
+
     for (int k = 0; k < 6; ++k) {
-      jacobian[k] =
-          geom_jacobian[k] * geom_weight + feat_jacobian[k] * feat_weight;
+      geom_Jtr_partial[k] = geom_jacobian[k] * geom_residual;
+      feat_Jtr_partial[k] = feat_jacobian[k] * feat_residual;
+    }
+
+    for (int krow = 0; krow < 6; ++krow) {
+      for (int kcol = krow; kcol < 6; ++kcol) {
+        const scalar_t geom_v = geom_jacobian[kcol] * geom_jacobian[krow];
+        geom_JtJ_partial[krow][kcol] = geom_v;
+        geom_JtJ_partial[kcol][krow] = geom_v;
+
+        const scalar_t feat_v = feat_jacobian[kcol] * feat_jacobian[krow];
+        feat_JtJ_partial[krow][kcol] = feat_v;
+        feat_JtJ_partial[kcol][krow] = feat_v;
+      }
     }
 
     const scalar_t residual =
         geom_residual * geom_weight + feat_residual * feat_weight;
 
     squared_residual[ri] = residual * residual;
-#pragma unroll
+
     for (int k = 0; k < 6; ++k) {
-      Jr_partial[ri][k] = jacobian[k] * residual;
+      Jr_partial[ri][k] =
+          geom_Jtr_partial[k] * geom_weight + feat_Jtr_partial[k] * feat_weight;
     }
-#pragma unroll
+
     for (int krow = 0; krow < 6; ++krow) {
-#pragma unroll
-      for (int kcol = 0; kcol < 6; ++kcol) {
-        JtJ_partial[ri][krow][kcol] = jacobian[kcol] * jacobian[krow];
+      for (int kcol = krow; kcol < 6; ++kcol) {
+        const scalar_t v = geom_JtJ_partial[krow][kcol] * geom_weight +
+                           feat_JtJ_partial[krow][kcol] * feat_weight;
+
+        JtJ_partial[ri][krow][kcol] = v;
+        JtJ_partial[ri][kcol][krow] = v;
       }
     }
   }
@@ -375,11 +394,11 @@ struct HybridJacobianKernel {
 }  // namespace
 
 int ICPJacobian::EstimateHybrid(
-    const torch::Tensor tgt_points, const torch::Tensor tgt_normals,
-    const torch::Tensor tgt_feats, const torch::Tensor tgt_mask,
-    const torch::Tensor src_points, const torch::Tensor src_feats,
-    const torch::Tensor src_mask, const torch::Tensor kcam,
-    const torch::Tensor rt_cam, float geom_weight, float feat_weight,
+    const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
+    const torch::Tensor &tgt_feats, const torch::Tensor &tgt_mask,
+    const torch::Tensor &src_points, const torch::Tensor &src_feats,
+    const torch::Tensor &src_mask, const torch::Tensor &kcam,
+    const torch::Tensor &rt_cam, float geom_weight, float feat_weight,
     torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
     torch::Tensor squared_residual) {
   const auto reference_dev = src_points.device();

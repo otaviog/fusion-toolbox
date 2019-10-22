@@ -33,7 +33,7 @@ class DatasetViewer:
 
         self.cam_viewer = self.context.viewer(
             [], tenviz.CameraManipulator.TrackBall)
-        self.cam_viewer.set_title("{}: camera space".format(title))
+        self.cam_viewer.title = "{}: camera space".format(title)
         self.tv_camera_pcl = None
 
         self.wcontext = tenviz.Context(640, 480)
@@ -42,7 +42,7 @@ class DatasetViewer:
 
         self.world_viewer = self.wcontext.viewer(
             [], tenviz.CameraManipulator.WASD)
-        self.world_viewer.set_title("{}: world space".format(title))
+        self.world_viewer.title = "{}: world space".format(title)
         self.pcl_deque = deque()
 
         self.visited_idxs = set()
