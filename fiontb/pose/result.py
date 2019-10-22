@@ -27,7 +27,10 @@ class ICPVerifier:
         self.covariance_max_threshold = covariance_max_threshold
 
     def __call__(self, icp_result):
-        covariance = icp_result.pose_matrix.lu()[0].inverse()
+        if icp_result.best_loss < 1e-4:
+            return True
+        
+        covariance = icp_result.pose_matrix.lu()[0].inverse()        
         if torch.any(covariance > self.covariance_max_threshold):
             return False
 

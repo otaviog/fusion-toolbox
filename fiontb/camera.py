@@ -228,12 +228,12 @@ class RigidTransform:
         points = points.view(-1, 3)
         _RigidTransformOp.transform_inplace(self.matrix, points)
         return points
-    
+
     def inplace_normals(self, normals):
         normals = normals.view(-1, 3)
         _RigidTransformOp.transform_inplace(self.matrix, normals)
         return normals
-    
+
     def outplace(self, points, out):
         points = points.view(-1, 3, 1)
         torch.matmul(self.matrix[:3, :3], points, out=out)
@@ -288,8 +288,11 @@ class RTCamera:
 
     """
 
-    def __init__(self, matrix):
-        self.matrix = ensure_torch(matrix)
+    def __init__(self, matrix=None, dtype=None):
+        if matrix is not None:
+            self.matrix = ensure_torch(matrix, dtype=dtype)
+        else:
+            self.matrix = torch.eye(4, dtype=dtype)
 
     @classmethod
     def create_from_pos_rot(cls, position, rotation_matrix):

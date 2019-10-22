@@ -44,8 +44,8 @@ fiontb.pose.open3d.coloricp-real:
 fiontb.pose.open3d.coloricp-synthetic:
 	python3 -m fiontb.pose.open3d_interop coloricp-synthetic
 
-fiontb.pose.icp.geometric1:
-	python3 -m fiontb.pose._test.test_icp geometric1
+fiontb.pose.icp.geometric:
+	python3 -m fiontb.pose._test.test_icp geometric
 
 fiontb.pose.icp.color:
 	python3 -m fiontb.pose._test.test_icp color
@@ -55,6 +55,9 @@ fiontb.pose.icp.hybrid:
 
 fiontb.pose.icp.fail:
 	python3 -m fiontb.pose._test.test_icp fail
+
+fiontb.pose.icp.trajectory:
+	python3 -m fiontb.pose._test.test_icp trajectory
 
 fiontb.pose.icp.multiscale-geometric:
 	python3 -m fiontb.pose._test.test_icp multiscale-geometric

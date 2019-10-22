@@ -102,9 +102,9 @@ class SurfelSLAM:
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
         self.icp = MultiscaleICPOdometry(
-            [(0.25, 25, False),
-             (0.5, 25, False),
-             (1.0, 25, True)])
+            [(1.0, 30, True),
+             (0.5, 30, True),
+             (0.5, 30, True)])
         self.icp_verifier = ICPVerifier()
 
         self.previous_fpcl = None
@@ -158,12 +158,14 @@ class SurfelSLAM:
                 target_mask=self.previous_fpcl.mask,
                 target_normals=self.previous_fpcl.normals,
                 target_feats=self._previous_features,
-                geom_weight=.2, feat_weight=.8)
+                geom_weight=0, feat_weight=1)
 
             if self.icp_verifier(result):
                 relative_cam = result.transform
             else:
                 from fiontb.fusion.surfel.fusion import FusionStats
+                return FusionStats()
+                
                 print("Tracking fail")
 
                 result = self.icp.estimate(
@@ -174,7 +176,7 @@ class SurfelSLAM:
                     target_mask=self._prev_frame_fpcl.mask,
                     target_normals=self._prev_frame_fpcl.normals,
                     target_feats=self._previous_features,
-                    geom_weight=.5, feat_weight=.5)
+                    geom_weight=0, feat_weight=1)
 
                 if not self.icp_verifier(result):
                     # if True:
