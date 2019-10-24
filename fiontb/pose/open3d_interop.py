@@ -55,7 +55,7 @@ class RGBDOdometry:
             transform = np.identity(4)
 
         is_good, transform, hessian = open3d.odometry.compute_rgbd_odometry(
-            rgbd_img_t, rgbd_img_s, intrinsic, jacobian=jacobian_term,
+            rgbd_img_s, rgbd_img_t, intrinsic, jacobian=jacobian_term,
             option=self.option)
 
         transform = torch.from_numpy(transform)
@@ -122,18 +122,21 @@ class Tests:
     @staticmethod
     def _test(odometry, dataset):
         from fiontb.viz.show import show_pcls
+        from fiontb.testing import prepare_frame
 
-        result = odometry.estimate_frame(dataset[0], dataset[3])
+        frame0, _ = prepare_frame(dataset[0], filter_depth=True)
+        frame1, _ = prepare_frame(dataset[1], filter_depth=True)
+        result = odometry.estimate_frame(frame1, frame0)
 
-        def to_pcl(frame):
-            return FramePointCloud.from_frame(
-                frame).unordered_point_cloud(
-                    world_space=False, compute_normals=False)
+        pcl_params = {
+            'world_space': False, 'compute_normals': False
+        }
 
+        frame1 = FramePointCloud.from_frame(
+            frame1).unordered_point_cloud(**pcl_params)
         show_pcls(
-            [to_pcl(dataset[0]),
-             to_pcl(dataset[1]),
-             to_pcl(dataset[1]).transform(result.transform.float())])
+            [FramePointCloud.from_frame(frame0).unordered_point_cloud(**pcl_params),
+             frame1, frame1.transform(result.transform.float())])
 
     def rgbd_real(self):
         from fiontb.data.ftb import load_ftb
@@ -145,6 +148,46 @@ class Tests:
         dataset = load_ftb(Tests._TEST_DATA / "sample2")
         Tests._test(RGBDOdometry(False), dataset)
 
+    def rgbd_trajectory(self):
+        from fiontb.viz.show import show_pcls
+        from fiontb.testing import prepare_frame
+        from fiontb.data.ftb import load_ftb
+        from fiontb.camera import RTCamera
+
+        dataset = load_ftb(Tests._TEST_DATA / "sample1")
+
+        icp = RGBDOdometry(False)
+
+        frame_args = {
+            'filter_depth': True,
+            'blur': False,
+            'to_hsv': False
+        }
+
+        prev_frame, prev_features = prepare_frame(
+            dataset[0], **frame_args)
+
+        pcls = [FramePointCloud.from_frame(
+            prev_frame).unordered_point_cloud(world_space=False)]
+
+        accum_pose = RTCamera(dtype=torch.double)
+
+        for i in range(1, len(dataset)):
+            next_frame, next_features = prepare_frame(
+                dataset[i], **frame_args)
+
+            result = icp.estimate_frame(next_frame, prev_frame)
+
+            accum_pose = accum_pose.integrate(result.transform.cpu().double())
+
+            pcl = FramePointCloud.from_frame(
+                next_frame).unordered_point_cloud(world_space=False)
+            pcl = pcl.transform(accum_pose.matrix.float())
+            pcls.append(pcl)
+
+            prev_frame, prev_features = next_frame, next_features
+        show_pcls(pcls)
+
     def coloricp_real(self):
         from fiontb.data.ftb import load_ftb
         dataset = load_ftb(Tests._TEST_DATA / "sample1")
@@ -155,7 +198,7 @@ class Tests:
         dataset = load_ftb(Tests._TEST_DATA / "sample2")
         Tests._test(ColorICP([
             (0.04, 50), (0.02, 30), (0.01, 14),
-            #(math.inf, 50)
+            # (math.inf, 50)
         ]), dataset)
 
 

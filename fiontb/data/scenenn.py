@@ -14,7 +14,7 @@ KINECT2_KCAM = KCamera(torch.tensor([[356.769928, 0.0, 251.563446],
                                      [0.0, 0.0, 1.0]], dtype=torch.float))
 
 ASUS_KCAM = KCamera(torch.tensor([[544.47329, 0.0, 320],
-                                  [0.0, -544.47329, 240],
+                                  [0.0, 544.47329, 240],
                                   [0.0, 0.0, 1.0]], dtype=torch.float))
 
 
@@ -37,6 +37,7 @@ class SceneNN:
         self.cache = None
 
         self.ground_truth_model_path = ground_truth_model_path
+        self._debug = False
 
     def rewind(self):
         """Rewinds the data to the begining frames.
@@ -61,7 +62,8 @@ class SceneNN:
                 rgb_img, rgb_ts, _ = self.ni_dev.read_color()
 
             diff = abs(rgb_ts - depth_ts)
-            print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
+            if self._debug:
+                print("Skiping rgb {} and depth {}".format(rgb_ts, depth_ts))
         return depth_img.astype(np.int32), rgb_img, depth_ts
 
     def __getitem__(self, idx):
@@ -95,7 +97,6 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_mod
                 curr_entry.append([float(elem) for elem in line.split()])
             # cam space to world space
             rt_mtx = torch.tensor(curr_entry, dtype=torch.float)
-            rt_mtx[:3, 1] *= -1
 
             assert rt_mtx.shape == (4, 4)
             trajectory.append(rt_mtx)

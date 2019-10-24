@@ -44,6 +44,9 @@ fiontb.pose.open3d.coloricp-real:
 fiontb.pose.open3d.coloricp-synthetic:
 	python3 -m fiontb.pose.open3d_interop coloricp-synthetic
 
+fiontb.pose.open3d.rgbd-trajectory:
+	python3 -m fiontb.pose.open3d_interop rgbd-trajectory
+
 fiontb.pose.icp.geometric:
 	python3 -m fiontb.pose._test.test_icp geometric
 
@@ -104,6 +107,9 @@ fiontb.fusion.surfel.carve_space:
 
 fiontb.fusion.surfel.remove_unstable:
 	python3 -m fiontb.fusion.surfel._test.test_remove_unstable
+
+fiontb.fusion.surfel.clean:
+	python3 -m fiontb.fusion.surfel._test.test_clean
 
 fiontb.fusion.surfel.fusion:
 	python3 -m fiontb.fusion.surfel._test.test_fusion

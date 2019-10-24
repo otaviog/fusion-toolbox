@@ -3,7 +3,7 @@
 import math
 
 import torch
-from tenviz.pose import SE3
+from tenviz.pose import SE3, SO3
 
 from fiontb.downsample import DownsampleXYZMethod
 from fiontb._cfiontb import ICPJacobian as _ICPJacobian
@@ -26,17 +26,19 @@ class ICPOdometry:
 
     """
 
-    def __init__(self, num_iters):
+    def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False):
         self.num_iters = num_iters
+        self.geom_weight = geom_weight
+        self.feat_weight = feat_weight
+        self.so3 = so3
 
-        self.jacobian = None
-        self.residual = None
-        self.squared_residual = None
+        self._jacobian = None
+        self._residual = None
+        self._squared_residual = None
 
     def estimate(self, kcam, source_points, source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
-                 target_feats=None, transform=None,
-                 geom_weight=1.0, feat_weight=1.0):
+                 target_feats=None, transform=None):
         """Estimate the ICP odometry between a target points and normals in a
         grid against source points using the point-to-plane geometric
         error.
@@ -82,17 +84,24 @@ class ICPOdometry:
         source_points = source_points.view(-1, 3)
         source_mask = source_mask.view(-1)
 
-        self.jacobian = empty_ensured_size(self.jacobian, source_points.size(0), 6, 6,
-                                           device=device, dtype=dtype)
-        self.residual = empty_ensured_size(self.residual, source_points.size(0), 6,
-                                           device=device, dtype=dtype)
-        self.squared_residual = empty_ensured_size(self.squared_residual, source_points.size(0),
-                                                   device=device, dtype=dtype)
+        num_params = 6
+        if self.so3:
+            num_params = 3
+
+        self._jacobian = empty_ensured_size(
+            self._jacobian, source_points.size(0), num_params, num_params,
+            device=device, dtype=dtype)
+        self._residual = empty_ensured_size(
+            self._residual, source_points.size(0), num_params,
+            device=device, dtype=dtype)
+        self._squared_residual = empty_ensured_size(
+            self._squared_residual, source_points.size(0),
+            device=device, dtype=dtype)
 
         geom_only = target_feats is None or source_feats is None
 
         if not geom_only:
-            source_feats = source_feats.view(-1, source_points.size(0))
+            source_feats = source_feats.view(source_feats.size(0), -1)
 
         best_loss = math.inf
         best_transform = None
@@ -100,23 +109,29 @@ class ICPOdometry:
         best_JtJ = None
 
         for _ in range(self.num_iters):
-            if geom_only:
-                match_count = _ICPJacobian.estimate_geometric(
-                    target_points, target_normals, target_mask,
-                    source_points, source_mask, kcam, transform,
-                    self.jacobian, self.residual, self.squared_residual)
+
+            if not self.so3:
+                if geom_only:
+                    match_count = _ICPJacobian.estimate_geometric(
+                        target_points, target_normals, target_mask,
+                        source_points, source_mask, kcam, transform,
+                        self._jacobian, self._residual, self._squared_residual)
+                else:
+                    match_count = _ICPJacobian.estimate_hybrid(
+                        target_points, target_normals, target_feats,
+                        target_mask, source_points, source_feats,
+                        source_mask, kcam, transform, self.geom_weight, self.feat_weight,
+                        self._jacobian, self._residual, self._squared_residual)
             else:
-                match_count = _ICPJacobian.estimate_hybrid(
+                match_count = _ICPJacobian.estimate_feature_so3(
                     target_points, target_normals, target_feats,
                     target_mask, source_points, source_feats,
-                    source_mask, kcam, transform, geom_weight, feat_weight,
-                    self.jacobian, self.residual, self.squared_residual)
+                    source_mask, kcam, transform,
+                    self._jacobian, self._residual, self._squared_residual)
+            Jr = self._residual.sum(0)
+            JtJ = self._jacobian.sum(0)
+            loss = self._squared_residual.sum()
 
-            Jr = self.residual.sum(0)
-            JtJ = self.jacobian.sum(0)
-            loss = self.squared_residual.sum()
-
-            # import ipdb; ipdb.set_trace()
             JtJ = JtJ.cpu().double()
             try:
                 # update = JtJ.cpu().inverse() @ Jr.cpu()
@@ -129,8 +144,13 @@ class ICPOdometry:
                 loss = best_loss = math.inf
                 break
 
-            update_matrix = SE3.exp(
-                update).to_matrix().to(device).to(dtype)
+            if not self.so3:
+                update_matrix = SE3.exp(
+                    update).to_matrix().to(device).to(dtype)
+            else:
+                update_matrix = SO3.exp(
+                    update).to_matrix().to(device).to(dtype)
+
             transform = update_matrix @ transform
 
             loss = loss.item() / match_count
@@ -142,7 +162,8 @@ class ICPOdometry:
                 best_JtJ = JtJ
 
             # Uncomment the next line(s) for debug
-            #print(_, loss)
+            # print(_, loss)
+
 
         return ICPResult(best_transform, best_JtJ,
                          loss, best_loss, best_match_count /
@@ -150,7 +171,7 @@ class ICPOdometry:
                          match_count / source_points.size(0))
 
     def estimate_frame(self, source_frame, target_frame,
-                       transform=None, geom_weight=1.0, feat_weight=1.0,
+                       transform=None,
                        device="cpu"):
         from fiontb.frame import FramePointCloud
 
@@ -161,8 +182,17 @@ class ICPOdometry:
                              target_points=target_frame.points,
                              target_mask=target_frame.mask,
                              target_normals=target_frame.normals,
-                             transform=transform,
-                             geom_weight=geom_weight, feat_weight=feat_weight)
+                             transform=transform)
+
+
+class ICPOption:
+    def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, use_feats=True, so3=False):
+        self.scale = scale
+        self.iters = iters
+        self.geom_weight = geom_weight
+        self.feat_weight = feat_weight
+        self.use_feats = use_feats
+        self.so3 = so3
 
 
 class MultiscaleICPOdometry(_MultiscaleOptimization):
@@ -170,7 +200,7 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
     algorithm.
     """
 
-    def __init__(self, scale_iters, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+    def __init__(self, options, downsample_xyz_method=DownsampleXYZMethod.Nearest):
         """Initialize the multiscale ICP.
 
         Args:
@@ -184,6 +214,7 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
         """
 
         super().__init__(
-            [(scale, ICPOdometry(iters), use_feats)
-             for scale, iters, use_feats in scale_iters],
+            [(opt.scale, ICPOdometry(
+                opt.iters, opt.geom_weight, opt.feat_weight, opt.so3), opt.use_feats)
+             for opt in options],
             downsample_xyz_method)

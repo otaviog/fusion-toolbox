@@ -25,7 +25,7 @@ def align_trajectories(trajectory_true, trajectory_pred, scale=1):
 def set_start_at_identity(trajectory):
     base = trajectory[next(iter(trajectory))].matrix.inverse()
 
-    return {time: rt_cam.transform(base)
+    return {time: rt_cam.integrate(base)
             for time, rt_cam in trajectory.items()}
 
 

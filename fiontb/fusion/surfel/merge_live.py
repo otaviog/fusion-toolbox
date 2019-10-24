@@ -32,7 +32,8 @@ class MergeLiveSurfels:
             live_features = torch.empty((0, 0, 0), device=ref_device,
                                         dtype=torch.float)
 
-        model_merge_map = torch.full((target_indexmap.height, target_indexmap.width, 3), 2147483647,
+        model_merge_map = torch.full((target_indexmap.height, target_indexmap.width, 3),
+                                     2147483647,
                                      dtype=torch.int32, device=ref_device)
         with surfel_model.gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)

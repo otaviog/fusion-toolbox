@@ -19,17 +19,18 @@ class DatasetViewer:
     cloud and accumulated world points.
     """
 
-    def __init__(self, dataset, title="Dataset", max_pcls=50):
+    def __init__(self, dataset, title="Dataset", max_pcls=50, invert=False):
         self.dataset = dataset
         self.title = title
         self.show_mask = False
         self.last_proc_data = {'idx': -1}
+        self.invert = invert
 
         self.context = tenviz.Context(640, 480)
 
         with self.context.current():
             # TODO: fix tensorviz creating viewer without `current()`
-            axis = tenviz.create_axis_grid(-1, 1, 10)
+            pass
 
         self.cam_viewer = self.context.viewer(
             [], tenviz.CameraManipulator.TrackBall)
@@ -38,10 +39,10 @@ class DatasetViewer:
 
         self.wcontext = tenviz.Context(640, 480)
         with self.wcontext.current():
-            pass
+            axis = tenviz.create_axis_grid(-1, 1, 10)
 
         self.world_viewer = self.wcontext.viewer(
-            [], tenviz.CameraManipulator.WASD)
+            [axis], tenviz.CameraManipulator.WASD)
         self.world_viewer.title = "{}: world space".format(title)
         self.pcl_deque = deque()
 
@@ -76,13 +77,9 @@ class DatasetViewer:
             frame).unordered_point_cloud(world_space=False, compute_normals=False)
         cam_space = pcl.points
 
-        hand_matrix = torch.eye(4)
-        hand_matrix[2, 2] = -1
-
         with self.context.current():
             self.tv_camera_pcl = tenviz.create_point_cloud(
-                RigidTransform(hand_matrix) @ cam_space,
-                pcl.colors)
+                cam_space, pcl.colors)
         self.cam_viewer.get_scene().add(self.tv_camera_pcl)
 
         cam_proj = tenviz.projection_from_kcam(
@@ -93,7 +90,6 @@ class DatasetViewer:
         if finfo.rt_cam is not None:
             self._update_world(idx, finfo.rt_cam,
                                cam_space,
-                               #RigidTransform(hand_matrix) @ cam_space,
                                pcl.colors, cam_proj)
 
         self.context.collect_garbage()
@@ -105,7 +101,14 @@ class DatasetViewer:
         self.visited_idxs.add(idx)
 
         rt_cam.matrix = rt_cam.matrix.float()
-        world_space = RigidTransform(rt_cam.cam_to_world) @ cam_space
+        invert_cam = torch.eye(4, dtype=torch.float)
+
+        if self.invert:
+            invert_cam[0, 0] *= -1
+            invert_cam[1, 1] *= -1
+
+        world_space = RigidTransform(
+            invert_cam @ rt_cam.cam_to_world) @ cam_space
 
         with self.wcontext.current():
             pcl = tenviz.create_point_cloud(world_space, colors)

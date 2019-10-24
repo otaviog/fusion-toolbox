@@ -291,6 +291,9 @@ class SurfelAllocator(_SurfelAllocator):
         self.free_mask_byte[indices] = 0
         return indices
 
+    def allocated_indices(self):
+        return (self.free_mask_byte == 0).nonzero().squeeze()
+
     def clear_all(self):
         self.free_mask_byte[:] = 1
         self.free_all()
@@ -423,6 +426,9 @@ class SurfelModel:
 
         return clone
 
+    def allocated_indices(self):
+        return self.allocator.allocated_indices()
+    
     @property
     def device(self):
         # TODO: unhard-code device

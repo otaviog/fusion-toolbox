@@ -7,7 +7,7 @@ import tenviz
 from fiontb.frame import FramePointCloud
 from fiontb.filtering import bilateral_depth_filter
 from fiontb.camera import RTCamera
-from fiontb.pose.icp import MultiscaleICPOdometry
+from fiontb.pose.icp import MultiscaleICPOdometry, ICPOption
 from fiontb.pose import ICPVerifier
 from fiontb.pose.autogradicp import MultiscaleAutogradICP
 from fiontb.surfel import SurfelModel
@@ -83,9 +83,10 @@ _confs = [0.926322,
           0.536775]
 
 
-gt_traj = read_trajectory(
-    '/home/otaviog/3drec/slam-feature/exps/slam/045.klg.freiburg')
-_cams = list(gt_traj.values())
+if False:
+    gt_traj = read_trajectory(
+        '/home/otaviog/3drec/slam-feature/exps/slam/045.klg.freiburg')
+    _cams = list(gt_traj.values())
 
 
 class SurfelSLAM:
@@ -102,9 +103,10 @@ class SurfelSLAM:
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
         self.icp = MultiscaleICPOdometry(
-            [(1.0, 30, True),
-             (0.5, 30, True),
-             (0.5, 30, True)])
+            [ICPOption(1.0, 30, 0.5, 0.5, use_feats=True, so3=False),
+             ICPOption(0.5, 30, 0.5, 0.5, use_feats=True, so3=False),
+             ICPOption(0.5, 30, 0.5, 0.5, use_feats=True, so3=False)])
+
         self.icp_verifier = ICPVerifier()
 
         self.previous_fpcl = None
@@ -157,15 +159,14 @@ class SurfelSLAM:
                 target_points=self.previous_fpcl.points,
                 target_mask=self.previous_fpcl.mask,
                 target_normals=self.previous_fpcl.normals,
-                target_feats=self._previous_features,
-                geom_weight=0, feat_weight=1)
+                target_feats=self._previous_features)
 
             if self.icp_verifier(result):
                 relative_cam = result.transform
             else:
                 from fiontb.fusion.surfel.fusion import FusionStats
                 return FusionStats()
-                
+
                 print("Tracking fail")
 
                 result = self.icp.estimate(
@@ -175,8 +176,7 @@ class SurfelSLAM:
                     target_points=self._prev_frame_fpcl.points,
                     target_mask=self._prev_frame_fpcl.mask,
                     target_normals=self._prev_frame_fpcl.normals,
-                    target_feats=self._previous_features,
-                    geom_weight=0, feat_weight=1)
+                    target_feats=self._previous_features)
 
                 if not self.icp_verifier(result):
                     # if True:

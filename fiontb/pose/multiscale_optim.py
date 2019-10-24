@@ -12,7 +12,7 @@ class MultiscaleOptimization:
 
     def estimate(self, kcam, source_points, source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
-                 target_feats=None, transform=None, geom_weight=.5, feat_weight=.5):
+                 target_feats=None, transform=None):
         """Estimate the ICP odometry between a target frame points and normals
         against source points using the point-to-plane geometric
         error.
@@ -70,7 +70,7 @@ class MultiscaleOptimization:
                                                method=self.downsample_xyz_method)
                 source_mask = downsample_mask(source_mask, scale)
 
-                if has_feats and use_feats:
+                if has_feats:
                     target_feats = torch.nn.functional.interpolate(
                         target_feats.unsqueeze(0), scale_factor=scale, mode='bilinear',
                         align_corners=False).squeeze(0)
@@ -87,22 +87,22 @@ class MultiscaleOptimization:
 
         for icp_instance, (tgt_points, tgt_normals, tgt_mask, src_points, src_mask,
                            tgt_feats, src_feats, pyr_kcam) in zip(self.estimators, pyramid[::-1]):
+            use_feat = icp_instance[2]
             icp_instance = icp_instance[1]
+
             result = icp_instance.estimate(
                 pyr_kcam, src_points, src_mask,
-                source_feats=src_feats,
+                source_feats=src_feats if use_feat else None,
                 target_points=tgt_points,
                 target_mask=tgt_mask, target_normals=tgt_normals,
-                target_feats=tgt_feats,
-                transform=transform, geom_weight=geom_weight,
-                feat_weight=feat_weight)
+                target_feats=tgt_feats if use_feat else None,
+                transform=transform)
             transform = result.transform
 
         return result
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,
-                       target_feats=None, transform=None,
-                       geom_weight=.5, feat_weight=.5, device="cpu"):
+                       target_feats=None, transform=None, device="cpu"):
         from fiontb.frame import FramePointCloud
 
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
@@ -114,6 +114,4 @@ class MultiscaleOptimization:
                              target_mask=target_frame.mask,
                              target_normals=target_frame.normals,
                              target_feats=target_feats,
-                             transform=transform,
-                             geom_weight=geom_weight,
-                             feat_weight=feat_weight)
+                             transform=transform)

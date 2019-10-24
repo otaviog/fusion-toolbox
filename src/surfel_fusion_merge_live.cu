@@ -61,10 +61,10 @@ struct FindMergeKernel {
   int scale, search_size;
   const float max_normal_angle;
   const int time;
-  
+
   MergeMap<dev> merge_map;
   typename Accessor<dev, int64_t, 2>::T new_surfel_map;
-  
+
   FindMergeKernel(const IndexMap &model_indexmap, const IndexMap &live_indexmap,
                   int search_size_, float max_normal_angle, int time,
                   torch::Tensor merge_map, torch::Tensor new_surfel_map)
@@ -74,7 +74,8 @@ struct FindMergeKernel {
         time(time),
         merge_map(merge_map),
         new_surfel_map(Accessor<dev, int64_t, 2>::Get(new_surfel_map)) {
-    float scale_ = float(model_indexmap.get_height()) / float(live_indexmap.get_height());
+    float scale_ =
+        float(model_indexmap.get_height()) / float(live_indexmap.get_height());
     scale = int(scale_);
     search_size = int(scale * search_size_);
   }
@@ -91,9 +92,8 @@ struct FindMergeKernel {
       return;
     }
 
-    if (row % 2 == time % 2 || col % 2 == time % 2)
-      return;
-    
+    if (row % 2 == time % 2 || col % 2 == time % 2) return;
+
     const Vector<float, 3> ray(live_pos[0] / live_pos[2],
                                live_pos[1] / live_pos[2], 1);
     float lambda = sqrt(ray[0] * ray[0] + ray[1] * ray[1] + 1);
@@ -112,9 +112,6 @@ struct FindMergeKernel {
     int best_row, best_col;
     best_row = best_col = -1;
 
-    if (live_index == 236630) {
-      lambda += 0.00001;
-    }
     for (int krow = ystart; krow <= yend; krow++) {
       for (int kcol = xstart; kcol <= xend; kcol++) {
         if (model_indexmap.empty(krow, kcol)) continue;
@@ -138,9 +135,6 @@ struct FindMergeKernel {
     }
 
     if (best_dist < NumericLimits<dev, float>::infinity()) {
-      if (live_index == 236630) {
-        best_dist += 0.00001;
-      }
       merge_map.Set(best_row, best_col, int32_t(double(best_dist) * 1e15),
                     live_index);
     } else {
@@ -148,6 +142,7 @@ struct FindMergeKernel {
     }
   }
 };
+
 
 template <Device dev>
 struct MergeKernel {
@@ -160,14 +155,13 @@ struct MergeKernel {
   const RTCamera<dev, float> rt_cam;
   const Eigen::Matrix3f normal_transform_matrix;
   const int time;
-  
+
   SurfelModelAccessor<dev> model;
 
   MergeKernel(const IndexMap &model_indexmap, const IndexMap &live_indexmap,
               const torch::Tensor &live_features,
               const torch::Tensor &model_merge_map, RTCamera<dev, float> rt_cam,
-              const Eigen::Matrix3f &normal_transform_matrix,
-              int time,
+              const Eigen::Matrix3f &normal_transform_matrix, int time,
               MappedSurfelModel model)
       : model_indexmap(model_indexmap),
         live_indexmap(live_indexmap),
@@ -181,8 +175,7 @@ struct MergeKernel {
   FTB_DEVICE_HOST void operator()(int row, int col) {
     if (model_indexmap.empty(row, col)) return;
     const int32_t live_index = model_merge_map[row][col][1];
-    if (live_index == 2147483647) return;
-
+    if (live_index == INT_MAX) return;
     int live_row, live_col;
     live_indexmap.to_rowcol_index(live_index, &live_row, &live_col);
 
@@ -190,11 +183,7 @@ struct MergeKernel {
 
     const float live_conf = live_indexmap.confidence(live_row, live_col);
     const float model_conf = model.confidences[model_target];
-    float conf_total = live_conf + model_conf;
-
-    if (model_target == 544755) {
-      conf_total += 0.1;
-    }
+    const float conf_total = live_conf + model_conf;
 
     const float live_radius = live_indexmap.radius(live_row, live_col);
     const float model_radius = model.radii[model_target];

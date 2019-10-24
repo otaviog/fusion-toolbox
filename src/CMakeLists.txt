@@ -23,6 +23,7 @@ cuda_add_library(fiontb
   surfel_fusion_carve_space.cu
   surfel_fusion_merge.cu
   surfel_fusion_copy_features.cu
+  surfel_fusion_clean.cu
   fsf.cpp
   fsf_merge_surfels.cu
   # kernel_indexmap.cu  

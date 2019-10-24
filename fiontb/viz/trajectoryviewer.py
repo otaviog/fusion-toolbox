@@ -7,9 +7,10 @@ from fiontb.camera import KCamera
 
 
 class TrajectoryViewer:
-    def __init__(self, trajectories, align=True, kcam=None, cam_far=0.1, colormaps=None):
+    def __init__(self, trajectories, align=True, kcam=None, cam_far=0.1, colormaps=None,
+                 title=None):
         self.gl_context = tenviz.Context()
-
+        self._title = title
         if kcam is None:
             kcam = KCamera.from_params(525, 525, (525/2, 525/2))
 
@@ -53,6 +54,8 @@ class TrajectoryViewer:
     def run(self):
         viewer = self.gl_context.viewer(
             self._scene, cam_manip=tenviz.CameraManipulator.WASD)
+        if self._title is not None:
+            viewer.title = self._title
         while True:
             key = viewer.wait_key(1)
             if key < 0:

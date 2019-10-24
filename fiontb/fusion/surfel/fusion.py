@@ -11,7 +11,7 @@ from .merge_live import MergeLiveSurfels
 from .merge import Merge
 from .carve_space import CarveSpace
 from .remove_unstable import RemoveUnstable
-
+from .clean import Clean
 from fiontb._cfiontb import SurfelFusionOp as _SurfelFusionOp
 
 
@@ -48,25 +48,17 @@ class SurfelFusion:
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
-        # self._pose_raster = ModelIndexMapRaster(model)
-        self._pose_raster = SurfelIndexMapRaster(model)
+        self._pose_raster = ModelIndexMapRaster(model)
+        #self._pose_raster = SurfelIndexMapRaster(model)
         self._pose_indexmap = None
         self._pose_kcam = None
         self._pose_rtcam = None
-
-        self._conf_cache = ConfidenceCache()
 
         self._merge_live_surfels = MergeLiveSurfels(
             gl_context, max_normal_angle=normal_max_angle,
             search_size=search_size)
 
-        self._merge_intern_surfels = Merge(
-            max_distance=max_merge_distance,
-            normal_max_angle=normal_max_angle,
-            search_size=search_size, stable_conf_thresh=stable_conf_thresh)
-        self._carve_space = CarveSpace(stable_conf_thresh, search_size=search_size,
-                                       min_z_difference=min_z_difference)
-        self._remove_unstable = RemoveUnstable(
+        self._clean = Clean(
             stable_conf_thresh, max_unstable_time)
 
         self.indexmap_scale = indexmap_scale
@@ -112,14 +104,9 @@ class SurfelFusion:
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
 
-        stats.merged_count = self._merge_intern_surfels(
-            model_indexmap, self.model, update_gl=True)
-
-        # stats.removed_count += self._carve_space(model_indexmap, self._time, self.model,
-        #                                         update_gl=True)
-
-        stats.removed_count += self._remove_unstable(
-            model_indexmap.indexmap, self._time, self.model, update_gl=True)
+        stats.removed_count += self._clean(
+            frame_pcl.kcam, frame_pcl.rt_cam,
+            model_indexmap, self._time, self.model, update_gl=True)
 
         self._update_pose_indexmap(
             frame_pcl.kcam, rt_cam, gl_proj_matrix, width, height)
@@ -175,4 +162,4 @@ class SurfelFusion:
 
     @property
     def stable_conf_thresh(self):
-        return self._remove_unstable.stable_conf_thresh
+        return self._clean.stable_conf_thresh
