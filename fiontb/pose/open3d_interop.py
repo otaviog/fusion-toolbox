@@ -197,8 +197,7 @@ class Tests:
         from fiontb.data.ftb import load_ftb
         dataset = load_ftb(Tests._TEST_DATA / "sample2")
         Tests._test(ColorICP([
-            (0.04, 50), (0.02, 30), (0.01, 14),
-            # (math.inf, 50)
+            (0.04, 50), (0.02, 30), (0.01, 14)
         ]), dataset)
 
 

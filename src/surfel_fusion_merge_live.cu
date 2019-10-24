@@ -121,7 +121,6 @@ struct FindMergeKernel {
           continue;
 
         const float dist = ray.cross(model_pos).norm() / ray.norm();
-        // const float dist = (live_pos - model_pos).norm();
 
         const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
         if (dist < best_dist &&

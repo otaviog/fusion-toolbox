@@ -63,17 +63,17 @@ class TrajectoryViewer:
 
             key = chr(key & 0xff)
             if key == '1':
-                viewer.set_camera_matrix(torch.tensor(
+                viewer.camera_matrix = torch.tensor(
                     [[1, 0, 0, 0],
                      [0, 0, 1, 0],
-                     [0, 1, 0, -10],
-                     [0, 0, 0, 1]]).float())
+                     [0, 1, 0, -5],
+                     [0, 0, 0, 1]], dtype=torch.float)
             elif key == '2':
-                viewer.set_camera_matrix(torch.tensor(
+                viewer.camera_matrix = torch.tensor(
                     [[1, 0, 0, 0],
                      [0, 1, 0, 0],
-                     [0, 0, -1, -10],
-                     [0, 0, 0, 1]]).float())
+                     [0, 0, -1, -5],
+                     [0, 0, 0, 1]], dtype=torch.float)
 
 
 def _test():

@@ -19,18 +19,14 @@ from ._utils import evaluate
 # pylint: disable=no-self-use
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
-
-#_TEST_DATA = Path("/home/otaviog/3drec/slam-feature/data/scenenn/SceneNN-ftb/")
-
-torch.set_printoptions(precision=10)
-
 _FRAME_INDEX = 0
-_OTHER_FRAME_INDEX = 1
+_OTHER_FRAME_INDEX = 4
 _SAMPLE = "sample1"
-#_SAMPLE = "045"
 _BLUR = True
 
 ICP_VERIFIER = ICPVerifier()
+
+torch.set_printoptions(precision=10)
 
 
 class Tests:
@@ -84,9 +80,7 @@ class Tests:
                               target_normals=fpcl.normals,
                               target_mask=fpcl.mask,
                               target_feats=features0.to(
-                                  device),
-                              geom_weight=0.0,
-                              feat_weight=1.0)
+                                  device))
         print("Tracking: ", ICP_VERIFIER(result))
 
         relative_rt = result.transform
@@ -180,7 +174,8 @@ class Tests:
         icp = MultiscaleICPOdometry([
             ICPOption(1.0, 30, geom_weight=.5, feat_weight=.5, use_feats=True),
             ICPOption(0.5, 30, geom_weight=.5, feat_weight=.5, use_feats=True),
-            ICPOption(0.5, 30, geom_weight=.5, feat_weight=.5, use_feats=True)
+            ICPOption(0.5, 30, geom_weight=.5, feat_weight=.5, use_feats=True),
+            ICPOption(1.0, 30, feat_weight=1, use_feats=True, so3=True),
         ])
 
         with profile(Path(__file__).parent / "icp-multiscale-hybrid.prof"):
