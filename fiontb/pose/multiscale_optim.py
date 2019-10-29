@@ -54,7 +54,7 @@ class MultiscaleOptimization:
 
         pyramid = []
 
-        for scale, _, use_feats in self.estimators:
+        for scale, _ in self.estimators:
 
             if scale < 1.0:
                 target_points = downsample_xyz(target_points, target_mask, scale,
@@ -87,15 +87,14 @@ class MultiscaleOptimization:
 
         for icp_instance, (tgt_points, tgt_normals, tgt_mask, src_points, src_mask,
                            tgt_feats, src_feats, pyr_kcam) in zip(self.estimators, pyramid[::-1]):
-            use_feat = icp_instance[2]
             icp_instance = icp_instance[1]
 
             result = icp_instance.estimate(
                 pyr_kcam, src_points, src_mask,
-                source_feats=src_feats if use_feat else None,
+                source_feats=src_feats,
                 target_points=tgt_points,
                 target_mask=tgt_mask, target_normals=tgt_normals,
-                target_feats=tgt_feats if use_feat else None,
+                target_feats=tgt_feats,
                 transform=transform)
             transform = result.transform
 

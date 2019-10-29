@@ -137,7 +137,7 @@ struct BackwardKernel {
     }
 
     dl_uv[idx][0] = dl_ugrad;
-    dl_uv[idx][1] = -dl_vgrad;
+    dl_uv[idx][1] = dl_vgrad;
   }
 };
 }  // namespace

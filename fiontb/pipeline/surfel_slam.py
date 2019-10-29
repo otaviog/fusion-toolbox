@@ -102,10 +102,12 @@ class SurfelSLAM:
         self.previous_fpcl = None
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
-        self.icp = MultiscaleICPOdometry(
-            [ICPOption(1.0, 30, 0.5, 0.5, use_feats=True, so3=False),
-             ICPOption(0.5, 30, 0.5, 0.5, use_feats=True, so3=False),
-             ICPOption(0.5, 30, 0.5, 0.5, use_feats=True, so3=False)])
+        self.icp = MultiscaleICPOdometry([
+            ICPOption(1.0, 10, geom_weight=1, feat_weight=1),
+            ICPOption(0.5, 10, geom_weight=1, feat_weight=1),
+            ICPOption(0.5, 10, geom_weight=1, feat_weight=1),
+            # ICPOption(1.0, 10, feat_weight=1, so3=True),
+        ])
 
         self.icp_verifier = ICPVerifier()
 
@@ -133,6 +135,7 @@ class SurfelSLAM:
         self._depth_filter = BilateralDepthFilter()
 
     def step(self, frame, features=None):
+        frame = frame.clone_shallow()
         device = self.device
 
         live_fpcl = FramePointCloud.from_frame(frame).to(device)
@@ -220,6 +223,10 @@ class SurfelSLAM:
             self.previous_fpcl = filtered_live_fpcl
             self._previous_features = features
         elif self.tracking == 'frame-to-model':
+
+            if self.model.max_time == 50:
+                import ipdb; ipdb.set_trace()
+                
             model_fpcl, model_features = self.fusion.get_model_frame_pcl()
 
             if model_fpcl is not None:

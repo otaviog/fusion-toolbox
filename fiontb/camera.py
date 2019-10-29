@@ -169,7 +169,7 @@ class KCamera:
     def pixel_center(self):
         """Center pixel.
         """
-        return (self.matrix[0, 2], self.matrix[1, 2])
+        return (self.matrix[0, 2].item(), self.matrix[1, 2].item())
 
     def __str__(self):
         return str(self.__dict__)

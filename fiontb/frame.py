@@ -92,7 +92,6 @@ class FrameInfo:
             None if self.rgb_kcam is None else self.rgb_kcam.clone(),
             None if self.rt_cam is None else self.rt_cam.clone())
 
-
 class Frame:
     """A sensor frame.
 
@@ -129,7 +128,10 @@ class Frame:
                      None if self.rgb_image is None else self.rgb_image.copy(),
                      None if self.fg_mask is None else self.fg_mask.copy(),
                      None if self.normal_image is None else self.normal_image.copy())
-
+    
+    def clone_shallow(self):
+        return Frame(self.info, self.depth_image,
+                     self.rgb_image, self.fg_mask, self.normal_image)
 
 class _DepthImagePointCloud:
     def __init__(self, depth_image, finfo):

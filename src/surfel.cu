@@ -12,21 +12,23 @@ struct ComputeConfidencesKernel {
   const KCamera<dev, scalar_t> kcam;
   const scalar_t constant_weight;
   const scalar_t weight;
+  const scalar_t max_center_distance;
   typename Accessor<dev, scalar_t, 2>::T confidences;
 
   ComputeConfidencesKernel(const torch::Tensor &kcam, scalar_t weight,
+                           scalar_t max_center_distance,
                            torch::Tensor confidences)
       : kcam(kcam),
         constant_weight(2.0 * pow(0.6, 2)),
         weight(weight),
+        max_center_distance(max_center_distance),
         confidences(Accessor<dev, scalar_t, 2>::Get(confidences)) {}
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
     const Vector<scalar_t, 2> camera_center(kcam.get_center());
-
     scalar_t confidence =
         (Vector<scalar_t, 2>(col, row) - camera_center).norm();
-    confidence = confidence / 400;
+    confidence = confidence / max_center_distance;
     confidence = exp(-(confidence * confidence) / constant_weight) * weight;
 
     confidences[row][col] = confidence;
@@ -36,6 +38,7 @@ struct ComputeConfidencesKernel {
 }  // namespace
 
 void SurfelOp::ComputeConfidences(const torch::Tensor &kcam, float weight,
+                                  float max_center_distance,
                                   torch::Tensor confidences) {
   const auto ref_device = confidences.device();
   FTB_CHECK_DEVICE(ref_device, kcam);
@@ -43,14 +46,14 @@ void SurfelOp::ComputeConfidences(const torch::Tensor &kcam, float weight,
   const auto ref_type = confidences.scalar_type();
   if (ref_device.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(ref_type, "ComputeConfidences", [&] {
-      ComputeConfidencesKernel<kCUDA, scalar_t> kernel(kcam, weight,
-                                                       confidences);
+      ComputeConfidencesKernel<kCUDA, scalar_t> kernel(
+          kcam, weight, max_center_distance, confidences);
       Launch2DKernelCUDA(kernel, confidences.size(1), confidences.size(0));
     });
   } else {
     AT_DISPATCH_FLOATING_TYPES(ref_type, "ComputeConfidences", [&] {
-      ComputeConfidencesKernel<kCPU, scalar_t> kernel(kcam, weight,
-                                                      confidences);
+      ComputeConfidencesKernel<kCPU, scalar_t> kernel(
+          kcam, weight, max_center_distance, confidences);
       Launch2DKernelCPU(kernel, confidences.size(1), confidences.size(0));
     });
   }

@@ -1,21 +1,18 @@
 import torch
 
+
 class ICPResult:
-    def __init__(self, transform, pose_matrix,
-                 final_loss, best_loss,
-                 final_match_ratio, best_match_ratio):
+    def __init__(self, transform, hessian,
+                 residual, match_ratio):
         self.transform = transform
-        self.final_loss = final_loss
-        self.best_loss = best_loss
-        self.pose_matrix = pose_matrix
-        self.final_match_ratio = final_match_ratio
-        self.best_match_ratio = best_match_ratio
+        self.hessian = hessian
+        self.residual = residual
+        self.match_ratio = match_ratio
 
     def __str__(self):
-        return (f"ICPResult with: final_loss = {self.final_loss} "
-                + f"best_loss = {self.best_loss} "
-                + f"final_match_ratio = {self.final_match_ratio} "
-                + f"best_match_ratio = {self.best_match_ratio}")
+        return (f"ICPResult with: "
+                + f"residual = {self.residual} "
+                + f"match_ratio = {self.match_ratio}")
 
     def __repr__(self):
         return str(self)
@@ -27,14 +24,18 @@ class ICPVerifier:
         self.covariance_max_threshold = covariance_max_threshold
 
     def __call__(self, icp_result):
-        if icp_result.best_loss < 1e-4:
+
+        if icp_result.residual < 1e-4:
             return True
-        
-        covariance = icp_result.pose_matrix.lu()[0].inverse()        
+
+        if icp_result.hessian is None:
+            return False
+
+        covariance = icp_result.hessian.lu()[0].inverse()
         if torch.any(covariance > self.covariance_max_threshold):
             return False
 
-        if icp_result.final_match_ratio < self.match_ratio_threshold:
+        if icp_result.match_ratio < self.match_ratio_threshold:
             return False
 
         return True

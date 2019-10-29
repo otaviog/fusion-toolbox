@@ -83,16 +83,24 @@ struct FindMergeKernel {
 #pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(int row, int col) {
     new_surfel_map[row][col] = -1;
+
     if (live_indexmap.empty(row, col)) return;
+
+    const int neighborhood[4][2] = {{-1, 0}, {0, 1}, {0, -1}, {0, 1}};
+    for (int k = 0; k < 4; ++k) {
+      const int r = row + neighborhood[k][0];
+      const int c = col + neighborhood[k][1];
+      if (r >= 0 && r < live_indexmap.height() && c >= 0 &&
+          c < live_indexmap.width()) {
+        if (live_indexmap.empty(r, c)) return;
+      }
+    }
+
     const int live_index = live_indexmap.to_linear_index(row, col);
 
     const Vector<float, 3> live_pos(live_indexmap.position(row, col));
 
-    if (live_pos[2] > 3) {
-      return;
-    }
-
-    if (row % 2 == time % 2 || col % 2 == time % 2) return;
+    // if (row % 2 == time % 2 || col % 2 == time % 2) return;
 
     const Vector<float, 3> ray(live_pos[0] / live_pos[2],
                                live_pos[1] / live_pos[2], 1);
@@ -141,7 +149,6 @@ struct FindMergeKernel {
     }
   }
 };
-
 
 template <Device dev>
 struct MergeKernel {

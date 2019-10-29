@@ -37,6 +37,7 @@ class SurfelAllocator {
 
 struct SurfelOp {
   static void ComputeConfidences(const torch::Tensor &kcam, float weight,
+                                 float max_center_distance,
                                  torch::Tensor confidences);
 
   static void ComputeRadii(const torch::Tensor &kcam,

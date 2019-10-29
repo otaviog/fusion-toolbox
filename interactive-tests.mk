@@ -56,6 +56,9 @@ fiontb.pose.icp.color:
 fiontb.pose.icp.hybrid:
 	python3 -m fiontb.pose._test.test_icp hybrid
 
+fiontb.pose.icp.so3:
+	python3 -m fiontb.pose._test.test_icp so3
+
 fiontb.pose.icp.fail:
 	python3 -m fiontb.pose._test.test_icp fail
 
@@ -69,7 +72,7 @@ fiontb.pose.icp.multiscale-hybrid:
 	python3 -m fiontb.pose._test.test_icp multiscale-hybrid
 
 fiontb.pose.autogradicp.geometric:
-	python3 -m fiontb.pose._test.test_autogradicp geometric --profile=True
+	python3 -m fiontb.pose._test.test_autogradicp geometric
 
 fiontb.pose.autogradicp.color:
 	python3 -m fiontb.pose._test.test_autogradicp color
@@ -82,6 +85,9 @@ fiontb.pose.autogradicp.multiscale-geometric:
 
 fiontb.pose.autogradicp.multiscale-hybrid:
 	python3 -m fiontb.pose._test.test_autogradicp multiscale-hybrid
+
+fiontb.pose.autogradicp.trajectory:
+	python3 -m fiontb.pose._test.test_autogradicp trajectory
 
 #########
 # Surfel

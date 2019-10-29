@@ -37,6 +37,10 @@ class MergeLiveSurfels:
                                      dtype=torch.int32, device=ref_device)
         with surfel_model.gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)
+
+            from .indexmap import show_indexmap
+            #show_indexmap(live_indexmap, show=False)
+            # show_indexmap(target_indexmap)
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
                 SurfelFusionOp.merge_live(target_indexmap,
                                           live_indexmap,

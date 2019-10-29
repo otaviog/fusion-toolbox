@@ -5,7 +5,7 @@ import torch
 import tenviz
 
 from fiontb.data.ftb import load_ftb
-from fiontb.data import set_cameras_to_start_at_eye
+from fiontb.data import set_start_at_eye
 from fiontb.filtering import bilateral_depth_filter
 from fiontb.frame import FramePointCloud
 from fiontb.surfel import SurfelModel
@@ -20,7 +20,7 @@ def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
     dataset = load_ftb(test_data / "sample1")  # 20 frames
-    set_cameras_to_start_at_eye(dataset)
+    dataset = set_start_at_eye(dataset)
 
     gl_context = tenviz.Context()
 
@@ -30,7 +30,7 @@ def _test():
         80), max_merge_distance=0.5)
 
     sensor_ui = FrameUI("Frame Control")
-    rec_ui = SurfelReconstructionUI(model, RunMode.PLAY,
+    rec_ui = SurfelReconstructionUI(model, RunMode.STEP,
                                     stable_conf_thresh=fusion.stable_conf_thresh)
     sensor = DatasetSensor(dataset)
     device = "cuda:0"

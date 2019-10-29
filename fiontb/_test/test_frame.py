@@ -41,7 +41,7 @@ class TestFrame(unittest.TestCase):
 class Tests:
     def normals(self):
         dataset = load_ftb(Path(__file__).parent /
-                           "../../test-data/rgbd/sample1")
+                           "../../test-data/rgbd/sample2")
 
         pcl = FramePointCloud.from_frame(dataset[0]).unordered_point_cloud(
             world_space=False, compute_normals=True)

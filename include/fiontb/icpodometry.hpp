@@ -15,13 +15,12 @@ struct ICPJacobian {
       const torch::Tensor &rt_cam, torch::Tensor JtJ_partial,
       torch::Tensor Jr_partial, torch::Tensor squared_residual);
 
-  static int EstimateHybrid(
+  static int EstimateFeature(
       const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
       const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
       const torch::Tensor &src_points, const torch::Tensor &src_feats,
       const torch::Tensor &src_mask, const torch::Tensor &kcam,
-      const torch::Tensor &rt_cam, float geom_weight, float feat_weight,
-      torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
+      const torch::Tensor &rt_cam, torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
       torch::Tensor squared_residual);
 
   static int EstimateFeatureSO3(

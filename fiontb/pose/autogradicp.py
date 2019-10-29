@@ -8,6 +8,7 @@ from fiontb.camera import Project, RigidTransform
 from fiontb.filtering import FeatureMap
 from fiontb.downsample import (DownsampleXYZMethod)
 
+from .result import ICPResult
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 
@@ -62,8 +63,12 @@ def _to_4x4(mtx):
 
 
 class AutogradICP:
-    def __init__(self, num_iters, learning_rate=0.05, use_lbfgs=False):
+    def __init__(self, num_iters, learning_rate=0.05,
+                 geom_weight=0.5, feat_weight=0.5,
+                 use_lbfgs=False):
         self.num_iters = num_iters
+        self.geom_weight = geom_weight
+        self.feat_weight = feat_weight
         self.learning_rate = learning_rate
         self.use_lbfgs = use_lbfgs
 
@@ -71,10 +76,15 @@ class AutogradICP:
                  target_points=None,
                  target_mask=None, target_normals=None,
                  target_feats=None, source_feats=None,
-                 transform=None, geom_weight=0.5, feat_weight=0.5):
-        has_geom = not (
-            target_points is None or target_normals is None or source_points is None)
-        has_feat = not (target_feats is None or source_feats is None)
+                 transform=None):
+
+        has_geom = (self.geom_weight > 0
+                    and target_points is not None
+                    and target_normals is not None
+                    and source_points is not None)
+        has_feat = (self.feat_weight > 0
+                    and target_feats is not None
+                    and source_feats is not None)
 
         source_points = source_points[source_mask].view(-1, 3)
 
@@ -83,6 +93,7 @@ class AutogradICP:
             target_normals = target_normals.view(-1, 3)
             device = target_points.device
             dtype = target_points.dtype
+            geom_weight = self.geom_weight
         else:
             geom_weight = 0.0
 
@@ -93,6 +104,7 @@ class AutogradICP:
                             view(-1, source_points.size(0)))
             device = target_feats.device
             dtype = target_feats.dtype
+            feat_weight = self.feat_weight
         else:
             feat_weight = 0.0
 
@@ -105,7 +117,8 @@ class AutogradICP:
             # se3 = SE3.from_matrix(transform.cpu())
             # upsilon_omega = se3.log().to(device).to(dtype).view(1, 6)
             # upsilon_omega.requires_grad = True
-            source_points = RigidTransform(transform) @ source_points
+            source_points = RigidTransform(
+                transform.to(device)) @ source_points
             initial_transform = transform
 
         optim = torch.optim.LBFGS([upsilon_omega], lr=self.learning_rate,
@@ -115,13 +128,10 @@ class AutogradICP:
         total_weight = geom_weight + feat_weight
         geom_weight = geom_weight / total_weight
         feat_weight = feat_weight / total_weight
-
-        best_loss = math.inf
-        best_params = upsilon_omega
+        loss = math.inf
 
         def _closure():
-            nonlocal best_loss
-            nonlocal best_params
+            nonlocal loss
 
             optim.zero_grad()
             transform = SO3tExp.apply(upsilon_omega).squeeze()
@@ -135,6 +145,7 @@ class AutogradICP:
 
             valid_matches = matched_index > -1
             src_matched_p3d = source_points[valid_matches]
+
             trans_src = (RigidTransform(transform) @ src_matched_p3d)
 
             if has_geom:
@@ -151,10 +162,6 @@ class AutogradICP:
 
             if has_feat:
                 tgt_uv = Project.apply(trans_src, kcam.matrix)
-                # tgt_uv2 = Project.apply(RigidTransform(transform) @ source_points,
-                #                        kcam.matrix)
-                # _, bmask = FeatureMap.apply(
-                #    target_feats, tgt_uv2)
 
                 tgt_feats, bound_mask = FeatureMap.apply(
                     target_feats, tgt_uv)
@@ -174,10 +181,6 @@ class AutogradICP:
             if self.use_lbfgs:
                 loss.backward()
 
-            if loss < best_loss:
-                best_loss = loss.clone()
-                best_params = upsilon_omega.detach().clone().squeeze(0)
-
             return loss
 
         if self.use_lbfgs:
@@ -185,20 +188,34 @@ class AutogradICP:
         else:
             box = _ClosureBox(_closure, upsilon_omega)
             scipy.optimize.fmin_bfgs(box.func, upsilon_omega.detach().cpu().numpy(),
-                                     box.grad, #maxiter=self.num_iters
+                                     box.grad,  # maxiter=self.num_iters
                                      disp=False)
-        transform = SO3tExp.apply(best_params).squeeze(0)
+        transform = SO3tExp.apply(upsilon_omega.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 
         if initial_transform is not None:
             transform = transform @ _to_4x4(initial_transform)
 
-        return transform, True
+        return ICPResult(transform, None, loss, 1.0)
+
+
+class AGICPOption:
+    def __init__(self, scale, iters=30, learning_rate=5e-2, lbfgs=False,
+                 geom_weight=1.0, feat_weight=1.0, so3=False):
+        self.scale = scale
+        self.iters = iters
+        self.lbfgs = lbfgs
+        self.learning_rate = learning_rate
+        self.geom_weight = geom_weight
+        self.feat_weight = feat_weight
+        self.so3 = so3
 
 
 class MultiscaleAutogradICP(_MultiscaleOptimization):
-    def __init__(self, scale_iters_lr, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+    def __init__(self, options, downsample_xyz_method=DownsampleXYZMethod.Nearest):
         super().__init__(
-            [(scale, AutogradICP(iters, lr), use_feats)
-             for scale, iters, lr, use_feats in scale_iters_lr],
+            [(opt.scale, AutogradICP(
+                opt.iters, opt.learning_rate, opt.geom_weight,
+                opt.feat_weight, opt.lbfgs))
+             for opt in options],
             downsample_xyz_method)

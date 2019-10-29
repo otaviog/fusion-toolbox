@@ -15,6 +15,58 @@ from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 # pylint: disable=invalid-name
 
 
+class _Step:
+    def __init__(self, geom, so3=False):
+        self.JtJ = None
+        self.Jtr = None
+        self.residual = None
+        self.geom = geom
+        self.so3 = so3
+
+    def __call__(self, target_points, target_normals, target_feats, target_mask,
+                 source_points, source_feats, source_mask, kcam, transform):
+        num_params = 6
+        if self.so3:
+            num_params = 3
+        device = target_points.device
+        dtype = source_points.dtype
+
+        self.JtJ = empty_ensured_size(
+            self.JtJ, source_points.size(0), num_params, num_params,
+            device=device, dtype=dtype)
+        self.Jtr = empty_ensured_size(
+            self.Jtr, source_points.size(0), num_params,
+            device=device, dtype=dtype)
+        self.residual = empty_ensured_size(
+            self.residual, source_points.size(0),
+            device=device, dtype=dtype)
+
+        if not self.so3:
+            if self.geom:
+                match_count = _ICPJacobian.estimate_geometric(
+                    target_points, target_normals, target_mask,
+                    source_points, source_mask, kcam, transform,
+                    self.JtJ, self.Jtr, self.residual)
+            else:
+                match_count = _ICPJacobian.estimate_feature(
+                    target_points, target_normals, target_feats,
+                    target_mask, source_points, source_feats,
+                    source_mask, kcam, transform,
+                    self.JtJ, self.Jtr, self.residual)
+        else:
+            match_count = _ICPJacobian.estimate_feature_so3(
+                target_points, target_normals, target_feats,
+                target_mask, source_points, source_feats,
+                source_mask, kcam, transform,
+                self.JtJ, self.Jtr, self.residual)
+
+        Jr = self.Jtr.sum(0)
+        JtJ = self.JtJ.sum(0)
+        residual = self.residual.sum()
+
+        return JtJ, Jr, residual, match_count
+
+
 class ICPOdometry:
     """Point-to-plane iterative closest points
     algorithm.
@@ -32,9 +84,8 @@ class ICPOdometry:
         self.feat_weight = feat_weight
         self.so3 = so3
 
-        self._jacobian = None
-        self._residual = None
-        self._squared_residual = None
+        self._geom_step = _Step(True, so3=so3) if geom_weight > 0 and not so3 else None
+        self._feature_step = _Step(False, so3=so3) if feat_weight > 0 else None
 
     def estimate(self, kcam, source_points, source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
@@ -84,55 +135,43 @@ class ICPOdometry:
         source_points = source_points.view(-1, 3)
         source_mask = source_mask.view(-1)
 
-        num_params = 6
-        if self.so3:
-            num_params = 3
-
-        self._jacobian = empty_ensured_size(
-            self._jacobian, source_points.size(0), num_params, num_params,
-            device=device, dtype=dtype)
-        self._residual = empty_ensured_size(
-            self._residual, source_points.size(0), num_params,
-            device=device, dtype=dtype)
-        self._squared_residual = empty_ensured_size(
-            self._squared_residual, source_points.size(0),
-            device=device, dtype=dtype)
-
         geom_only = target_feats is None or source_feats is None
 
         if not geom_only:
             source_feats = source_feats.view(source_feats.size(0), -1)
 
-        best_loss = math.inf
-        best_transform = None
-        best_match_count = None
-        best_JtJ = None
+        best_result = ICPResult(None, None, math.inf, 0)
+
+        has_features = (source_feats is not None
+                        and target_feats is not None
+                        and self._feature_step is not None)
 
         for _ in range(self.num_iters):
+            JtJ = torch.zeros(6, 6, dtype=torch.double)
+            Jr = torch.zeros(6, dtype=torch.double)
+            residual = 0
+            match_count = 0
 
-            if not self.so3:
-                if geom_only:
-                    match_count = _ICPJacobian.estimate_geometric(
-                        target_points, target_normals, target_mask,
-                        source_points, source_mask, kcam, transform,
-                        self._jacobian, self._residual, self._squared_residual)
-                else:
-                    match_count = _ICPJacobian.estimate_hybrid(
-                        target_points, target_normals, target_feats,
-                        target_mask, source_points, source_feats,
-                        source_mask, kcam, transform, self.geom_weight, self.feat_weight,
-                        self._jacobian, self._residual, self._squared_residual)
-            else:
-                match_count = _ICPJacobian.estimate_feature_so3(
+            if has_features:
+                feat_JtJ, feat_Jr, feat_residual, feat_count = self._feature_step(
                     target_points, target_normals, target_feats,
                     target_mask, source_points, source_feats,
-                    source_mask, kcam, transform,
-                    self._jacobian, self._residual, self._squared_residual)
-            Jr = self._residual.sum(0)
-            JtJ = self._jacobian.sum(0)
-            loss = self._squared_residual.sum()
+                    source_mask, kcam, transform)
+                JtJ = feat_JtJ.cpu().double()*self.feat_weight*self.feat_weight
+                Jr = feat_Jr.cpu().double()*self.feat_weight
+                residual = feat_residual*self.feat_weight
+                match_count = feat_count
 
-            JtJ = JtJ.cpu().double()
+            if self._geom_step is not None:
+                geom_JtJ, geom_Jr, geom_residual, geom_count = self._geom_step(
+                    target_points, target_normals, None, target_mask,
+                    source_points, None, source_mask, kcam, transform)
+
+                JtJ += geom_JtJ.cpu().double()*self.geom_weight*self.geom_weight
+                Jr += geom_Jr.cpu().double()*self.geom_weight
+                residual += geom_residual*self.geom_weight
+                match_count = max(geom_count, match_count)
+
             try:
                 # update = JtJ.cpu().inverse() @ Jr.cpu()
 
@@ -141,34 +180,28 @@ class ICPOdometry:
                 update = torch.cholesky_solve(
                     Jr, upper_JtJ).squeeze()
             except:
-                loss = best_loss = math.inf
                 break
 
             if not self.so3:
                 update_matrix = SE3.exp(
                     update).to_matrix().to(device).to(dtype)
+                transform = update_matrix @ transform
             else:
                 update_matrix = SO3.exp(
                     update).to_matrix().to(device).to(dtype)
+                transform = update_matrix @ transform
 
-            transform = update_matrix @ transform
+            residual = residual / match_count
 
-            loss = loss.item() / match_count
-
-            if loss < best_loss:
-                best_loss = loss
-                best_transform = transform
-                best_match_count = match_count
-                best_JtJ = JtJ
+            #if residual < best_result.residual:
+            if True:
+                best_result = ICPResult(
+                    transform, JtJ, residual, match_count / source_points.size(0))
 
             # Uncomment the next line(s) for debug
             # print(_, loss)
 
-
-        return ICPResult(best_transform, best_JtJ,
-                         loss, best_loss, best_match_count /
-                         source_points.size(0),
-                         match_count / source_points.size(0))
+        return best_result
 
     def estimate_frame(self, source_frame, target_frame,
                        transform=None,
@@ -186,12 +219,11 @@ class ICPOdometry:
 
 
 class ICPOption:
-    def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, use_feats=True, so3=False):
+    def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, so3=False):
         self.scale = scale
         self.iters = iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
-        self.use_feats = use_feats
         self.so3 = so3
 
 
@@ -215,6 +247,6 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
 
         super().__init__(
             [(opt.scale, ICPOdometry(
-                opt.iters, opt.geom_weight, opt.feat_weight, opt.so3), opt.use_feats)
+                opt.iters, opt.geom_weight, opt.feat_weight, opt.so3))
              for opt in options],
             downsample_xyz_method)

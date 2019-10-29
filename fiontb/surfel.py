@@ -27,10 +27,14 @@ class ComputeConfidences:
         self._confidences = None
 
     def __call__(self, kcam, weight, width, height):
+        center = kcam.pixel_center
+        max_dist = math.sqrt((width - center[0])*(width - center[0]) 
+                             + (height - center[1])*(height - center[1]))
+
         self._confidences = _utils.empty_ensured_size(self._confidences, height, width,
                                                       dtype=torch.float,
                                                       device=kcam.device)
-        _SurfelOp.compute_confidences(kcam.matrix, weight, self._confidences)
+        _SurfelOp.compute_confidences(kcam.matrix, weight, max_dist, self._confidences)
         return self._confidences
 
 

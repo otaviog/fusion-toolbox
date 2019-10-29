@@ -11,7 +11,7 @@ from fiontb.filtering import bilateral_depth_filter
 
 
 def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
-                  compute_normals=False):
+                  compute_normals=False, to_gray=False):
     height, width = frame.depth_image.shape
     height, width = int(height*scale), int(width*scale)
 
@@ -33,8 +33,8 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
         normal_depth_image = frame.depth_image
         if not filter_depth:
             normal_depth_image = bilateral_depth_filter(
-                frame.depth_image,
-                mask, depth_scale=frame.info.depth_scale).numpy()
+                frame.depth_image.to("cuda:0"),
+                mask.to("cuda:0"), depth_scale=frame.info.depth_scale).numpy()
 
         frame.normal_image = estimate_normals(normal_depth_image, frame.info,
                                               mask)
@@ -45,6 +45,9 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
 
     if to_hsv:
         features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
+
+    if to_gray:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
 
     return frame, to_tensor(features)
 

@@ -5,7 +5,7 @@ import torch
 import tenviz
 
 from fiontb.data.ftb import load_ftb
-from fiontb.data import set_cameras_to_start_at_eye
+from fiontb.data import set_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
 from fiontb.surfel import SurfelModel, SurfelCloud
 
@@ -16,15 +16,15 @@ from ..merge_live import MergeLiveSurfels
 def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
-    dataset = load_ftb(test_data / "sample2")
-    set_cameras_to_start_at_eye(dataset)
+    dataset = set_start_at_eye(load_ftb(test_data / "sample2"))
 
     device = torch.device("cpu:0")
     gl_context = tenviz.Context()
 
     surfel_model = SurfelModel(gl_context, 640*480*2)
 
-    model_surfels = SurfelCloud.from_frame(dataset[0], time=0, confidence_weight=25).to(device)
+    model_surfels = SurfelCloud.from_frame(
+        dataset[0], time=0, confidence_weight=0.8).to(device)
     torch.manual_seed(10)
     # model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
     model_surfels.radii *= 0.25
@@ -32,7 +32,8 @@ def _test():
     surfel_model.add_surfels(model_surfels, update_gl=True)
 
     live_frame = dataset[14]
-    live_surfels = SurfelCloud.from_frame(live_frame, time=1, confidence_weight=40).to(device)
+    live_surfels = SurfelCloud.from_frame(
+        live_frame, time=1, confidence_weight=0.8).to(device)
     live_surfels.radii *= 0.25
 
     height, width = live_frame.depth_image.shape
