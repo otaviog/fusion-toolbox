@@ -1,4 +1,3 @@
-from pathlib import Path
 import math
 
 import open3d
@@ -63,8 +62,6 @@ class RGBDOdometry:
 
         return ICPResult(transform, hessian,
                          0.0 if is_good else 1.0,
-                         0.0 if is_good else 1.0,
-                         1.0 if is_good else 0.0,
                          1.0 if is_good else 0.0)
 
 
@@ -112,100 +109,4 @@ class ColorICP:
         transform = torch.from_numpy(result.transformation)
         return ICPResult(transform, torch.eye(4),
                          1.0 - result.inlier_rmse,
-                         1.0 - result.inlier_rmse,
-                         1.0, 1.0)
-
-
-class Tests:
-    _TEST_DATA = Path(__file__).parent / "../../test-data/rgbd"
-
-    @staticmethod
-    def _test(odometry, dataset):
-        from fiontb.viz.show import show_pcls
-        from fiontb.testing import prepare_frame
-
-        frame0, _ = prepare_frame(dataset[0], filter_depth=True)
-        frame1, _ = prepare_frame(dataset[1], filter_depth=True)
-        result = odometry.estimate_frame(frame1, frame0)
-
-        pcl_params = {
-            'world_space': False, 'compute_normals': False
-        }
-
-        frame1 = FramePointCloud.from_frame(
-            frame1).unordered_point_cloud(**pcl_params)
-        show_pcls(
-            [FramePointCloud.from_frame(frame0).unordered_point_cloud(**pcl_params),
-             frame1, frame1.transform(result.transform.float())])
-
-    def rgbd_real(self):
-        from fiontb.data.ftb import load_ftb
-        dataset = load_ftb(Tests._TEST_DATA / "sample1")
-        Tests._test(RGBDOdometry(False), dataset)
-
-    def rgbd_synthetic(self):
-        from fiontb.data.ftb import load_ftb
-        dataset = load_ftb(Tests._TEST_DATA / "sample2")
-        Tests._test(RGBDOdometry(False), dataset)
-
-    def rgbd_trajectory(self):
-        from fiontb.viz.show import show_pcls
-        from fiontb.testing import prepare_frame
-        from fiontb.data.ftb import load_ftb
-        from fiontb.camera import RTCamera
-
-        dataset = load_ftb(Tests._TEST_DATA / "sample1")
-
-        icp = RGBDOdometry(False)
-
-        frame_args = {
-            'filter_depth': True,
-            'blur': False,
-            'to_hsv': False
-        }
-
-        prev_frame, prev_features = prepare_frame(
-            dataset[0], **frame_args)
-
-        pcls = [FramePointCloud.from_frame(
-            prev_frame).unordered_point_cloud(world_space=False)]
-
-        accum_pose = RTCamera(dtype=torch.double)
-
-        for i in range(1, len(dataset)):
-            next_frame, next_features = prepare_frame(
-                dataset[i], **frame_args)
-
-            result = icp.estimate_frame(next_frame, prev_frame)
-
-            accum_pose = accum_pose.integrate(result.transform.cpu().double())
-
-            pcl = FramePointCloud.from_frame(
-                next_frame).unordered_point_cloud(world_space=False)
-            pcl = pcl.transform(accum_pose.matrix.float())
-            pcls.append(pcl)
-
-            prev_frame, prev_features = next_frame, next_features
-        show_pcls(pcls)
-
-    def coloricp_real(self):
-        from fiontb.data.ftb import load_ftb
-        dataset = load_ftb(Tests._TEST_DATA / "sample1")
-        Tests._test(ColorICP([(math.inf, 50)]), dataset)
-
-    def coloricp_synthetic(self):
-        from fiontb.data.ftb import load_ftb
-        dataset = load_ftb(Tests._TEST_DATA / "sample2")
-        Tests._test(ColorICP([
-            (0.04, 50), (0.02, 30), (0.01, 14)
-        ]), dataset)
-
-
-def _main():
-    import fire
-
-    fire.Fire(Tests)
-
-
-if __name__ == '__main__':
-    _main()
+                         1.0)

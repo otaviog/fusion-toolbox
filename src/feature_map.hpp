@@ -59,7 +59,7 @@ struct BilinearInterpGrad {
   FTB_DEVICE_HOST inline void Get(int channel, scalar_t &du,
                                   scalar_t &dv) const {
     du = (u0.Get(channel) - u1.Get(channel)) * div;
-    dv = (v1.Get(channel) - v0.Get(channel)) * div;
+    dv = (v0.Get(channel) - v1.Get(channel)) * div;
   }
 };
 

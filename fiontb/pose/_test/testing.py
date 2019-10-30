@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 from tqdm import tqdm
+import quaternion
 
 from fiontb.metrics import (absolute_translational_error,
                             rotational_error)
@@ -13,21 +14,62 @@ from fiontb.testing import prepare_frame
 from fiontb._utils import profile as _profile
 from fiontb.data.ftb import load_ftb
 
+from tenviz.pose import Pose
+
+
 def evaluate(gt_cam0, gt_cam1, relative_rt):
-    base = gt_cam0.matrix.inverse()
+    gt_pose = Pose.from_matrix(gt_cam0.matrix.inverse() @ gt_cam1.matrix)
+    pred_pose = Pose.from_matrix(relative_rt)
 
-    gt_traj = {
-        0.0: RTCamera(torch.eye(4)),
-        1.0: gt_cam1.integrate(base)
+    gt_trans = torch.tensor(gt_pose.get_translation())
+    pred_trans = torch.tensor(pred_pose.get_translation())
+
+    gt_rot = quaternion.from_float_array(gt_pose.get_quaternion())
+    pred_rot = quaternion.from_float_array(pred_pose.get_quaternion())
+
+    print("Translation error: ", (gt_trans - pred_trans).abs().mean().item())
+    print("Rotation error: ", (gt_rot - pred_rot).norm())
+
+
+def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
+                  to_hsv=True, to_gray=False, frame0_idx=0, frame1_idx=8):
+    device = "cuda:0"
+    frame_args = {
+        'filter_depth': filter_depth,
+        'blur': blur,
+        'to_hsv': to_hsv,
+        'to_gray': to_gray
     }
+    prev_frame, target_feats = prepare_frame(dataset[frame0_idx], **frame_args)
+    next_frame, source_feats = prepare_frame(dataset[frame1_idx], **frame_args)
 
-    traj = {
-        0.0: RTCamera(torch.eye(4)),
-        1.0: RTCamera(relative_rt.cpu())
-    }
+    prev_fpcl = FramePointCloud.from_frame(prev_frame).to(device)
+    next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
 
-    print("ATE-RMSE: ", absolute_translational_error(gt_traj, traj).mean().item())
-    print("Rotation error: ", rotational_error(gt_traj, traj).mean().item())
+    verifier = ICPVerifier()
+
+    with _profile(Path(__file__).parent / str(profile_file), profile_file is not None):
+        for _ in range(1 if profile_file is None else 5):
+            result = icp.estimate_frame(next_frame, prev_frame,
+                                        source_feats=source_feats.to(
+                                            device),
+                                        target_feats=target_feats.to(
+                                            device),
+                                        device=device)
+
+        relative_rt = result.transform.cpu().float()
+    if not verifier(result):
+        print("Tracking failed")
+
+    evaluate(prev_fpcl.rt_cam, next_fpcl.rt_cam,
+             relative_rt)
+    pcl0 = prev_fpcl.unordered_point_cloud(world_space=False)
+    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
+    pcl2 = pcl1.transform(relative_rt.to(device))
+
+    pcl0.colors[:] = torch.tensor([0, 0, 255])
+    pcl2.colors[:] = torch.tensor([255, 0, 0])
+    show_pcls([pcl0, pcl1, pcl2])
 
 
 def evaluate_trajectory(dataset, traj):
@@ -40,47 +82,6 @@ def evaluate_trajectory(dataset, traj):
 
     print("ATE-RMSE: ", absolute_translational_error(gt_traj, traj).mean().item())
     print("Rotation error: ", rotational_error(gt_traj, traj).mean().item())
-
-
-def run_pair_test(icp, profile_file=None, filter_depth=True, blur=True,
-                  to_hsv=True, to_gray=False, frame0_idx=0, frame1_idx=8):
-    device = "cuda:0"
-    dataset = load_ftb(Path(__file__).parent / "../../../test-data/rgbd/sample2")
-    prev_frame, target_feats = prepare_frame(dataset[frame0_idx], filter_depth=filter_depth,
-                                             blur=blur, to_hsv=to_hsv, to_gray=to_gray)
-
-    next_frame, source_feats = prepare_frame(
-        dataset[frame1_idx], filter_depth=filter_depth, blur=blur,
-        to_hsv=to_gray, to_gray=to_gray)
-
-    prev_fpcl = FramePointCloud.from_frame(prev_frame).to(device)
-    next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
-
-    verifier = ICPVerifier()
-
-    with _profile(Path(__file__).parent / str(profile_file), profile_file is not None):
-        for _ in range(1 if profile_file is None else 5):
-            result = icp.estimate(
-                next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
-                source_feats=source_feats.to(device),
-                target_points=prev_fpcl.points,
-                target_normals=prev_fpcl.normals,
-                target_feats=target_feats.to(device),
-                target_mask=prev_fpcl.mask)
-
-    relative_rt = result.transform
-    if not verifier(result):
-        print("Tracking failed")
-        # return None
-
-    evaluate(next_fpcl.rt_cam, prev_fpcl.rt_cam,
-             relative_rt)
-
-    pcl0 = prev_fpcl.unordered_point_cloud(world_space=False)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl2 = pcl1.transform(relative_rt.to(device))
-
-    show_pcls([pcl0, pcl1, pcl2])
 
 
 def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,

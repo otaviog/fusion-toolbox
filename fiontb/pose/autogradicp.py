@@ -73,11 +73,8 @@ class AutogradICP:
         self.use_lbfgs = use_lbfgs
 
     def estimate(self, kcam, source_points, source_mask,
-                 target_points=None,
-                 target_mask=None, target_normals=None,
-                 target_feats=None, source_feats=None,
-                 transform=None):
-
+                 target_points=None, target_mask=None, target_normals=None,
+                 target_feats=None, source_feats=None, transform=None):
         has_geom = (self.geom_weight > 0
                     and target_points is not None
                     and target_normals is not None
@@ -119,7 +116,7 @@ class AutogradICP:
             # upsilon_omega.requires_grad = True
             source_points = RigidTransform(
                 transform.to(device)) @ source_points
-            initial_transform = transform
+            initial_transform = transform.clone()
 
         optim = torch.optim.LBFGS([upsilon_omega], lr=self.learning_rate,
                                   max_iter=self.num_iters,
@@ -188,7 +185,7 @@ class AutogradICP:
         else:
             box = _ClosureBox(_closure, upsilon_omega)
             scipy.optimize.fmin_bfgs(box.func, upsilon_omega.detach().cpu().numpy(),
-                                     box.grad,  # maxiter=self.num_iters
+                                     box.grad, # maxiter=self.num_iters
                                      disp=False)
         transform = SO3tExp.apply(upsilon_omega.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
@@ -197,6 +194,21 @@ class AutogradICP:
             transform = transform @ _to_4x4(initial_transform)
 
         return ICPResult(transform, None, loss, 1.0)
+
+    def estimate_frame(self, source_frame, target_frame, source_feats=None,
+                       target_feats=None, transform=None, device="cpu"):
+        from fiontb.frame import FramePointCloud
+
+        source_frame = FramePointCloud.from_frame(source_frame).to(device)
+        target_frame = FramePointCloud.from_frame(target_frame).to(device)
+
+        return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
+                             source_feats=source_feats,
+                             target_points=target_frame.points,
+                             target_mask=target_frame.mask,
+                             target_normals=target_frame.normals,
+                             target_feats=target_feats,
+                             transform=transform)
 
 
 class AGICPOption:

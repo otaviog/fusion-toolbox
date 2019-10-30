@@ -66,6 +66,7 @@ struct KCamera {
     const scalar_t z_sqr = z * z;
     j00 = fx / z;
     j02 = -point[0] * fx / z_sqr;
+    
     j11 = fy / z;
     j12 = -point[1] * fy / z_sqr;
   }

@@ -33,28 +33,61 @@ fiontb.spatial.indexmap:
 #
 
 fiontb.pose.open3d.rgbd-real:
-	python3 -m fiontb.pose.open3d_interop rgbd-real
+	python3 -m fiontb.pose._test.test_open3dicp rgbd-real
 
 fiontb.pose.open3d.rgbd-synthetic:
-	python3 -m fiontb.pose.open3d_interop rgbd-synthetic
+	python3 -m fiontb.pose._test.test_open3dicp rgbd-synthetic
+
+fiontb.pose.open3d.rgb-real:
+	python3 -m fiontb.pose._test.test_open3dicp rgb-real
+
+fiontb.pose.open3d.rgb-synthetic:
+	python3 -m fiontb.pose._test.test_open3dicp rgb-synthetic
 
 fiontb.pose.open3d.coloricp-real:
-	python3 -m fiontb.pose.open3d_interop coloricp-real
+	python3 -m fiontb.pose._test.test_open3dicp coloricp-real
 
 fiontb.pose.open3d.coloricp-synthetic:
-	python3 -m fiontb.pose.open3d_interop coloricp-synthetic
+	python3 -m fiontb.pose._test.test_open3dicp coloricp-synthetic
 
 fiontb.pose.open3d.rgbd-trajectory:
-	python3 -m fiontb.pose.open3d_interop rgbd-trajectory
+	python3 -m fiontb.pose._test.test_open3dicp rgbd-trajectory
 
-fiontb.pose.icp.geometric:
-	python3 -m fiontb.pose._test.test_icp geometric
+fiontb.pose.icp.depth-real:
+	python3 -m fiontb.pose._test.test_icp depth-real
 
-fiontb.pose.icp.color:
-	python3 -m fiontb.pose._test.test_icp color
+fiontb.pose.icp.depth-synthetic:
+	python3 -m fiontb.pose._test.test_icp depth-synthetic
 
-fiontb.pose.icp.hybrid:
-	python3 -m fiontb.pose._test.test_icp hybrid
+fiontb.pose.icp.rgb-real:
+	python3 -m fiontb.pose._test.test_icp rgb-real
+
+fiontb.pose.icp.rgb-synthetic:
+	python3 -m fiontb.pose._test.test_icp rgb-synthetic
+
+fiontb.pose.icp.rgbd-real:
+	python3 -m fiontb.pose._test.test_icp rgbd-real
+
+fiontb.pose.icp.rgbd-synthetic:
+	python3 -m fiontb.pose._test.test_icp rgbd-synthetic
+
+fiontb.pose.icp.ms-depth-real:
+	python3 -m fiontb.pose._test.test_icp ms-depth-real
+
+fiontb.pose.icp.ms-depth-synthetic:
+	python3 -m fiontb.pose._test.test_icp ms-depth-synthetic
+
+fiontb.pose.icp.ms-rgb-real:
+	python3 -m fiontb.pose._test.test_icp ms-rgb-real
+
+fiontb.pose.icp.ms-rgb-synthetic:
+	python3 -m fiontb.pose._test.test_icp ms-rgb-synthetic
+
+fiontb.pose.icp.ms-rgbd-real:
+	python3 -m fiontb.pose._test.test_icp ms-rgbd-real
+
+fiontb.pose.icp.ms-rgbd-synthetic:
+	python3 -m fiontb.pose._test.test_icp ms-rgbd-synthetic
 
 fiontb.pose.icp.so3:
 	python3 -m fiontb.pose._test.test_icp so3
@@ -65,26 +98,41 @@ fiontb.pose.icp.fail:
 fiontb.pose.icp.trajectory:
 	python3 -m fiontb.pose._test.test_icp trajectory
 
-fiontb.pose.icp.multiscale-geometric:
-	python3 -m fiontb.pose._test.test_icp multiscale-geometric
+fiontb.pose.autogradicp.depth-real:
+	python3 -m fiontb.pose._test.test_autogradicp depth-real
 
-fiontb.pose.icp.multiscale-hybrid:
-	python3 -m fiontb.pose._test.test_icp multiscale-hybrid
+fiontb.pose.autogradicp.depth-synthetic:
+	python3 -m fiontb.pose._test.test_autogradicp depth-synthetic
 
-fiontb.pose.autogradicp.geometric:
-	python3 -m fiontb.pose._test.test_autogradicp geometric
+fiontb.pose.autogradicp.rgb-real:
+	python3 -m fiontb.pose._test.test_autogradicp rgb-real
 
-fiontb.pose.autogradicp.color:
-	python3 -m fiontb.pose._test.test_autogradicp color
+fiontb.pose.autogradicp.rgb-synthetic:
+	python3 -m fiontb.pose._test.test_autogradicp rgb-synthetic
 
-fiontb.pose.autogradicp.hybrid:
-	python3 -m fiontb.pose._test.test_autogradicp hybrid
+fiontb.pose.autogradicp.rgbd-real:
+	python3 -m fiontb.pose._test.test_autogradicp rgbd-real
 
-fiontb.pose.autogradicp.multiscale-geometric:
-	python3 -m fiontb.pose._test.test_autogradicp multiscale-geometric
+fiontb.pose.autogradicp.rgbd-synthetic:
+	python3 -m fiontb.pose._test.test_autogradicp rgbd-synthetic
 
-fiontb.pose.autogradicp.multiscale-hybrid:
-	python3 -m fiontb.pose._test.test_autogradicp multiscale-hybrid
+fiontb.pose.autogradicp.ms-depth-real:
+	python3 -m fiontb.pose._test.test_autogradicp ms-depth-real
+
+fiontb.pose.autogradicp.ms-depth-synthetic:
+	python3 -m fiontb.pose._test.test_autogradicp ms-depth-synthetic
+
+fiontb.pose.autogradicp.ms-rgb-real:
+	python3 -m fiontb.pose._test.test_autogradicp ms-rgb-real
+
+fiontb.pose.autogradicp.ms-rgb-synthetic:
+	python3 -m fiontb.pose._test.test_autogradicp ms-rgb-synthetic
+
+fiontb.pose.autogradicp.ms-rgbd-real:
+	python3 -m fiontb.pose._test.test_autogradicp ms-rgbd-real
+
+fiontb.pose.autogradicp.ms-rgbd-synthetic:
+	python3 -m fiontb.pose._test.test_autogradicp ms-rgbd-synthetic
 
 fiontb.pose.autogradicp.trajectory:
 	python3 -m fiontb.pose._test.test_autogradicp trajectory

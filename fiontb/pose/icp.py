@@ -60,11 +60,11 @@ class _Step:
                 source_mask, kcam, transform,
                 self.JtJ, self.Jtr, self.residual)
 
-        Jr = self.Jtr.sum(0)
+        Jtr = self.Jtr.sum(0)
         JtJ = self.JtJ.sum(0)
         residual = self.residual.sum()
 
-        return JtJ, Jr, residual, match_count
+        return JtJ, Jtr, residual, match_count
 
 
 class ICPOdometry:
@@ -84,7 +84,8 @@ class ICPOdometry:
         self.feat_weight = feat_weight
         self.so3 = so3
 
-        self._geom_step = _Step(True, so3=so3) if geom_weight > 0 and not so3 else None
+        self._geom_step = _Step(
+            True, so3=so3) if geom_weight > 0 and not so3 else None
         self._feature_step = _Step(False, so3=so3) if feat_weight > 0 else None
 
     def estimate(self, kcam, source_points, source_mask, source_feats=None,
@@ -158,7 +159,7 @@ class ICPOdometry:
                     target_mask, source_points, source_feats,
                     source_mask, kcam, transform)
                 JtJ = feat_JtJ.cpu().double()*self.feat_weight*self.feat_weight
-                Jr = feat_Jr.cpu().double()*self.feat_weight
+                Jr = -feat_Jr.cpu().double()*self.feat_weight
                 residual = feat_residual*self.feat_weight
                 match_count = feat_count
 
@@ -191,30 +192,29 @@ class ICPOdometry:
                     update).to_matrix().to(device).to(dtype)
                 transform = update_matrix @ transform
 
-            residual = residual / match_count
+            residual = residual.item() / match_count
 
-            #if residual < best_result.residual:
-            if True:
-                best_result = ICPResult(
-                    transform, JtJ, residual, match_count / source_points.size(0))
+            best_result = ICPResult(
+                transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 
             # Uncomment the next line(s) for debug
-            # print(_, loss)
+            # print(_, residual)
 
         return best_result
 
-    def estimate_frame(self, source_frame, target_frame,
-                       transform=None,
-                       device="cpu"):
+    def estimate_frame(self, source_frame, target_frame, source_feats=None,
+                       target_feats=None, transform=None, device="cpu"):
         from fiontb.frame import FramePointCloud
 
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
         target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
         return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
+                             source_feats=source_feats,
                              target_points=target_frame.points,
                              target_mask=target_frame.mask,
                              target_normals=target_frame.normals,
+                             target_feats=target_feats,
                              transform=transform)
 
 

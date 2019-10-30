@@ -36,7 +36,7 @@ template <typename scalar_t>
 FTB_DEVICE_HOST inline scalar_t Df1_EuclideanDistance(
     scalar_t f1_nth_val, scalar_t f2_nth_val, scalar_t inv_forward_result) {
   if (inv_forward_result > 0)
-    return (f2_nth_val - f1_nth_val) * inv_forward_result;
+    return (f1_nth_val - f2_nth_val) * inv_forward_result;
   else
     return 0;
 }
