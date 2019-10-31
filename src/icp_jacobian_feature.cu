@@ -178,47 +178,23 @@ struct FeatureJacobianKernel {
     const BilinearInterpGrad<dev, scalar_t> dx_interp(
         tgt_featmap.GetBilinearGrad(u, v, 0.05));
 
-#if 1
-    scalar_t d_euc_u = 0;
-    scalar_t d_euc_v = 0;
-
-    const scalar_t feat_residual = EuclideanDistance(interp, src_feats, ri);
-
-    const scalar_t inv_feat_residual =
-        (feat_residual > 0) ? scalar_t(1) / feat_residual : -1;
-
     for (int channel = 0; channel < tgt_featmap.channel_size; ++channel) {
-      const scalar_t df1_dist = Df1_EuclideanDistance(
-          interp.Get(channel), src_feats[channel][ri], inv_feat_residual);
-
+      const scalar_t feat_residual = (interp.Get(0) - src_feats[0][ri]);
       scalar_t du, dv;
-      dx_interp.Get(channel, du, dv);
 
-      d_euc_u += df1_dist * du;
-      d_euc_v += df1_dist * dv;
+      dx_interp.Get(0, du, dv);
+
+      scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
+      kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
+
+      const Vector<scalar_t, 3> gradk(du * j00_proj, dv * j11_proj,
+                                      du * j02_proj + dv * j12_proj);
+
+      jacobian.Compute(Tsrc_point, gradk, feat_residual);
+      squared_residual[ri] += feat_residual * feat_residual;
     }
-#else
-
-    const scalar_t feat_residual = (interp.Get(0) - src_feats[0][ri]);
-    scalar_t du, dv;
-
-    dx_interp.Get(0, du, dv);
-
-    scalar_t d_euc_u = du;
-    scalar_t d_euc_v = dv;
-#endif
-
-    scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
-    kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
-
-    const Vector<scalar_t, 3> gradk(d_euc_u * j00_proj, d_euc_v * j11_proj,
-                                    d_euc_u * j02_proj + d_euc_v * j12_proj);
-
-    jacobian.Compute(Tsrc_point, gradk, feat_residual);
-    squared_residual[ri] = feat_residual * feat_residual;
   }
 };
-
 }  // namespace
 
 int ICPJacobian::EstimateFeature(

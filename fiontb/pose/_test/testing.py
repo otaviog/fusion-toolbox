@@ -67,8 +67,8 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
     pcl2 = pcl1.transform(relative_rt.to(device))
 
-    pcl0.colors[:] = torch.tensor([0, 0, 255])
-    pcl2.colors[:] = torch.tensor([255, 0, 0])
+    # pcl0.colors[:] = torch.tensor([0, 0, 255])
+    # pcl2.colors[:] = torch.tensor([255, 0, 0])
     show_pcls([pcl0, pcl1, pcl2])
 
 
