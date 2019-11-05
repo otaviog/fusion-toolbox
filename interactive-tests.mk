@@ -168,6 +168,9 @@ fiontb.fusion.surfel.clean:
 fiontb.fusion.surfel.fusion:
 	python3 -m fiontb.fusion.surfel._test.test_fusion
 
+fiontb.fusion.surfel.effusion:
+	python3 -m fiontb.fusion.surfel._test.test_effusion
+
 fiontb.fusion.surfel.model-tracking:
 	python3 -m fiontb.fusion.surfel._test.test_model_tracking
 

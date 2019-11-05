@@ -120,7 +120,7 @@ struct FeatureJacobianKernel {
   const typename Accessor<dev, bool, 1>::T src_mask;
 
   const KCamera<dev, scalar_t> kcam;
-  const RTCamera<dev, scalar_t> rt_cam;
+  const RigidTransform<dev, scalar_t> rt_cam;
 
   typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
   typename Accessor<dev, scalar_t, 2>::T Jtr_partial;
@@ -128,13 +128,15 @@ struct FeatureJacobianKernel {
 
   AtomicInt<dev> match_count;
 
-  FeatureJacobianKernel(
-      const PointGrid<dev, scalar_t> tgt, FeatureMap<dev, scalar_t> tgt_featmap,
-      const torch::Tensor &src_points, const torch::Tensor &src_feats,
-      const torch::Tensor &src_mask, const KCamera<dev, scalar_t> kcam,
-      const RTCamera<dev, scalar_t> rt_cam, torch::Tensor JtJ_partial,
-      torch::Tensor Jtr_partial, torch::Tensor squared_residual,
-      AtomicInt<dev> match_count)
+  FeatureJacobianKernel(const PointGrid<dev, scalar_t> tgt,
+                        FeatureMap<dev, scalar_t> tgt_featmap,
+                        const torch::Tensor &src_points,
+                        const torch::Tensor &src_feats,
+                        const torch::Tensor &src_mask,
+                        const torch::Tensor &kcam, const torch::Tensor &rt_cam,
+                        torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
+                        torch::Tensor squared_residual,
+                        AtomicInt<dev> match_count)
       : tgt(tgt),
         tgt_featmap(tgt_featmap),
         src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
@@ -172,7 +174,6 @@ struct FeatureJacobianKernel {
 
     ++match_count;
 
-    scalar_t residual;
 
     const BilinearInterp<dev, scalar_t> interp(tgt_featmap.GetBilinear(u, v));
     const BilinearInterpGrad<dev, scalar_t> dx_interp(
@@ -228,8 +229,7 @@ int ICPJacobian::EstimateFeature(
 
           FeatureJacobianKernel<kCUDA, scalar_t, SE3Jacobian<kCUDA, scalar_t> >
               kernel(tgt, FeatureMap<kCUDA, scalar_t>(tgt_feats), src_points,
-                     src_feats, src_mask, KCamera<kCUDA, scalar_t>(kcam),
-                     RTCamera<kCUDA, scalar_t>(rt_cam), JtJ_partial, Jr_partial,
+                     src_feats, src_mask, kcam, rt_cam, JtJ_partial, Jr_partial,
                      squared_residual, match_count.get());
 
           Launch1DKernelCUDA(kernel, src_points.size(0));
@@ -244,8 +244,7 @@ int ICPJacobian::EstimateFeature(
 
           FeatureJacobianKernel<kCPU, scalar_t, SE3Jacobian<kCPU, scalar_t> >
               kernel(tgt, FeatureMap<kCPU, scalar_t>(tgt_feats), src_points,
-                     src_feats, src_mask, KCamera<kCPU, scalar_t>(kcam),
-                     RTCamera<kCPU, scalar_t>(rt_cam), JtJ_partial, Jr_partial,
+                     src_feats, src_mask, kcam, rt_cam, JtJ_partial, Jr_partial,
                      squared_residual, match_count.get());
           Launch1DKernelCPU(kernel, src_points.size(0));
 
@@ -286,8 +285,7 @@ int ICPJacobian::EstimateFeatureSO3(
 
           FeatureJacobianKernel<kCUDA, scalar_t, SO3Jacobian<kCUDA, scalar_t> >
               kernel(tgt, FeatureMap<kCUDA, scalar_t>(tgt_feats), src_points,
-                     src_feats, src_mask, KCamera<kCUDA, scalar_t>(kcam),
-                     RTCamera<kCUDA, scalar_t>(rt_cam), JtJ_partial, Jr_partial,
+                     src_feats, src_mask, kcam, rt_cam, JtJ_partial, Jr_partial,
                      squared_residual, match_count.get());
 
           Launch1DKernelCUDA(kernel, src_points.size(0));
@@ -302,8 +300,7 @@ int ICPJacobian::EstimateFeatureSO3(
 
           FeatureJacobianKernel<kCPU, scalar_t, SO3Jacobian<kCPU, scalar_t> >
               kernel(tgt, FeatureMap<kCPU, scalar_t>(tgt_feats), src_points,
-                     src_feats, src_mask, KCamera<kCPU, scalar_t>(kcam),
-                     RTCamera<kCPU, scalar_t>(rt_cam), JtJ_partial, Jr_partial,
+                     src_feats, src_mask, kcam, rt_cam, JtJ_partial, Jr_partial,
                      squared_residual, match_count.get());
           Launch1DKernelCPU(kernel, src_points.size(0));
 

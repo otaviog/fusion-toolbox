@@ -4,15 +4,18 @@
 #include <pybind11/eigen.h>
 #include <torch/csrc/utils/pybind.h>
 
+#include "surfel_fusion_common.hpp"
 #include "cuda_utils.hpp"
 
 namespace py = pybind11;
 
 namespace fiontb {
 
+std::mutex MergeMap<kCPU>::mutex_;
+
 void IndexMap::Synchronize() { CudaSafeCall(cudaDeviceSynchronize()); }
 
-void IndexMap::RegisterPybind(pybind11::module &m) {
+void IndexMap::RegisterPybind(py::module &m) {
   py::class_<IndexMap>(m, "IndexMap")
       .def(py::init())
       .def("to", &IndexMap::To)
@@ -26,7 +29,7 @@ void IndexMap::RegisterPybind(pybind11::module &m) {
       .def_property("device", &IndexMap::get_device, nullptr);
 }
 
-void MappedSurfelModel::RegisterPybind(pybind11::module &m) {
+void MappedSurfelModel::RegisterPybind(py::module &m) {
   py::class_<MappedSurfelModel>(m, "MappedSurfelModel")
       .def(py::init())
       .def_readwrite("positions", &MappedSurfelModel::positions)
@@ -38,7 +41,7 @@ void MappedSurfelModel::RegisterPybind(pybind11::module &m) {
       .def_readwrite("features", &MappedSurfelModel::features);
 }
 
-void SurfelCloud::RegisterPybind(pybind11::module &m) {
+void SurfelCloud::RegisterPybind(py::module &m) {
   py::class_<SurfelCloud>(m, "SurfelCloud")
       .def(py::init())
       .def_readwrite("positions", &SurfelCloud::positions)
@@ -51,13 +54,13 @@ void SurfelCloud::RegisterPybind(pybind11::module &m) {
       .def_property("size", &SurfelCloud::get_size, nullptr);
 }
 
-void SurfelFusionOp::RegisterPybind(pybind11::module &m) {
-  pybind11::class_<SurfelFusionOp>(m, "SurfelFusionOp")
-      .def_static("merge_live", &SurfelFusionOp::MergeLive)
+void SurfelFusionOp::RegisterPybind(py::module &m) {
+  py::class_<SurfelFusionOp>(m, "SurfelFusionOp")
+      .def_static("update", &SurfelFusionOp::Update)
       .def_static("carve_space", &SurfelFusionOp::CarveSpace)
       .def_static("merge", &SurfelFusionOp::Merge)
-      .def_static("copy_features", &SurfelFusionOp::CopyFeatures)
-      .def_static("clean", &SurfelFusionOp::Clean);
+      .def_static("clean", &SurfelFusionOp::Clean)
+      .def_static("copy_features", &SurfelFusionOp::CopyFeatures);
 }
 
 }  // namespace fiontb

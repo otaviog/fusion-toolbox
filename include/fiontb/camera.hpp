@@ -31,7 +31,7 @@ struct KCamera {
 #pragma nv_exec_check_disable
 #endif
   FTB_DEVICE_HOST inline void Projecti(const Vector<scalar_t, 3> point, int &x,
-                                int &y) const {
+                                       int &y) const {
     scalar_t img_x, img_y;
 
     Project(point, img_x, img_y);
@@ -43,8 +43,8 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST inline void Project(const Vector<scalar_t, 3> point, scalar_t &x,
-                               scalar_t &y) const {
+  FTB_DEVICE_HOST inline void Project(const Vector<scalar_t, 3> point,
+                                      scalar_t &x, scalar_t &y) const {
     const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
     const scalar_t img_y = matrix[1][1] * point[1] / point[2] + matrix[1][2];
 
@@ -66,7 +66,7 @@ struct KCamera {
     const scalar_t z_sqr = z * z;
     j00 = fx / z;
     j02 = -point[0] * fx / z_sqr;
-    
+
     j11 = fy / z;
     j12 = -point[1] * fy / z_sqr;
   }
@@ -91,15 +91,17 @@ struct ProjectOp {
 };
 
 template <Device dev, typename scalar_t>
-struct RTCamera {
-  RTCamera(const torch::Tensor rt_matrix)
+struct RigidTransform {
+  const typename Accessor<dev, scalar_t, 2>::T rt_matrix;
+
+  RigidTransform(const torch::Tensor &rt_matrix)
       : rt_matrix(Accessor<dev, scalar_t, 2>::Get(rt_matrix)) {}
 
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 3, 1> Transform(
-      const Eigen::Matrix<scalar_t, 3, 1> point) const {
+  FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> Transform(
+      const Eigen::Matrix<scalar_t, 3, 1> &point) const {
     const auto mtx = rt_matrix;
     const scalar_t px = mtx[0][0] * point[0] + mtx[0][1] * point[1] +
                         mtx[0][2] * point[2] + mtx[0][3];
@@ -110,8 +112,6 @@ struct RTCamera {
 
     return Eigen::Matrix<scalar_t, 3, 1>(px, py, pz);
   }
-
-  const typename Accessor<dev, scalar_t, 2>::T rt_matrix;
 };
 
 struct RigidTransformOp {
@@ -126,4 +126,43 @@ struct RigidTransformOp {
 
   static void RegisterPybind(pybind11::module &m);
 };
+
+template <typename scalar_t>
+struct RTCamera {
+  Eigen::Matrix<scalar_t, 3, 4> rt_matrix;
+  Eigen::Matrix3f normal_matrix;
+
+  RTCamera(const torch::Tensor &matrix) {
+    auto cpu_matrix = matrix.cpu();
+    rt_matrix = to_matrix<scalar_t, 3, 4>(cpu_matrix.accessor<scalar_t, 2>());
+    normal_matrix = rt_matrix.topLeftCorner(3, 3).inverse().transpose();
+  }
+
+#ifdef __CUDACC__
+#pragma nv_exec_check_disable
+#endif
+  FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> Transform(
+      const Eigen::Matrix<scalar_t, 3, 1> &point) const {
+    const scalar_t px = rt_matrix(0, 0) * point[0] +
+                        rt_matrix(0, 1) * point[1] +
+                        rt_matrix(0, 2) * point[2] + rt_matrix(0, 3);
+    const scalar_t py = rt_matrix(1, 0) * point[0] +
+                        rt_matrix(1, 1) * point[1] +
+                        rt_matrix(1, 2) * point[2] + rt_matrix(1, 3);
+    const scalar_t pz = rt_matrix(2, 0) * point[0] +
+                        rt_matrix(2, 1) * point[1] +
+                        rt_matrix(2, 2) * point[2] + rt_matrix(2, 3);
+
+    return Eigen::Matrix<scalar_t, 3, 1>(px, py, pz);
+  }
+
+#ifdef __CUDACC__
+#pragma nv_exec_check_disable
+#endif
+  FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> TransformNormal(
+      const Eigen::Matrix<scalar_t, 3, 1> &normal) const {
+    return normal_matrix * normal;
+  }
+};
+
 }  // namespace fiontb

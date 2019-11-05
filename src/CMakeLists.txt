@@ -19,11 +19,14 @@ cuda_add_library(fiontb
   surfel.cu
   surfel_allocator.cpp
   surfel_fusion.cpp
-  surfel_fusion_merge_live.cu
+  surfel_fusion_update.cu
   surfel_fusion_carve_space.cu
   surfel_fusion_merge.cu
-  surfel_fusion_copy_features.cu
   surfel_fusion_clean.cu
+  surfel_fusion_copy_features.cu
+  elastic_fusion.cpp
+  elastic_fusion_update.cu
+  elastic_fusion_clean.cu
   fsf.cpp
   fsf_merge_surfels.cu
   # kernel_indexmap.cu  

@@ -1,18 +1,16 @@
-from fiontb.data.tumrgbd import read_trajectory
 import math
 
 import torch
 import tenviz
 
 from fiontb.frame import FramePointCloud
-from fiontb.filtering import bilateral_depth_filter
+from fiontb.filtering import BilateralDepthFilter, bilateral_depth_filter
 from fiontb.camera import RTCamera
-from fiontb.pose.icp import MultiscaleICPOdometry, ICPOption
-from fiontb.pose import ICPVerifier
-from fiontb.pose.autogradicp import MultiscaleAutogradICP
+from fiontb.pose.icp import MultiscaleICPOdometry, ICPOption, ICPVerifier
 from fiontb.surfel import SurfelModel
-from fiontb.fusion.surfel import SurfelFusion
-from fiontb.filtering import BilateralDepthFilter
+from fiontb.fusion.surfel.effusion import EFFusion, FusionStats
+from fiontb.fusion.surfel.indexmap import ModelIndexMapRaster
+from fiontb._cfiontb import SurfelFusionOp as _SurfelFusionOp
 
 
 def _estimate_confidence_weight(prev_rt_cam, curr_rt_cam):
@@ -26,113 +24,43 @@ def _estimate_confidence_weight(prev_rt_cam, curr_rt_cam):
     return conf_weight
 
 
-_confs = [0.926322,
-          0.691184,
-          0.82881,
-          0.848098,
-          0.870813,
-          0.817302,
-          0.5,
-          0.5,
-          0.658203,
-          0.666729,
-          0.781634,
-          0.723786,
-          0.668831,
-          0.857454,
-          0.830854,
-          0.654733,
-          0.755859,
-          0.695068,
-          0.674766,
-          0.830854,
-          0.767842,
-          0.719504,
-          0.711129,
-          0.514166,
-          0.609375,
-          0.5,
-          0.5,
-          0.647895,
-          0.5,
-          0.5,
-          0.6339,
-          0.641188,
-          0.563268,
-          0.767115,
-          0.609735,
-          0.70299,
-          0.765276,
-          0.5,
-          0.566006,
-          0.634604,
-          0.5,
-          0.55443,
-          0.670357,
-          0.640354,
-          0.61864,
-          0.547587,
-          0.5,
-          0.5,
-          0.5,
-          0.591474,
-          0.574326,
-          0.5,
-          0.5,
-          0.615089,
-          0.536775]
-
-
-if False:
-    gt_traj = read_trajectory(
-        '/home/otaviog/3drec/slam-feature/exps/slam/045.klg.freiburg')
-    _cams = list(gt_traj.values())
-
-
 class SurfelSLAM:
     def __init__(self, max_surfels=1024*1024*15, device="cuda:0",
-                 tracking='frame-to-frame',
-                 max_merge_distance=0.001,
-                 normal_max_angle=math.radians(30),
+                 tracking_mode='frame-to-frame',
                  stable_conf_thresh=10,
                  max_unstable_time=20, search_size=4, indexmap_scale=4,
-                 min_z_difference=0.5, feature_size=3):
+                 feature_size=3):
         self.device = device
 
-        self.previous_fpcl = None
+        self._depth_filter = BilateralDepthFilter()
+
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
         self.icp = MultiscaleICPOdometry([
-            ICPOption(1.0, 10, geom_weight=1, feat_weight=1),
-            ICPOption(0.5, 10, geom_weight=1, feat_weight=1),
-            ICPOption(0.5, 10, geom_weight=1, feat_weight=1),
+            ICPOption(1.0, 10, geom_weight=10, feat_weight=1),
+            ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
+            ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
             # ICPOption(1.0, 10, feat_weight=1, so3=True),
         ])
-
         self.icp_verifier = ICPVerifier()
 
-        self.previous_fpcl = None
+        self._previous_fpcl = None
         self._previous_features = None
-
-        self._prev_frame_fpcl = None
-        self._prev_frame_features = None
+        self._pose_raster = None
 
         self.gl_context = tenviz.Context()
 
         self.model = SurfelModel(
             self.gl_context, max_surfels, feature_size=feature_size)
-        self.fusion = SurfelFusion(self.model,
-                                   max_merge_distance=max_merge_distance,
-                                   normal_max_angle=normal_max_angle,
-                                   stable_conf_thresh=stable_conf_thresh,
-                                   max_unstable_time=max_unstable_time,
-                                   search_size=search_size,
-                                   indexmap_scale=indexmap_scale,
-                                   min_z_difference=min_z_difference)
 
-        self.tracking = tracking
+        if tracking_mode == 'frame-to-model':
+            self._pose_raster = ModelIndexMapRaster(self.model)
 
-        self._depth_filter = BilateralDepthFilter()
+        self.fusion = EFFusion(self.model,
+                               stable_conf_thresh=stable_conf_thresh,
+                               max_unstable_time=max_unstable_time,
+                               search_size=search_size,
+                               indexmap_scale=indexmap_scale)
 
     def step(self, frame, features=None):
         frame = frame.clone_shallow()
@@ -150,52 +78,20 @@ class SurfelSLAM:
         filtered_live_fpcl = FramePointCloud.from_frame(frame).to(device)
 
         confidence_weight = 1.0
-        if self.previous_fpcl is not None:
-            if self.fusion._time == 344:
-                import ipdb
-                ipdb.set_trace()
-
+        if self._previous_fpcl is not None:
             result = self.icp.estimate(
                 frame.info.kcam, filtered_live_fpcl.points,
                 filtered_live_fpcl.mask,
                 source_feats=features,
-                target_points=self.previous_fpcl.points,
-                target_mask=self.previous_fpcl.mask,
-                target_normals=self.previous_fpcl.normals,
+                target_points=self._previous_fpcl.points,
+                target_mask=self._previous_fpcl.mask,
+                target_normals=self._previous_fpcl.normals,
                 target_feats=self._previous_features)
 
             if self.icp_verifier(result):
                 relative_cam = result.transform
             else:
-                from fiontb.fusion.surfel.fusion import FusionStats
                 return FusionStats()
-
-                print("Tracking fail")
-
-                result = self.icp.estimate(
-                    frame.info.kcam, filtered_live_fpcl.points,
-                    filtered_live_fpcl.mask,
-                    source_feats=features,
-                    target_points=self._prev_frame_fpcl.points,
-                    target_mask=self._prev_frame_fpcl.mask,
-                    target_normals=self._prev_frame_fpcl.normals,
-                    target_feats=self._previous_features)
-
-                if not self.icp_verifier(result):
-                    # if True:
-                    # return FusionStats()
-                    print("Tracking fail 2")
-                    import matplotlib.pyplot as plt
-                    plt.figure()
-                    plt.imshow(features.transpose(1, 0).transpose(1, 2).cpu())
-
-                    plt.figure()
-                    plt.imshow(self._previous_features.transpose(
-                        1, 0).transpose(1, 2).cpu())
-
-                    import ipdb
-                    ipdb.set_trace()
-                    # return FusionStats()
 
             rt_camera = self.rt_camera.integrate(relative_cam.cpu())
             confidence_weight = _estimate_confidence_weight(
@@ -203,52 +99,66 @@ class SurfelSLAM:
             self.rt_camera = rt_camera
         live_fpcl.normals = filtered_live_fpcl.normals
 
-        global _confs
-        if len(_confs) > 0:
-            confidence_weight = _confs[0]
-            _confs = _confs[1:]
-        if False:
-            global _cams
-            self.rt_camera = _cams[0]
-            self.rt_camera.matrix = self.rt_camera.matrix.float()
-            _cams = _cams[1:]
-        print("Confidence: ", confidence_weight)
         stats = self.fusion.fuse(live_fpcl, self.rt_camera, features,
                                  confidence_weight=confidence_weight)
 
-        self._prev_frame_fpcl = filtered_live_fpcl
-        self._prev_frame_features = features
-
-        if self.tracking == 'frame-to-frame' or self.model.max_time < 3:
-            self.previous_fpcl = filtered_live_fpcl
+        if self._pose_raster is None:
+            self._previous_fpcl = filtered_live_fpcl
             self._previous_features = features
-        elif self.tracking == 'frame-to-model':
-
-            if self.model.max_time == 50:
-                import ipdb; ipdb.set_trace()
-                
-            model_fpcl, model_features = self.fusion.get_model_frame_pcl()
+        else:
+            model_fpcl, model_features = self._get_model_frame_pcl(
+                frame.info.kcam)
 
             if model_fpcl is not None:
-                if False:
-                    import matplotlib.pyplot as plt
-                    plt.figure()
-                    plt.imshow(frame.rgb_image)
-                    plt.figure()
-                    plt.imshow(model_fpcl.colors.cpu())
-
-                    plt.figure()
-                    plt.imshow(model_features.transpose(
-                        1, 0).transpose(1, 2).cpu())
-                    model_fpcl.plot_debug()
-
                 model_fpcl.points[:, :, 2] = self._depth_filter(
                     model_fpcl.points[:, :, 2], model_fpcl.mask)
-                self.previous_fpcl = model_fpcl
+                self._previous_fpcl = model_fpcl
                 self._previous_features = model_features
             else:
                 print("Not fill")
-                self.previous_fpcl = filtered_live_fpcl
+                self._previous_fpcl = filtered_live_fpcl
                 self._previous_features = features
 
         return stats
+
+    def _get_model_frame_pcl(self, kcam, min_fill_ratio=0.7, flip=True):
+        gl_proj_matrix = kcam.get_opengl_projection_matrix(
+            0.01, 100.0, dtype=torch.float)
+        self._pose_raster.raster(gl_proj_matrix, self.rt_camera,
+                                 kcam.image_width, kcam.image_height)
+        indexmap = self._pose_raster.to_indexmap()
+        indexmap.synchronize()
+
+        mask = indexmap.indexmap[:, :, 1]
+        fill_ratio = mask.sum().item()/(mask.size(0)*mask.size(1))
+
+        if fill_ratio < min_fill_ratio:
+            return None, None
+
+        if flip:
+            mask = mask.flip([0])
+        else:
+            mask = mask.clone()
+
+        mask = mask.bool()
+        features = None
+
+        if self.model.has_features:
+            features = torch.zeros(self.model.feature_size, mask.size(0), mask.size(1),
+                                   device=self.model.device,
+                                   dtype=torch.float)
+            _SurfelFusionOp.copy_features(
+                indexmap.indexmap, self.model.features, features, flip)
+
+        if flip:
+            points = indexmap.position_confidence[:, :, :3].clone().flip([0])
+            normals = indexmap.normal_radius[:, :, :3].clone().flip([0])
+            colors = indexmap.color.clone().flip([0])
+        else:
+            points = indexmap.position_confidence[:, :, :3].clone()
+            normals = indexmap.normal_radius[:, :, :3].clone()
+            colors = indexmap.color.clone()
+
+        return FramePointCloud(
+            None, mask, kcam, self.rt_camera,
+            points, normals, colors), features

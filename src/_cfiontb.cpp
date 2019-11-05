@@ -8,6 +8,7 @@
 #include "camera.hpp"
 #include "dense_volume.hpp"
 #include "downsample.hpp"
+#include "elastic_fusion.hpp"
 #include "filtering.hpp"
 #include "fsf.hpp"
 #include "icpodometry.hpp"
@@ -61,6 +62,7 @@ PYBIND11_MODULE(_cfiontb, m) {
   IndexMap::RegisterPybind(m);
   MappedSurfelModel::RegisterPybind(m);
   SurfelCloud::RegisterPybind(m);
+  ElasticFusionOp::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
   FSFOp::RegisterPybind(m);
 
@@ -68,7 +70,7 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   ProjectOp::RegisterPybind(m);
   RigidTransformOp::RegisterPybind(m);
-  
+
   m.def("so3t_exp_op_forward", &SO3tExpOp::Forward);
   m.def("so3t_exp_op_backward", &SO3tExpOp::Backward);
 
