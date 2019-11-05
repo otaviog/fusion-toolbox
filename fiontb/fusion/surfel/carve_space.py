@@ -10,7 +10,7 @@ class CarveSpace:
 
     """
 
-    def __init__(self, stable_conf_thresh, stable_time_thresh,
+    def __init__(self, stable_conf_thresh=10, stable_time_thresh=20,
                  search_size=2, min_z_difference=5e-2):
         self.stable_conf_thresh = stable_conf_thresh
         self.stable_time_thresh = stable_time_thresh

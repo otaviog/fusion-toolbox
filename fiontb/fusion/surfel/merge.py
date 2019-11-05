@@ -8,8 +8,8 @@ from fiontb._utils import empty_ensured_size
 
 class Merge:
 
-    def __init__(self, max_distance=0.005, normal_max_angle=math.radians(30), search_size=4,
-                 stable_conf_thresh=10):
+    def __init__(self, max_distance=0.01, normal_max_angle=math.radians(30),
+                 search_size=4, stable_conf_thresh=10):
         self.max_dist = max_distance
         self.normal_max_angle = normal_max_angle
         self.search_size = search_size

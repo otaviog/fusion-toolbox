@@ -8,7 +8,7 @@ from fiontb._utils import empty_ensured_size
 from .indexmap import LiveIndexMapRaster
 
 
-class MergeLiveSurfels:
+class Update:
     def __init__(self, gl_context, elastic_fusion=False,
                  search_size=2, max_normal_angle=math.radians(30)):
         self.elastic_fusion = elastic_fusion

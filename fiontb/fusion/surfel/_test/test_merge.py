@@ -4,7 +4,7 @@ import torch
 import tenviz
 
 from fiontb.data.ftb import load_ftb
-from fiontb.data import set_cameras_to_start_at_eye
+from fiontb.data import set_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
 from fiontb.surfel import SurfelModel, SurfelCloud
 
@@ -15,8 +15,7 @@ from ..merge import Merge
 def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
-    dataset = load_ftb(test_data / "sample2")
-    set_cameras_to_start_at_eye(dataset)
+    dataset = set_start_at_eye(load_ftb(test_data / "sample2"))
 
     device = torch.device("cuda:0")
     gl_context = tenviz.Context()

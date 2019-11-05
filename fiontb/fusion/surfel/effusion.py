@@ -2,23 +2,25 @@ import torch
 
 from fiontb.surfel import SurfelCloud
 
-from .merge_live import MergeLiveSurfels
+from .update import Update
 from .clean import Clean
 from .stats import FusionStats
 from .indexmap import ModelIndexMapRaster
 
+
 class EFFusion:
-    def __init__(self, model, stable_conf_thresh=10, max_unstable_time=20, search_size=2,
-                 indexmap_scale=4):
+    def __init__(self, model, stable_conf_thresh=10, stable_time_thresh=20,
+                 search_size=2, indexmap_scale=4):
         gl_context = model.gl_context
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
-        self._merge_live_surfels = MergeLiveSurfels(
+        self._update = Update(
             gl_context, elastic_fusion=True, search_size=search_size)
 
-        self._clean = Clean(
-            stable_conf_thresh, max_unstable_time)
+        self._clean = Clean(elastic_fusion=True,
+                            stable_conf_thresh=stable_conf_thresh,
+                            stable_time_thresh=stable_time_thresh)
 
         self.indexmap_scale = indexmap_scale
         self._time = 0
@@ -49,7 +51,7 @@ class EFFusion:
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
 
-        new_surfels = self._merge_live_surfels(
+        new_surfels = self._update(
             model_indexmap, live_surfels, gl_proj_matrix,
             rt_cam, width, height, self._time, self.model, live_features=features)
         self.model.add_surfels(new_surfels, update_gl=True)

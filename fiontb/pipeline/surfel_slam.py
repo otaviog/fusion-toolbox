@@ -28,7 +28,7 @@ class SurfelSLAM:
     def __init__(self, max_surfels=1024*1024*15, device="cuda:0",
                  tracking_mode='frame-to-frame',
                  stable_conf_thresh=10,
-                 max_unstable_time=20, search_size=4, indexmap_scale=4,
+                 stable_time_thresh=20, search_size=4, indexmap_scale=4,
                  feature_size=3):
         self.device = device
 
@@ -58,7 +58,7 @@ class SurfelSLAM:
 
         self.fusion = EFFusion(self.model,
                                stable_conf_thresh=stable_conf_thresh,
-                               max_unstable_time=max_unstable_time,
+                               stable_time_thresh=stable_time_thresh,
                                search_size=search_size,
                                indexmap_scale=indexmap_scale)
 
@@ -106,8 +106,10 @@ class SurfelSLAM:
             self._previous_fpcl = filtered_live_fpcl
             self._previous_features = features
         else:
+            import ipdb; ipdb.set_trace()
             model_fpcl, model_features = self._get_model_frame_pcl(
                 frame.info.kcam)
+
 
             if model_fpcl is not None:
                 model_fpcl.points[:, :, 2] = self._depth_filter(
