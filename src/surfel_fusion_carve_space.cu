@@ -1,98 +1,136 @@
-#include "surfel_fusion_common.hpp"
+#include "elastic_fusion.hpp"
 
 #include <torch/torch.h>
 
+#include "camera.hpp"
 #include "cuda_utils.hpp"
+#include "eigen_common.hpp"
 #include "error.hpp"
 #include "kernel.hpp"
 #include "math.hpp"
+#include "surfel_fusion_common.hpp"
 
 namespace fiontb {
-
 namespace {
 
-const int MAX_VIOLANTIONS = 4;
-
 template <Device dev>
-struct CarveSpaceKernel {
-  const IndexMapAccessor<dev> model;
-  typename Accessor<dev, int64_t, 2>::T free_map;
+struct CarveKernel {
+  SurfelModelAccessor<dev> model;
+  const typename Accessor<dev, int64_t, 1>::T model_indices;
+  const IndexMapAccessor<dev> model_indexmap;
 
-  int32_t curr_time;
-  float stable_thresh;
-  int search_size;
-  float min_z_diff;
+  const KCamera<dev, float> kcam;
+  const RTCamera<float> inverse_rt;
 
-  CarveSpaceKernel(const IndexMap &model, torch::Tensor free_map,
-                   int32_t curr_time, float stable_thresh, int search_size,
-                   float min_z_diff)
+  const int time;
+  const int neighbor_size;
+  const float stable_conf_thresh;
+  const int stable_time_thresh;
+  const float min_z_diff;
+
+  typename Accessor<dev, bool, 1>::T remove_mask;
+
+  CarveKernel(MappedSurfelModel model, torch::Tensor model_indices,
+              const IndexMap &model_indexmap, const torch::Tensor &kcam,
+              const torch::Tensor &inverse_rt, int time, int neighbor_size,
+              float stable_conf_thresh, int stable_time_thresh,
+              torch::Tensor remove_mask)
       : model(model),
-        free_map(Accessor<dev, int64_t, 2>::Get(free_map)),
-        curr_time(curr_time),
-        stable_thresh(stable_thresh),
-        search_size(search_size),
-        min_z_diff(min_z_diff) {}
+        model_indices(Accessor<dev, int64_t, 1>::Get(model_indices)),
+        model_indexmap(model_indexmap),
+        kcam(kcam),
+        inverse_rt(inverse_rt),
+        time(time),
+        neighbor_size(neighbor_size),
+        stable_conf_thresh(stable_conf_thresh),
+        stable_time_thresh(stable_time_thresh),
+        min_z_diff(0.01),
+        remove_mask(Accessor<dev, bool, 1>::Get(remove_mask)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
-    free_map[row][col] = -1;
+  FTB_DEVICE_HOST void operator()(int idx) {
+    const int64_t current_idx = model_indices[idx];
 
-    if (model.empty(row, col)) return;
-    if (model.time(row, col) == curr_time ||
-        model.confidence(row, col) >= stable_thresh)
+    if (time - model.times[current_idx] >= stable_time_thresh) return;
+
+    const Eigen::Vector3f curr_xyz =
+        inverse_rt.Transform(model.position(current_idx));
+    const float curr_z = curr_xyz[2];
+
+    if (curr_z <= 0) return;
+
+    int u, v;
+    kcam.Projecti(curr_xyz, u, v);
+
+    const int width = model_indexmap.width();
+    const int height = model_indexmap.height();
+    if (u < 0 || u >= width || v < 0 || v >= height) return;
+
+    const Eigen::Vector3f model_local_normal =
+        inverse_rt.TransformNormal(model.normal(current_idx));
+    if (abs(model_local_normal[2]) > 0.85) {
       return;
+    }
 
-    const float model_z = model.position_confidence[row][col][2];
-    const int model_idx = model.index(row, col);
+    const int start_row = max(v - neighbor_size, 0);
+    const int end_row = min(v + neighbor_size, height - 1);
+    const int start_col = max(u - neighbor_size, 0);
+    const int end_col = min(u + neighbor_size, width - 1);
 
-    int violantion_count = 0;
-
-    const int start_row = max(row - search_size, 0);
-    const int end_row = min(row + search_size, model.height() - 1);
-
-    const int start_col = max(col - search_size, 0);
-    const int end_col = min(col + search_size, model.width() - 1);
+    int violation_count = 0;
 
     for (int krow = start_row; krow <= end_row; ++krow) {
       for (int kcol = start_col; kcol <= end_col; ++kcol) {
-        if (krow == row && kcol == col) continue;
-        if (model.empty(krow, kcol)) continue;
-        if (model.time(krow, kcol) != curr_time &&
-            model.confidence(krow, kcol) < stable_thresh)
+        const float neighbor_conf = model_indexmap.confidence(krow, kcol);
+        if (model_indexmap.empty(krow, kcol) ||
+            current_idx == model_indexmap.index(krow, kcol) ||
+            neighbor_conf < stable_conf_thresh)
           continue;
 
-        
-        const float stable_z = model.position_confidence[krow][kcol][2];
-        if (stable_z - model_z > min_z_diff) {
-          ++violantion_count;
+        const float neighbor_z =
+            model_indexmap.position_confidence[krow][kcol][2];
+        const int neighbor_time = model_indexmap.time(krow, kcol);
+
+        if (neighbor_time == time && neighbor_conf > stable_conf_thresh &&
+            neighbor_z > curr_z && neighbor_z - curr_z > min_z_diff) {
+          ++violation_count;
         }
       }
     }
 
-    if (violantion_count >= MAX_VIOLANTIONS) {
-      free_map[row][col] = model_idx;
+    if (violation_count > 4) {
+      remove_mask[idx] = true;
     }
   }
 };
+
 }  // namespace
 
-void SurfelFusionOp::CarveSpace(const IndexMap &model, torch::Tensor free_map,
-                                int curr_time, float stable_thresh,
-                                int search_size, float min_z_diff) {
-  const auto ref_device = model.get_device();
+void SurfelFusionOp::CarveSpace(MappedSurfelModel model,
+                                torch::Tensor model_indices,
+                                const IndexMap &model_indexmap,
+                                const torch::Tensor kcam,
+                                const torch::Tensor &world_to_cam, int time,
+                                int neighbor_size, float stable_conf_thresh,
+                                int stable_time_thresh,
+                                torch::Tensor remove_mask) {
+  const auto ref_device = model_indexmap.get_device();
   model.CheckDevice(ref_device);
+  model_indexmap.CheckDevice(ref_device);
 
-  FTB_CHECK_DEVICE(ref_device, free_map);
+  FTB_CHECK_DEVICE(ref_device, kcam);
+  FTB_CHECK_DEVICE(ref_device, remove_mask);
 
   if (ref_device.is_cuda()) {
-    CarveSpaceKernel<kCUDA> kernel(model, free_map, curr_time, stable_thresh,
-                                   search_size, min_z_diff);
-
-    Launch2DKernelCUDA(kernel, model.get_width(), model.get_height());
+    CarveKernel<kCUDA> kernel(
+        model, model_indices, model_indexmap, kcam, world_to_cam, time,
+        neighbor_size, stable_conf_thresh, stable_time_thresh, remove_mask);
+    Launch1DKernelCUDA(kernel, model_indices.size(0));
   } else {
-    CarveSpaceKernel<kCPU> kernel(model, free_map, curr_time, stable_thresh,
-                                  search_size, min_z_diff);
-
-    Launch2DKernelCPU(kernel, model.get_width(), model.get_height());
+    CarveKernel<kCPU> kernel(
+        model, model_indices, model_indexmap, kcam, world_to_cam, time,
+        neighbor_size, stable_conf_thresh, stable_conf_thresh, remove_mask);
+    Launch1DKernelCPU(kernel, model_indices.size(0));
   }
 }
+
 }  // namespace fiontb

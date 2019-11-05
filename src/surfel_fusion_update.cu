@@ -11,49 +11,6 @@ namespace fiontb {
 namespace {
 
 template <Device dev>
-struct MergeMap {};
-
-template <>
-struct MergeMap<kCUDA> {
-  PackedAccessor<int32_t, 3> merge_map;
-
-  MergeMap(torch::Tensor merge_map)
-      : merge_map(GetPackedAccessor<int32_t, 3>(merge_map)) {}
-
-  __device__ inline void Set(int row, int col, int32_t dist, int32_t index) {
-    int32_t *dist_addr = &merge_map[row][col][0];
-    int32_t *index_addr = &merge_map[row][col][1];
-
-    atomicMin(dist_addr, dist);
-    int32_t curr_index = *index_addr;
-    if (*dist_addr == dist) {
-      atomicCAS(index_addr, curr_index, index);
-    }
-  }
-};
-
-template <>
-struct MergeMap<kCPU> {
-  torch::TensorAccessor<int32_t, 3> merge_map;
-  static std::mutex mutex_;  // Slowest, but easy to test.
-
-  MergeMap(torch::Tensor &merge_map)
-      : merge_map(merge_map.accessor<int32_t, 3>()) {}
-
-  inline void Set(int row, int col, int32_t dist, int32_t index) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const int32_t curr_dist = merge_map[row][col][0];
-
-    if (dist < curr_dist) {
-      merge_map[row][col][0] = dist;
-      merge_map[row][col][1] = index;
-    }
-  }
-};
-
-std::mutex MergeMap<kCPU>::mutex_;
-
-template <Device dev>
 struct FindMergeKernel {
   const IndexMapAccessor<dev> model_indexmap;
   const IndexMapAccessor<dev> live_indexmap;
@@ -151,30 +108,27 @@ struct FindMergeKernel {
 };
 
 template <Device dev>
-struct MergeKernel {
+struct UpdateKernel {
   const IndexMapAccessor<dev> model_indexmap;
   const IndexMapAccessor<dev> live_indexmap;
 
   const typename Accessor<dev, float, 3>::T live_features;
   typename Accessor<dev, int32_t, 3>::T model_merge_map;
 
-  const RTCamera<dev, float> rt_cam;
-  const Eigen::Matrix3f normal_transform_matrix;
+  const RTCamera<float> rt_cam;
   const int time;
 
   SurfelModelAccessor<dev> model;
 
-  MergeKernel(const IndexMap &model_indexmap, const IndexMap &live_indexmap,
-              const torch::Tensor &live_features,
-              const torch::Tensor &model_merge_map, RTCamera<dev, float> rt_cam,
-              const Eigen::Matrix3f &normal_transform_matrix, int time,
-              MappedSurfelModel model)
+  UpdateKernel(const IndexMap &model_indexmap, const IndexMap &live_indexmap,
+               const torch::Tensor &live_features,
+               const torch::Tensor &model_merge_map,
+               const torch::Tensor &rt_cam, int time, MappedSurfelModel model)
       : model_indexmap(model_indexmap),
         live_indexmap(live_indexmap),
         live_features(Accessor<dev, float, 3>::Get(live_features)),
         model_merge_map(Accessor<dev, int32_t, 3>::Get(model_merge_map)),
         rt_cam(rt_cam),
-        normal_transform_matrix(normal_transform_matrix),
         time(time),
         model(model) {}
 
@@ -205,7 +159,8 @@ struct MergeKernel {
       const Vector<float, 3> live_normal(
           live_indexmap.normal(live_row, live_col));
       const Vector<float, 3> live_world_normal =
-          normal_transform_matrix * live_normal;
+          rt_cam.TransformNormal(live_normal);
+
       model.set_normal(model_target, (model.normal(model_target) * model_conf +
                                       live_world_normal * live_conf) /
                                          conf_total);
@@ -238,22 +193,9 @@ struct MergeKernel {
   }
 };
 
-Eigen::Matrix3f GetNormalTransformMatrix(const torch::Tensor rt_cam) {
-  auto rt_cam_cpu = rt_cam.cpu();
-  const torch::TensorAccessor<float, 2> acc = rt_cam_cpu.accessor<float, 2>();
-  Eigen::Matrix3f mtx = Eigen::Matrix3f::Identity();
-
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 3; ++j) {
-      mtx(i, j) = acc[i][j];
-    }
-  }
-
-  return mtx.inverse().transpose();
-}
 }  // namespace
 
-void SurfelFusionOp::MergeLive(
+void SurfelFusionOp::Update(
     const IndexMap &model_indexmap, const IndexMap &live_indexmap,
     const torch::Tensor &live_features, MappedSurfelModel model,
     const torch::Tensor &rt_cam, int search_size, float max_normal_angle,
@@ -269,7 +211,6 @@ void SurfelFusionOp::MergeLive(
   FTB_CHECK_DEVICE(reference_dev, merge_map);
   FTB_CHECK_DEVICE(reference_dev, new_surfels_map);
 
-  Eigen::Matrix3f normal_transform_matrix(GetNormalTransformMatrix(rt_cam));
   if (reference_dev.is_cuda()) {
     FindMergeKernel<kCUDA> find_kernel(model_indexmap, live_indexmap,
                                        search_size, max_normal_angle, time,
@@ -277,9 +218,9 @@ void SurfelFusionOp::MergeLive(
     Launch2DKernelCUDA(find_kernel, live_indexmap.get_width(),
                        live_indexmap.get_height());
 
-    MergeKernel<kCUDA> merge_kernel(
-        model_indexmap, live_indexmap, live_features, merge_map,
-        RTCamera<kCUDA, float>(rt_cam), normal_transform_matrix, time, model);
+    UpdateKernel<kCUDA> merge_kernel(model_indexmap, live_indexmap,
+                                     live_features, merge_map, rt_cam, time,
+                                     model);
     Launch2DKernelCUDA(merge_kernel, model_indexmap.get_width(),
                        model_indexmap.get_height());
   } else {
@@ -288,9 +229,9 @@ void SurfelFusionOp::MergeLive(
                                       merge_map, new_surfels_map);
     Launch2DKernelCPU(find_kernel, live_indexmap.get_width(),
                       live_indexmap.get_height());
-    MergeKernel<kCPU> merge_kernel(model_indexmap, live_indexmap, live_features,
-                                   merge_map, RTCamera<kCPU, float>(rt_cam),
-                                   normal_transform_matrix, time, model);
+    UpdateKernel<kCPU> merge_kernel(model_indexmap, live_indexmap,
+                                    live_features, merge_map, rt_cam, time,
+                                    model);
     Launch2DKernelCPU(merge_kernel, model_indexmap.get_width(),
                       model_indexmap.get_height());
   }

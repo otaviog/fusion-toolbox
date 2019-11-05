@@ -2,14 +2,16 @@ import math
 
 import torch
 
-from fiontb._cfiontb import SurfelFusionOp
+from fiontb._cfiontb import SurfelFusionOp, ElasticFusionOp
 from fiontb._utils import empty_ensured_size
 
 from .indexmap import LiveIndexMapRaster
 
 
 class MergeLiveSurfels:
-    def __init__(self, gl_context, search_size=2, max_normal_angle=math.radians(30)):
+    def __init__(self, gl_context, elastic_fusion=False,
+                 search_size=2, max_normal_angle=math.radians(30)):
+        self.elastic_fusion = elastic_fusion
         self.search_size = search_size
         self.max_normal_angle = max_normal_angle
         self.live_raster = LiveIndexMapRaster(gl_context)
@@ -38,20 +40,29 @@ class MergeLiveSurfels:
         with surfel_model.gl_context.current():
             live_indexmap = self.live_raster.to_indexmap(ref_device)
 
-            from .indexmap import show_indexmap
-            #show_indexmap(live_indexmap, show=False)
-            # show_indexmap(target_indexmap)
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
-                SurfelFusionOp.merge_live(target_indexmap,
-                                          live_indexmap,
-                                          live_features,
-                                          mapped_model,
-                                          rt_cam.cam_to_world.to(ref_device),
-                                          self.search_size,
-                                          self.max_normal_angle,
-                                          time,
-                                          model_merge_map,
-                                          self._new_surfels_map)
+                if self.elastic_fusion:
+                    ElasticFusionOp.update(target_indexmap,
+                                           live_indexmap,
+                                           live_features,
+                                           mapped_model,
+                                           rt_cam.cam_to_world.to(ref_device),
+                                           self.search_size,
+                                           time,
+                                           model_merge_map,
+                                           self._new_surfels_map)
+                else:
+                    SurfelFusionOp.merge_live(target_indexmap,
+                                              live_indexmap,
+                                              live_features,
+                                              mapped_model,
+                                              rt_cam.cam_to_world.to(
+                                                  ref_device),
+                                              self.search_size,
+                                              self.max_normal_angle,
+                                              time,
+                                              model_merge_map,
+                                              self._new_surfels_map)
 
         new_surfels_index = self._new_surfels_map[self._new_surfels_map > -1]
         new_surfels = live_surfels[new_surfels_index]

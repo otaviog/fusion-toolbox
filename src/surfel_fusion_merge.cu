@@ -149,11 +149,9 @@ struct MergeKernel {
       const float tgt_feat_channel = model.features[i][target_idx];
       const float src_feat_channel = model.features[i][source_idx];
 
-#if 1
       model.features[i][target_idx] =
           (tgt_feat_channel * tgt_conf + src_feat_channel * src_conf) /
           conf_total;
-#endif
     }
 
     model.confidences[target_idx] = conf_total;

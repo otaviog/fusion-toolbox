@@ -5,7 +5,7 @@ import numpy as np
 import tenviz
 
 from fiontb.data.ftb import load_ftb
-from fiontb.data import set_cameras_to_start_at_eye
+from fiontb.data import set_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
 from fiontb.surfel import SurfelModel, SurfelCloud
 
@@ -13,14 +13,14 @@ from ..indexmap import ModelIndexMapRaster
 from ..carve_space import CarveSpace
 
 _STABLE_CONF_THRESH = 10.0
-_CURRENT_TIME = 5
+_STABLE_TIME_THRESH = 20
+_CURRENT_TIME = 30
 
 
 def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
-    dataset = load_ftb(test_data / "sample2")
-    set_cameras_to_start_at_eye(dataset)
+    dataset = set_start_at_eye(load_ftb(test_data / "sample2"))
 
     device = torch.device("cpu:0")
     gl_context = tenviz.Context()
@@ -47,7 +47,7 @@ def _test():
 
     prev_model = surfel_model.clone()
 
-    carve = CarveSpace(_STABLE_CONF_THRESH, search_size=2)
+    carve = CarveSpace(_STABLE_CONF_THRESH, _STABLE_TIME_THRESH, search_size=2)
 
     height, width = frame.depth_image.shape
 
@@ -57,7 +57,8 @@ def _test():
     with gl_context.current():
         indexmap = raster.to_indexmap(device)
 
-    carve(indexmap, _CURRENT_TIME, surfel_model, update_gl=True)
+    carve(frame.info.kcam, frame.info.rt_cam,
+          indexmap, _CURRENT_TIME, surfel_model, update_gl=True)
 
     show_surfels(gl_context, [prev_model, surfel_model])
 

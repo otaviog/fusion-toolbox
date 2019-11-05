@@ -2,6 +2,8 @@
 
 """
 
+from enum import Enum
+
 import cv2
 import numpy as np
 from torchvision.transforms.functional import to_tensor
@@ -10,8 +12,14 @@ from fiontb.frame import estimate_normals
 from fiontb.filtering import bilateral_depth_filter
 
 
-def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
-                  compute_normals=False, to_gray=False):
+class ColorMode(Enum):
+    RGB = 0,
+    GRAY = 1
+    HSV = 2
+
+
+def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.HSV,
+                  compute_normals=False):
     height, width = frame.depth_image.shape
     height, width = int(height*scale), int(width*scale)
 
@@ -39,25 +47,20 @@ def prepare_frame(frame, scale=1, filter_depth=True, to_hsv=False, blur=False,
         frame.normal_image = estimate_normals(normal_depth_image, frame.info,
                                               mask)
 
-    features = frame.rgb_image
-    if blur:
-        features = cv2.blur(features, (5, 5))
-
-    if to_hsv:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
-
-    if to_gray:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
+    features = get_color_feature(
+        frame.rgb_image, color_mode)
 
     return frame, to_tensor(features)
 
 
-def get_color_feature(rgb_image, to_hsv=True, blur=False):
+def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.HSV):
     features = rgb_image
     if blur:
         features = cv2.blur(features, (5, 5))
 
-    if to_hsv:
+    if color_mode == ColorMode.HSV:
         features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
+    elif color_mode == ColorMode.GRAY:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
 
     return to_tensor(features)

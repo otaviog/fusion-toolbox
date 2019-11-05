@@ -74,32 +74,33 @@ struct SurfelCloud {
 };
 
 struct SurfelFusionOp {
-  static void MergeLive(const IndexMap &target_indexmap,
-                        const IndexMap &live_indexmap,
-                        const torch::Tensor &live_features,
-                        MappedSurfelModel model, const torch::Tensor &rt_cam,
-                        int search_size, float max_normal_angle, int time,
-                        torch::Tensor model_merge_map,
-                        torch::Tensor new_surfels_map);
+  static void Update(const IndexMap &target_indexmap,
+                     const IndexMap &live_indexmap,
+                     const torch::Tensor &live_features,
+                     MappedSurfelModel model, const torch::Tensor &rt_cam,
+                     int search_size, float max_normal_angle, int time,
+                     torch::Tensor model_merge_map,
+                     torch::Tensor new_surfels_map);
 
-  static void CarveSpace(const IndexMap &model_indexmap,
-                         torch::Tensor free_mask, int curr_time,
-                         float stable_conf_thresh, int search_size,
-                         float min_z_diff);
+  static void CarveSpace(MappedSurfelModel model, torch::Tensor model_indices,
+                         const IndexMap &model_indexmap,
+                         const torch::Tensor kcam,
+                         const torch::Tensor &world_to_cam, int time,
+                         int neighbor_size, float stable_conf_thresh,
+                         int stable_time_thresh, torch::Tensor remove_mask);
 
   static void Merge(const IndexMap &model_indexmap, torch::Tensor merge_map,
                     MappedSurfelModel model, float max_dist, float max_angle,
                     int neighbor_size, float stable_conf_thresh);
 
+  static void Clean(MappedSurfelModel model, torch::Tensor model_indices,
+                    int time, float stable_conf_thresh, int stable_time_thresh,
+                    torch::Tensor remove_mask);
+
   static void CopyFeatures(const torch::Tensor &indexmap,
                            const torch::Tensor &model_features,
                            torch::Tensor out_features, bool flip);
 
-  static void Clean(MappedSurfelModel model, torch::Tensor model_indices,
-                    const IndexMap &model_indexmap, const torch::Tensor &kcam,
-                    const torch::Tensor &world_to_cam, int time,
-                    int max_time_thresh, int neighbor_size,
-                    float stable_conf_thresh, torch::Tensor remove_mask);
   static void RegisterPybind(pybind11::module &m);
 };
 }  // namespace fiontb

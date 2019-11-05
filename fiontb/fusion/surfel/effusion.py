@@ -1,29 +1,21 @@
-import math
-
 import torch
 
 from fiontb.surfel import SurfelCloud
-from fiontb.frame import FramePointCloud
 
-from .indexmap import ModelIndexMapRaster, SurfelIndexMapRaster
 from .merge_live import MergeLiveSurfels
-from .merge import Merge
-from .carve_space import CarveSpace
 from .clean import Clean
 from .stats import FusionStats
+from .indexmap import ModelIndexMapRaster
 
-
-class SurfelFusion:
-    def __init__(self, model, max_merge_distance=0.005, normal_max_angle=math.radians(30),
-                 stable_conf_thresh=10, max_unstable_time=20, search_size=2,
-                 indexmap_scale=4, min_z_difference=0.5):
+class EFFusion:
+    def __init__(self, model, stable_conf_thresh=10, max_unstable_time=20, search_size=2,
+                 indexmap_scale=4):
         gl_context = model.gl_context
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
         self._merge_live_surfels = MergeLiveSurfels(
-            gl_context, max_normal_angle=normal_max_angle,
-            search_size=search_size)
+            gl_context, elastic_fusion=True, search_size=search_size)
 
         self._clean = Clean(
             stable_conf_thresh, max_unstable_time)
@@ -46,9 +38,6 @@ class SurfelFusion:
             self._time += 1
             self.model.max_time = 1
             self.model.max_confidence = live_surfels.confidences.max()
-
-            self._update_pose_indexmap(
-                frame_pcl.kcam, rt_cam, gl_proj_matrix, width, height)
 
             return FusionStats(live_surfels.size, 0, 0)
 

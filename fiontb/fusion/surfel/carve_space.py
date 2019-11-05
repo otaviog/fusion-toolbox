@@ -10,27 +10,37 @@ class CarveSpace:
 
     """
 
-    def __init__(self, stable_conf_thresh,
+    def __init__(self, stable_conf_thresh, stable_time_thresh,
                  search_size=2, min_z_difference=5e-2):
         self.stable_conf_thresh = stable_conf_thresh
+        self.stable_time_thresh = stable_time_thresh
         self.search_size = search_size
         self.min_z_difference = min_z_difference
 
         self._free_map = None
 
-    def __call__(self, indexmap, current_time, model, update_gl=False):
-        indexmap.synchronize()
-        ref_device = indexmap.position_confidence.device
-        self._free_map = empty_ensured_size(
-            self._free_map, indexmap.height,
-            indexmap.width,
-            dtype=torch.int64,
-            device=ref_device)
+    def __call__(self, kcam, rt_cam, indexmap, time, model, update_gl=False):
+        ref_device = kcam.device
+        alloc_indices = model.allocated_indices().to(ref_device)
 
-        _SurfelFusionOp.carve_space(indexmap, self._free_map,
-                                    current_time, self.stable_conf_thresh,
-                                    self.search_size, self.min_z_difference)
+        if alloc_indices.size(0) == 0:
+            return 0
 
-        deleted = self._free_map[self._free_map > -1]
-        model.free(deleted, update_gl=update_gl)
-        return deleted.size(0)
+        remove_mask = torch.zeros(alloc_indices.size(0), device=ref_device,
+                                  dtype=torch.bool)
+
+        with model.gl_context.current():
+            with model.map_as_tensors(ref_device) as mapped_model:
+                _SurfelFusionOp.carve_space(mapped_model, alloc_indices,
+                                            indexmap, kcam.matrix,
+                                            rt_cam.world_to_cam,
+                                            time, 2, self.stable_conf_thresh,
+                                            self.stable_time_thresh,
+                                            remove_mask)
+
+        remove_idxs = alloc_indices[remove_mask]
+        if remove_idxs.size(0) == 0:
+            return 0
+
+        model.free(remove_idxs, update_gl)
+        return remove_idxs.size(0)

@@ -19,7 +19,7 @@ struct GeometricJacobianKernel {
   const typename Accessor<dev, scalar_t, 2>::T src_points;
   const typename Accessor<dev, bool, 1>::T src_mask;
   const KCamera<dev, scalar_t> kcam;
-  const RTCamera<dev, scalar_t> rt_cam;
+  const RigidTransform<dev, scalar_t> rt_cam;
 
   typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
   typename Accessor<dev, scalar_t, 2>::T Jr_partial;
@@ -30,8 +30,8 @@ struct GeometricJacobianKernel {
   GeometricJacobianKernel(PointGrid<dev, scalar_t> tgt,
                           const torch::Tensor &src_points,
                           const torch::Tensor &src_mask,
-                          const KCamera<dev, scalar_t> kcam,
-                          const RTCamera<dev, scalar_t> rt_cam,
+                          const torch::Tensor &kcam,
+                          const torch::Tensor &rt_cam,
                           torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
                           torch::Tensor squared_residual,
                           AtomicInt<dev> match_count)

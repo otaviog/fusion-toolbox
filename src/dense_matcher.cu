@@ -22,14 +22,14 @@ template <Device dev, typename scalar_t>
 struct MatchPointsDenseKernel {
   const PointGrid<dev> target;
   const KCamera<dev, scalar_t> kcam;
-  const RTCamera<dev, scalar_t> rt_cam;
+  const RigidTransform<dev, scalar_t> rt_cam;
   const typename Accessor<dev, scalar_t, 2>::T src_points;
   typename Accessor<dev, scalar_t, 2>::T out_points;
   typename Accessor<dev, int64_t, 1>::T out_index;
 
   MatchPointsDenseKernel(const PointGrid<dev> target,
                          const KCamera<dev, scalar_t> kcam,
-                         const RTCamera<dev, scalar_t> rt_cam,
+                         const RigidTransform<dev, scalar_t> rt_cam,
                          const torch::Tensor src_points,
                          torch::Tensor out_points,
                          const torch::Tensor out_index)
@@ -87,7 +87,7 @@ void Matching::MatchDensePoints(const torch::Tensor target_points,
         target_points.scalar_type(), "MatchDensePoints", ([&] {
           MatchPointsDenseKernel<kCUDA, scalar_t> kernel(
               PointGrid<kCUDA>(target_points, target_mask),
-              KCamera<kCUDA, scalar_t>(kcam), RTCamera<kCUDA, scalar_t>(rt_cam),
+              KCamera<kCUDA, scalar_t>(kcam), RigidTransform<kCUDA, scalar_t>(rt_cam),
               source_points, out_point, out_index);
 
           Launch1DKernelCUDA(kernel, source_points.size(0));
@@ -97,7 +97,7 @@ void Matching::MatchDensePoints(const torch::Tensor target_points,
         target_points.scalar_type(), "MatchDensePoints", ([&] {
           MatchPointsDenseKernel<kCPU, scalar_t> kernel(
               PointGrid<kCPU>(target_points, target_mask),
-              KCamera<kCPU, scalar_t>(kcam), RTCamera<kCPU, scalar_t>(rt_cam),
+              KCamera<kCPU, scalar_t>(kcam), RigidTransform<kCPU, scalar_t>(rt_cam),
               source_points, out_point, out_index);
 
           Launch1DKernelCPU(kernel, source_points.size(0));

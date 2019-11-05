@@ -152,14 +152,42 @@ class KCamera:
     def scaled(self, xscale, yscale=None):
         if yscale is None:
             yscale = xscale
-        return KCamera.from_params(self.matrix[0, 0]*xscale, self.matrix[1, 1]*yscale,
-                                   (self.matrix[0, 2]*xscale,
-                                    self.matrix[1, 2]*yscale),
-                                   self.undist_coeff, self.image_size).to(self.matrix.device)
+
+        image_size = None
+        if self.image_size is not None:
+            image_size = (int(self.image_size[0]*xscale),
+                          int(self.image_size[1]*yscale))
+
+        return KCamera.from_params(
+            self.matrix[0, 0]*xscale, self.matrix[1, 1]*yscale,
+            (self.matrix[0, 2]*xscale, self.matrix[1, 2]*yscale),
+            self.undist_coeff,
+            image_size).to(self.matrix.device)
+
+    def clone(self):
+        return KCamera(self.matrix.clone(),
+                       copy.deepcopy(self.undist_coeff),
+                       self.image_size)
+
+    def get_projection_params(self, near, far):
+        return tenviz.projection_from_kcam(
+            self.matrix, near, far)
+
+    def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
+        return torch.from_numpy(
+            self.get_projection_params(near, far).to_matrix()).to(dtype)
 
     def to(self, device):
         return KCamera(self.matrix.to(device), self.undist_coeff,
                        self.image_size)
+
+    @property
+    def image_width(self):
+        return self.image_size[0]
+
+    @property
+    def image_height(self):
+        return self.image_size[1]
 
     @property
     def device(self):
@@ -184,19 +212,6 @@ class KCamera:
         return (torch.all(self.matrix == other.matrix)
                 and (self.undist_coeff == other.undist_coeff)
                 and (self.image_size == other.image_size))
-
-    def clone(self):
-        return KCamera(self.matrix.clone(),
-                       copy.deepcopy(self.undist_coeff),
-                       self.image_size)
-
-    def get_projection_params(self, near, far):
-        return tenviz.projection_from_kcam(
-            self.matrix, near, far)
-
-    def get_opengl_projection_matrix(self, near, far, dtype=torch.float):
-        return torch.from_numpy(
-            self.get_projection_params(near, far).to_matrix()).to(dtype)
 
 
 class Project(torch.autograd.Function):
