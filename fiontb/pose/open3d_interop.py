@@ -66,47 +66,41 @@ class RGBDOdometry:
 
 
 class ColorICP:
-    def __init__(self, radius_iters):
-        self.radius_iters = radius_iters
+    def __init__(self, scale_iters):
+        self.scales = [scale for scale, _ in scale_iters]
+        self.iters = [iters
+                      for _, iters in scale_iters]
 
     def estimate_frame(self, source_frame, target_frame, transform=None, **kwargs):
-        source_pcl = FramePointCloud.from_frame(source_frame).unordered_point_cloud(
-            world_space=False).to_open3d()
-        target_pcl = FramePointCloud.from_frame(target_frame).unordered_point_cloud(
-            world_space=False).to_open3d()
-
         if transform is None:
             transform = np.identity(4)
         else:
             transform = transform.cpu().numpy()
 
-        for radius, iters in self.radius_iters:
-            if radius < math.inf:
-                source_down = open3d.geometry.voxel_down_sample(
-                    source_pcl, radius)
-                target_down = open3d.geometry.voxel_down_sample(
-                    target_pcl, radius)
-                print(source_down)
-            else:
-                source_down = source_pcl
-                target_down = target_pcl
+        source_pyramid = FramePointCloud.from_frame(
+            source_frame).pyramid(self.scales)
+        target_pyramid = FramePointCloud.from_frame(
+            target_frame).pyramid(self.scales)
 
-            open3d.estimate_normals(
-                source_down,
-                search_param=open3d.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
-            open3d.estimate_normals(
-                target_down,
-                search_param=open3d.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
+        max_corresp_dist = 1
+        for iters, source_pyr, target_pyr in zip(
+                self.iters, source_pyramid, target_pyramid):
 
+            source_pcl = source_pyr.unordered_point_cloud(
+                world_space=False).to_open3d()
+            target_pcl = target_pyr.unordered_point_cloud(
+                world_space=False).to_open3d()
+
+            conv_criteria = open3d.registration.ICPConvergenceCriteria(
+                relative_fitness=1e-6,
+                relative_rmse=1e-6,
+                max_iteration=iters)
             result = open3d.registration.registration_colored_icp(
-                source_down, target_down, radius, transform,
-                open3d.registration.ICPConvergenceCriteria(
-                    relative_fitness=1e-6,
-                    relative_rmse=1e-6,
-                    max_iteration=iters))
+                source_pcl, target_pcl, max_corresp_dist, transform,
+                conv_criteria)
             transform = result.transformation
 
         transform = torch.from_numpy(result.transformation)
         return ICPResult(transform, torch.eye(4),
-                         1.0 - result.inlier_rmse,
+                         result.inlier_rmse,
                          1.0)

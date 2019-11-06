@@ -66,6 +66,9 @@ struct SurfelModelAccessor {
 };
 
 template <Device dev>
+using SurfelCloudAccessor = SurfelModelAccessor<dev>;
+
+template <Device dev>
 struct IndexMapAccessor {
   typename Accessor<dev, float, 3>::T position_confidence;
   typename Accessor<dev, float, 3>::T normal_radius;

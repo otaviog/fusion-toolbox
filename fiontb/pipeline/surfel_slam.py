@@ -9,7 +9,8 @@ from fiontb.camera import RTCamera
 from fiontb.pose.icp import MultiscaleICPOdometry, ICPOption, ICPVerifier
 from fiontb.surfel import SurfelModel
 from fiontb.fusion.surfel.effusion import EFFusion, FusionStats
-from fiontb.fusion.surfel.indexmap import ModelIndexMapRaster
+from fiontb.fusion.surfel.indexmap import (ModelIndexMapRaster,
+                                           SurfelIndexMapRaster)
 from fiontb._cfiontb import SurfelFusionOp as _SurfelFusionOp
 
 
@@ -54,7 +55,7 @@ class SurfelSLAM:
             self.gl_context, max_surfels, feature_size=feature_size)
 
         if tracking_mode == 'frame-to-model':
-            self._pose_raster = ModelIndexMapRaster(self.model)
+            self._pose_raster = SurfelIndexMapRaster(self.model)
 
         self.fusion = EFFusion(self.model,
                                stable_conf_thresh=stable_conf_thresh,
@@ -79,61 +80,73 @@ class SurfelSLAM:
 
         confidence_weight = 1.0
         if self._previous_fpcl is not None:
-            result = self.icp.estimate(
-                frame.info.kcam, filtered_live_fpcl.points,
-                filtered_live_fpcl.mask,
-                source_feats=features,
-                target_points=self._previous_fpcl.points,
-                target_mask=self._previous_fpcl.mask,
-                target_normals=self._previous_fpcl.normals,
-                target_feats=self._previous_features)
+            previous_fpcl = self._previous_fpcl
+            previous_features = self._previous_features
 
-            if self.icp_verifier(result):
+            if self._pose_raster is not None:
+                model_fpcl, model_features = self._get_model_frame_pcl(
+                    frame.info.kcam)
+
+                if model_fpcl is not None:
+                    previous_fpcl = model_fpcl
+                    previous_features = model_features
+
+            for _ in range(2 if self._pose_raster is not None else 1):
+                previous_fpcl.points[:, :, 2] = self._depth_filter(
+                    previous_fpcl.points[:, :, 2], previous_fpcl.mask)
+
+                import cv2
+                cv2.imshow("curr", cv2.cvtColor(filtered_live_fpcl.colors.cpu().numpy(),
+                                                 cv2.COLOR_RGB2BGR))
+                cv2.imshow("prev", cv2.cvtColor(previous_fpcl.colors.cpu().numpy(),
+                                                 cv2.COLOR_RGB2BGR))
+
+                result = self.icp.estimate(
+                    frame.info.kcam, filtered_live_fpcl.points,
+                    filtered_live_fpcl.mask,
+                    source_feats=features,
+                    target_points=previous_fpcl.points,
+                    target_mask=previous_fpcl.mask,
+                    target_normals=previous_fpcl.normals,
+                    target_feats=previous_features)
+
                 relative_cam = result.transform
-            else:
-                return FusionStats()
+                if self.icp_verifier(result):
+                    break
+
+                previous_fpcl = self._previous_fpcl
+                previous_features = self._previous_features
 
             rt_camera = self.rt_camera.integrate(relative_cam.cpu())
             confidence_weight = _estimate_confidence_weight(
                 self.rt_camera, rt_camera)
             self.rt_camera = rt_camera
+
         live_fpcl.normals = filtered_live_fpcl.normals
 
         stats = self.fusion.fuse(live_fpcl, self.rt_camera, features,
                                  confidence_weight=confidence_weight)
 
-        if self._pose_raster is None:
-            self._previous_fpcl = filtered_live_fpcl
-            self._previous_features = features
-        else:
-            import ipdb; ipdb.set_trace()
-            model_fpcl, model_features = self._get_model_frame_pcl(
-                frame.info.kcam)
-
-
-            if model_fpcl is not None:
-                model_fpcl.points[:, :, 2] = self._depth_filter(
-                    model_fpcl.points[:, :, 2], model_fpcl.mask)
-                self._previous_fpcl = model_fpcl
-                self._previous_features = model_features
-            else:
-                print("Not fill")
-                self._previous_fpcl = filtered_live_fpcl
-                self._previous_features = features
+        self._previous_fpcl = live_fpcl
+        self._previous_features = features
 
         return stats
 
-    def _get_model_frame_pcl(self, kcam, min_fill_ratio=0.7, flip=True):
+    def _get_model_frame_pcl(self, kcam, min_fill_ratio=0.75, flip=False):
         gl_proj_matrix = kcam.get_opengl_projection_matrix(
             0.01, 100.0, dtype=torch.float)
         self._pose_raster.raster(gl_proj_matrix, self.rt_camera,
-                                 kcam.image_width, kcam.image_height)
+                                 kcam.image_width, kcam.image_height,
+                                 self.fusion.stable_conf_thresh)
         indexmap = self._pose_raster.to_indexmap()
         indexmap.synchronize()
-
+        from ..fusion.surfel.indexmap import show_indexmap
+        # show_indexmap(indexmap)
+        import cv2
+        cv2.imshow("model", cv2.cvtColor(indexmap.color.cpu().numpy(), cv2.COLOR_RGB2BGR))
         mask = indexmap.indexmap[:, :, 1]
         fill_ratio = mask.sum().item()/(mask.size(0)*mask.size(1))
-
+        print(fill_ratio)
         if fill_ratio < min_fill_ratio:
             return None, None
 

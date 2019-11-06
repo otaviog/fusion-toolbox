@@ -38,9 +38,7 @@ void main() {
   vec3 v = vec3(normalize(cross(normal, u)));
 
   float radius = gs_in[0].radius;
-  //float aspect = 0.75;
-  float aspect = 1.0;
-  u *= radius*aspect;
+  u *= radius;
   v *= radius;
 
   frag.color = gs_in[0].color;

@@ -150,8 +150,8 @@ fiontb.viz.surfelrender:
 fiontb.fusion.surfel.indexmap.surfel-raster:
 	python3 -m fiontb.fusion.surfel._test.test_indexmap surfel-raster
 
-fiontb.fusion.surfel.merge_live:
-	python3 -m fiontb.fusion.surfel._test.test_merge_live
+fiontb.fusion.surfel.update:
+	python3 -m fiontb.fusion.surfel._test.test_update
 
 fiontb.fusion.surfel.merge:
 	python3 -m fiontb.fusion.surfel._test.test_merge

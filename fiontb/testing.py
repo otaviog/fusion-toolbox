@@ -18,7 +18,7 @@ class ColorMode(Enum):
     HSV = 2
 
 
-def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.HSV,
+def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.HSV, blur=False,
                   compute_normals=False):
     height, width = frame.depth_image.shape
     height, width = int(height*scale), int(width*scale)
@@ -48,9 +48,9 @@ def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.HSV,
                                               mask)
 
     features = get_color_feature(
-        frame.rgb_image, color_mode)
+        frame.rgb_image, blur=blur, color_mode=color_mode)
 
-    return frame, to_tensor(features)
+    return frame, features
 
 
 def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.HSV):

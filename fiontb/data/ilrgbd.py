@@ -11,7 +11,7 @@ from fiontb.camera import KCamera
 from .trajectory import read_log_file_trajectory
 
 ASUS_KCAM = KCamera(torch.tensor([[525, 0.0, 319.5],
-                                  [0.0, -525, 239.5],
+                                  [0.0, 525, 239.5],
                                   [0.0, 0.0, 1.0]], dtype=torch.float))
 
 
@@ -55,10 +55,7 @@ def load_ilrgbd(base_dir, trajectory):
     with open(str(trajectory), 'r') as stream:
         trajectory = read_log_file_trajectory(stream)
 
-    # Original IL-RGBD dataset uses positive kcam[1, 1]
-    # As we use negative kcam[1, 1] we invert the y-axis.
     for rt_cam in trajectory:
-        rt_cam.matrix[:3, 1] *= -1
         rt_cam.matrix = _INV_Y_MTX @ rt_cam.matrix
 
     return ILRGBDDataset(depth_images, rgb_images, trajectory)

@@ -9,9 +9,9 @@ layout (location = 5) in int in_mask;
 layout (location = 6) in int in_time;
 
 uniform mat4 ProjModelview;
-uniform mat4 Modelview;
-uniform mat3 NormalModelview;
 
+uniform mat4 WorldToCam;
+uniform mat3 WorldToCamNormal;
 uniform float StableThresh;
 
 out Surfel {
@@ -33,9 +33,9 @@ void main() {
 
   gl_Position = ProjModelview*in_point;
 
-  surfel.pos_conf.xyz = (Modelview*in_point).xyz;
+  surfel.pos_conf.xyz = (WorldToCam*in_point).xyz;
   surfel.pos_conf.w = in_conf;
-  surfel.normal_rad.xyz = NormalModelview*in_normal;
+  surfel.normal_rad.xyz = WorldToCamNormal*in_normal;
   surfel.normal_rad.w = in_radius;
   surfel.color = in_color;
   surfel.index = gl_VertexID;

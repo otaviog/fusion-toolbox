@@ -74,12 +74,11 @@ struct SurfelCloud {
 };
 
 struct SurfelFusionOp {
-  static void Update(const IndexMap &target_indexmap,
-                     const IndexMap &live_indexmap,
-                     const torch::Tensor &live_features,
-                     MappedSurfelModel model, const torch::Tensor &rt_cam,
-                     int search_size, float max_normal_angle, int time,
-                     torch::Tensor model_merge_map,
+  static void Update(const IndexMap &model_indexmap,
+                     const SurfelCloud &live_surfels, MappedSurfelModel model,
+                     const torch::Tensor &kcam, const torch::Tensor &rt_cam,
+                     float max_normal_angle, int search_size, int time,
+                     int scale, torch::Tensor merge_map,
                      torch::Tensor new_surfels_map);
 
   static void CarveSpace(MappedSurfelModel model, torch::Tensor model_indices,

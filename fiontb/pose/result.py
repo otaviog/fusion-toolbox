@@ -24,7 +24,6 @@ class ICPVerifier:
         self.covariance_max_threshold = covariance_max_threshold
 
     def __call__(self, icp_result):
-
         if icp_result.residual < 1e-4:
             return True
 

@@ -130,7 +130,7 @@ struct RigidTransformOp {
 template <typename scalar_t>
 struct RTCamera {
   Eigen::Matrix<scalar_t, 3, 4> rt_matrix;
-  Eigen::Matrix3f normal_matrix;
+  Eigen::Matrix<scalar_t, 3, 3> normal_matrix;
 
   RTCamera(const torch::Tensor &matrix) {
     auto cpu_matrix = matrix.cpu();

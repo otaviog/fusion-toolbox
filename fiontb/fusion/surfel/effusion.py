@@ -11,13 +11,10 @@ from .indexmap import ModelIndexMapRaster
 class EFFusion:
     def __init__(self, model, stable_conf_thresh=10, stable_time_thresh=20,
                  search_size=2, indexmap_scale=4):
-        gl_context = model.gl_context
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
-        self._update = Update(
-            gl_context, elastic_fusion=True, search_size=search_size)
-
+        self._update = Update(elastic_fusion=True, search_size=search_size)
         self._clean = Clean(elastic_fusion=True,
                             stable_conf_thresh=stable_conf_thresh,
                             stable_time_thresh=stable_time_thresh)
@@ -49,11 +46,15 @@ class EFFusion:
             width*self.indexmap_scale), int(height*self.indexmap_scale)
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
+
         model_indexmap = self.model_raster.to_indexmap()
+        model_indexmap.synchronize()
+        # import cv2
+        # cv2.imshow("indexmap", model_indexmap.color.cpu().numpy())
 
         new_surfels = self._update(
-            model_indexmap, live_surfels, gl_proj_matrix,
-            rt_cam, width, height, self._time, self.model, live_features=features)
+            model_indexmap, live_surfels, frame_pcl.kcam,
+            rt_cam, self._time, self.model)
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
 

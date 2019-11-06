@@ -10,7 +10,7 @@ from fiontb.frame import FramePointCloud
 from fiontb.camera import RTCamera
 from fiontb.pose.icp import ICPVerifier
 from fiontb.viz.show import show_pcls
-from fiontb.testing import prepare_frame
+from fiontb.testing import prepare_frame, ColorMode
 from fiontb._utils import profile as _profile
 from fiontb.data.ftb import load_ftb
 
@@ -32,13 +32,12 @@ def evaluate(gt_cam0, gt_cam1, relative_rt):
 
 
 def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
-                  to_hsv=True, to_gray=False, frame0_idx=0, frame1_idx=8):
+                  color_mode=ColorMode.HSV, frame0_idx=0, frame1_idx=8):
     device = "cuda:0"
     frame_args = {
         'filter_depth': filter_depth,
         'blur': blur,
-        'to_hsv': to_hsv,
-        'to_gray': to_gray
+        'color_mode': color_mode
     }
     prev_frame, target_feats = prepare_frame(dataset[frame0_idx], **frame_args)
     next_frame, source_feats = prepare_frame(dataset[frame1_idx], **frame_args)

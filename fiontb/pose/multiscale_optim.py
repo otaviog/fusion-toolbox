@@ -10,7 +10,7 @@ class MultiscaleOptimization:
         self.estimators = estimators
         self.downsample_xyz_method = downsample_xyz_method
 
-    def estimate(self, kcam, source_points, source_mask, source_feats=None,
+    def estimate(self, kcam, source_points, source_normals, source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
                  target_feats=None, transform=None):
         """Estimate the ICP odometry between a target frame points and normals
@@ -55,7 +55,6 @@ class MultiscaleOptimization:
         pyramid = []
 
         for scale, _ in self.estimators:
-
             if scale < 1.0:
                 target_points = downsample_xyz(target_points, target_mask, scale,
                                                method=self.downsample_xyz_method)
@@ -68,6 +67,10 @@ class MultiscaleOptimization:
                 source_points = downsample_xyz(source_points, source_mask, scale,
                                                normalize=False,
                                                method=self.downsample_xyz_method)
+                source_normals = downsample_xyz(source_normals, source_mask, scale,
+                                                normalize=True,
+                                                method=self.downsample_xyz_method)
+
                 source_mask = downsample_mask(source_mask, scale)
 
                 if has_feats:
@@ -82,21 +85,36 @@ class MultiscaleOptimization:
                 kcam = kcam.scaled(scale)
                 torch.cuda.synchronize()
 
-            pyramid.append((target_points, target_normals, target_mask, source_points, source_mask,
-                            target_feats, source_feats, kcam))
+            pyramid.append(
+                (target_points, target_normals, target_mask,
+                 source_points, source_normals, source_mask,
+                 target_feats, source_feats, kcam))
 
-        for icp_instance, (tgt_points, tgt_normals, tgt_mask, src_points, src_mask,
-                           tgt_feats, src_feats, pyr_kcam) in zip(self.estimators, pyramid[::-1]):
+        for icp_instance, (tgt_points, tgt_normals, tgt_mask,
+                           src_points, src_normals, src_mask,
+                           tgt_feats, src_feats, pyr_kcam) in zip(
+                               self.estimators, pyramid[::-1]):
             icp_instance = icp_instance[1]
+            import matplotlib.pyplot as plt
+            plt.figure()
+            plt.imshow(tgt_feats.squeeze().cpu())
 
+            plt.figure()
+            plt.imshow(src_feats.squeeze().cpu())
+            #plt.show()
+
+            print(tgt_feats.shape)
+            print(src_feats.shape)
+            
             result = icp_instance.estimate(
-                pyr_kcam, src_points, src_mask,
+                pyr_kcam, src_points, src_normals, src_mask,
                 source_feats=src_feats,
                 target_points=tgt_points,
                 target_mask=tgt_mask, target_normals=tgt_normals,
                 target_feats=tgt_feats,
                 transform=transform)
-            transform = result.transform
+
+            transform = result.transform.clone()
 
         return result
 
@@ -107,7 +125,8 @@ class MultiscaleOptimization:
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
         target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
-        return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
+        return self.estimate(source_frame.kcam, source_frame.points, source_frame.normals,
+                             source_frame.mask,
                              source_feats=source_feats,
                              target_points=target_frame.points,
                              target_mask=target_frame.mask,

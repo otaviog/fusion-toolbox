@@ -6,17 +6,19 @@ from fiontb.data.ftb import load_ftb
 from fiontb.pose.autogradicp import (AutogradICP, MultiscaleAutogradICP,
                                      AGICPOption)
 
-from .testing import evaluate, run_trajectory_test, run_pair_test
+from fiontb.testing import ColorMode
+from .testing import run_trajectory_test, run_pair_test
 
 # pylint: disable=no-self-use
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, to_gray=False, to_hsv=True,
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.GRAY,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=28, to_gray=True, to_hsv=False,
-                       blur=True, filter_depth=True)
+REAL_FRAME_ARGS = dict(frame1_idx=1,
+                       color_mode=ColorMode.GRAY,
+                       blur=False, filter_depth=True)
 
 
 class _Tests:
@@ -34,7 +36,7 @@ class _Tests:
 
     def rgb_real(self):
         run_pair_test(
-            AutogradICP(300, geom_weight=0, feat_weight=1),
+            AutogradICP(100, geom_weight=0, feat_weight=1),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -77,9 +79,9 @@ class _Tests:
     def ms_rgb_real(self):
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(0.5, 20, 0.05, geom_weight=0, feat_weight=1),
+                AGICPOption(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
                 AGICPOption(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
-                #AGICPOption(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
+                # AGICPOption(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)

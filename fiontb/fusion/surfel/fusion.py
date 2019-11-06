@@ -65,8 +65,8 @@ class SurfelFusion:
         model_indexmap = self.model_raster.to_indexmap()
 
         new_surfels = self._update(
-            model_indexmap, live_surfels, gl_proj_matrix,
-            rt_cam, width, height, self._time, self.model, live_features=features)
+            model_indexmap, live_surfels, frame_pcl.kcam,
+            rt_cam, self._time, self.model)
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
 

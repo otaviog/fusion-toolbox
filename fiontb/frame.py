@@ -2,9 +2,12 @@
 """
 
 import torch
+from torch.nn.functional import interpolate
 
-from fiontb._cfiontb import estimate_normals as _estimate_normals
-from fiontb._cfiontb import EstimateNormalsMethod
+from fiontb._cfiontb import (estimate_normals as _estimate_normals,
+                             EstimateNormalsMethod)
+from fiontb.downsample import (
+    downsample_xyz, downsample_mask, DownsampleXYZMethod)
 
 from fiontb._utils import ensure_torch
 from .camera import KCamera, RTCamera
@@ -92,6 +95,7 @@ class FrameInfo:
             None if self.rgb_kcam is None else self.rgb_kcam.clone(),
             None if self.rt_cam is None else self.rt_cam.clone())
 
+
 class Frame:
     """A sensor frame.
 
@@ -128,10 +132,11 @@ class Frame:
                      None if self.rgb_image is None else self.rgb_image.copy(),
                      None if self.fg_mask is None else self.fg_mask.copy(),
                      None if self.normal_image is None else self.normal_image.copy())
-    
+
     def clone_shallow(self):
         return Frame(self.info, self.depth_image,
                      self.rgb_image, self.fg_mask, self.normal_image)
+
 
 class _DepthImagePointCloud:
     def __init__(self, depth_image, finfo):
@@ -291,6 +296,38 @@ class FramePointCloud:
 
         return pcl
 
+    def downsample(self, scale, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+        points = downsample_xyz(self.points, self.mask, scale,
+                                method=downsample_xyz_method)
+        mask = downsample_mask(self.mask, scale)
+
+        normals = None
+        if self._normals is not None:
+            normals = downsample_xyz(self._normals, self.mask, scale,
+                                     normalize=True,
+                                     method=downsample_xyz_method)
+
+        colors = self.colors.transpose(1, 2).transpose(1, 0).unsqueeze(0).float()
+        colors = interpolate(colors, scale_factor=scale, mode='bilinear',
+                             align_corners=False)
+        colors = colors.squeeze().transpose(0, 1).transpose(2, 1).byte()
+        kcam = self.kcam.scaled(scale)
+        
+        return FramePointCloud(None, mask, kcam, rt_cam=self.rt_cam,
+                               points=points, normals=normals,
+                               colors=colors)
+
+    def pyramid(self, scales):
+        pyramid = []
+        curr = self
+        for scale in scales:
+            if scale < 1.0:
+                curr = curr.downsample(scale)
+            pyramid.append(curr)
+
+        pyramid.reverse()
+        return pyramid
+
     def to(self, device):
         return FramePointCloud(
             self.image_points.to(device)
@@ -301,10 +338,6 @@ class FramePointCloud:
             self._points.to(device) if self._points is not None else None,
             self._normals.to(device) if self._normals is not None else None,
             self.colors.to(device) if self.colors is not None else None)
-
-    @property
-    def device(self):
-        return self.mask.device
 
     def __getitem__(self, *slices):
         slices = slices[0]
@@ -321,6 +354,10 @@ class FramePointCloud:
     @property
     def height(self):
         return self.mask.size(0)
+
+    @property
+    def device(self):
+        return self.mask.device
 
     def plot_debug(self, show=True):
         import matplotlib.pyplot as plt

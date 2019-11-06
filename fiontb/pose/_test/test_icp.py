@@ -12,7 +12,7 @@ from fiontb.frame import FramePointCloud
 from fiontb.viz.show import show_pcls
 from fiontb.pose.icp import (
     ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOption)
-from fiontb.testing import prepare_frame
+from fiontb.testing import prepare_frame, ColorMode
 from fiontb._utils import profile
 from fiontb.camera import RTCamera
 
@@ -23,10 +23,10 @@ from .testing import (evaluate, evaluate_trajectory,
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, to_gray=False, to_hsv=True,
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.HSV,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=28, to_gray=True, to_hsv=False,
+REAL_FRAME_ARGS = dict(frame1_idx=28, color_mode=ColorMode.GRAY,
                        blur=True, filter_depth=True)
 
 

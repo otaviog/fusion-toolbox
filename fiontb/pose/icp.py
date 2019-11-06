@@ -24,7 +24,8 @@ class _Step:
         self.so3 = so3
 
     def __call__(self, target_points, target_normals, target_feats, target_mask,
-                 source_points, source_feats, source_mask, kcam, transform):
+                 source_points, source_normals, source_feats, source_mask,
+                 kcam, transform):
         num_params = 6
         if self.so3:
             num_params = 3
@@ -45,13 +46,13 @@ class _Step:
             if self.geom:
                 match_count = _ICPJacobian.estimate_geometric(
                     target_points, target_normals, target_mask,
-                    source_points, source_mask, kcam, transform,
-                    self.JtJ, self.Jtr, self.residual)
+                    source_points, source_normals, source_mask,
+                    kcam, transform, self.JtJ, self.Jtr, self.residual)
             else:
                 match_count = _ICPJacobian.estimate_feature(
                     target_points, target_normals, target_feats,
-                    target_mask, source_points, source_feats,
-                    source_mask, kcam, transform,
+                    target_mask, source_points,
+                    source_feats, source_mask, kcam, transform,
                     self.JtJ, self.Jtr, self.residual)
         else:
             match_count = _ICPJacobian.estimate_feature_so3(
@@ -88,7 +89,8 @@ class ICPOdometry:
             True, so3=so3) if geom_weight > 0 and not so3 else None
         self._feature_step = _Step(False, so3=so3) if feat_weight > 0 else None
 
-    def estimate(self, kcam, source_points, source_mask, source_feats=None,
+    def estimate(self, kcam, source_points, source_normals,
+                 source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
                  target_feats=None, transform=None):
         """Estimate the ICP odometry between a target points and normals in a
@@ -134,6 +136,7 @@ class ICPOdometry:
             transform = transform.to(device)
 
         source_points = source_points.view(-1, 3)
+        source_normals = source_normals.view(-1, 3)
         source_mask = source_mask.view(-1)
 
         geom_only = target_feats is None or source_feats is None
@@ -156,7 +159,7 @@ class ICPOdometry:
             if has_features:
                 feat_JtJ, feat_Jr, feat_residual, feat_count = self._feature_step(
                     target_points, target_normals, target_feats,
-                    target_mask, source_points, source_feats,
+                    target_mask, source_points, source_normals, source_feats,
                     source_mask, kcam, transform)
                 JtJ = feat_JtJ.cpu().double()*self.feat_weight*self.feat_weight
                 Jr = -feat_Jr.cpu().double()*self.feat_weight
@@ -166,7 +169,7 @@ class ICPOdometry:
             if self._geom_step is not None:
                 geom_JtJ, geom_Jr, geom_residual, geom_count = self._geom_step(
                     target_points, target_normals, None, target_mask,
-                    source_points, None, source_mask, kcam, transform)
+                    source_points, source_normals, None, source_mask, kcam, transform)
 
                 JtJ += geom_JtJ.cpu().double()*self.geom_weight*self.geom_weight
                 Jr += geom_Jr.cpu().double()*self.geom_weight
@@ -209,7 +212,9 @@ class ICPOdometry:
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
         target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
-        return self.estimate(source_frame.kcam, source_frame.points, source_frame.mask,
+        return self.estimate(source_frame.kcam, source_frame.points,
+                             source_frame.normals,
+                             source_frame.mask,
                              source_feats=source_feats,
                              target_points=target_frame.points,
                              target_mask=target_frame.mask,

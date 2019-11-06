@@ -9,8 +9,8 @@ from fiontb.data import set_start_at_eye
 from fiontb.viz.surfelrender import show_surfels
 from fiontb.surfel import SurfelModel, SurfelCloud
 
-from ..indexmap import ModelIndexMapRaster, LiveIndexMapRaster, show_indexmap
-from ..merge_live import MergeLiveSurfels
+from ..indexmap import ModelIndexMapRaster, show_indexmap
+from ..update import Update
 
 
 def _test():
@@ -43,23 +43,25 @@ def _test():
     rt_cam = live_frame.info.rt_cam
     model_raster = ModelIndexMapRaster(surfel_model)
     model_raster.raster(
-        proj_matrix, rt_cam, width*4, height*4)
+        proj_matrix, rt_cam, width, height)
 
-    merge_live = MergeLiveSurfels(gl_context, 2, math.radians(30))
+    update = Update(elastic_fusion=True,
+                    search_size=2, max_normal_angle=math.radians(30))
     prev_model = surfel_model.clone()
 
     with gl_context.current():
         model_indexmap = model_raster.to_indexmap(device)
 
-    new_surfels = merge_live(
-        model_indexmap, live_surfels, proj_matrix,
-        live_frame.info.rt_cam, width, height, 1,
-        surfel_model)
+    new_surfels = update(
+        model_indexmap, live_surfels, live_frame.info.kcam,
+        rt_cam, 1, surfel_model)
 
     live_surfels.itransform(rt_cam.matrix)
     surfel_model.add_surfels(new_surfels.to("cuda:0"), update_gl=True)
-    show_surfels(gl_context, [prev_model, SurfelModel.from_surfel_cloud(gl_context, live_surfels),
-                              surfel_model])
+    show_surfels(gl_context,
+                 [prev_model,
+                  SurfelModel.from_surfel_cloud(gl_context, live_surfels),
+                  surfel_model])
 
 
 if __name__ == '__main__':

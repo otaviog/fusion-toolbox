@@ -15,11 +15,9 @@ from .testing import run_pair_test
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, to_gray=False, to_hsv=False,
-                            blur=False, filter_depth=False)
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=28, to_gray=False, to_hsv=False,
-                       blur=False, filter_depth=True)
+REAL_FRAME_ARGS = dict(frame1_idx=28, blur=False, filter_depth=False)
 
 
 class Tests:
@@ -52,10 +50,9 @@ class Tests:
         frame_args = {
             'filter_depth': True,
             'blur': False,
-            'to_hsv': False
         }
 
-        prev_frame, prev_features = prepare_frame(
+        prev_frame, _ = prepare_frame(
             dataset[0], **frame_args)
 
         pcls = [FramePointCloud.from_frame(
@@ -64,7 +61,7 @@ class Tests:
         accum_pose = RTCamera(dtype=torch.double)
 
         for i in range(1, len(dataset)):
-            next_frame, next_features = prepare_frame(
+            next_frame, _ = prepare_frame(
                 dataset[i], **frame_args)
 
             result = icp.estimate_frame(next_frame, prev_frame)
@@ -76,18 +73,20 @@ class Tests:
             pcl = pcl.transform(accum_pose.matrix.float())
             pcls.append(pcl)
 
-            prev_frame, prev_features = next_frame, next_features
+            prev_frame = next_frame
         show_pcls(pcls)
 
     def coloricp_real(self):
-        run_pair_test(ColorICP([(math.inf, 50)]),
-                      load_ftb(_TEST_DATA / "sample1"),
-                      **REAL_FRAME_ARGS)
+        run_pair_test(
+            ColorICP([(1.0, 50), (.5, 25)]),
+            load_ftb(_TEST_DATA / "sample1"),
+            **REAL_FRAME_ARGS)
 
     def coloricp_synthetic(self):
-        run_pair_test(ColorICP([(0.04, 50), (0.02, 30), (0.01, 14)]),
-                      load_ftb(_TEST_DATA / "sample2"),
-                      **SYNTHETIC_FRAME_ARGS)
+        run_pair_test(
+            ColorICP([(1.0, 50), (.5, 25)]),
+            load_ftb(_TEST_DATA / "sample2"),
+            **SYNTHETIC_FRAME_ARGS)
 
 
 if __name__ == '__main__':

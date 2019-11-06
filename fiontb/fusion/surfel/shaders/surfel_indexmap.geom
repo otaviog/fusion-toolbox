@@ -4,8 +4,8 @@ layout(points) in;
 layout(triangle_strip, max_vertices = 4) out;
 
 uniform mat4 ProjModelview;
-uniform mat4 Modelview;
-uniform mat3 NormalModelview;
+uniform mat4 WorldToCam;
+uniform mat3 WorldToCamNormal;
 
 in Surfel {
   vec4 pos;
@@ -44,10 +44,10 @@ void main() {
   u *= radius;
   v *= radius;
 
-  frag.pos_conf.xyz = (Modelview * vec4(vert[0].pos_conf.xyz, 1)).xyz;
+  frag.pos_conf.xyz = (WorldToCam * vec4(vert[0].pos_conf.xyz, 1)).xyz;
   frag.pos_conf.w = vert[0].pos_conf.w;
 
-  frag.normal_rad.xyz = NormalModelview * vert[0].normal_rad.xyz;
+  frag.normal_rad.xyz = WorldToCamNormal * vert[0].normal_rad.xyz;
   frag.normal_rad.w = vert[0].normal_rad.w;
 
   frag.color = vert[0].color;
