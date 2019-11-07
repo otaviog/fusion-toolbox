@@ -183,7 +183,7 @@ struct FeatureJacobianKernel {
       const scalar_t feat_residual = (interp.Get(0) - src_feats[0][ri]);
       scalar_t du, dv;
 
-      dx_interp.Get(0, du, dv);
+      dx_interp.Get(channel, du, dv);
 
       scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
       kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);

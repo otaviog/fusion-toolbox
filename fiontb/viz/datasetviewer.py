@@ -19,23 +19,25 @@ class DatasetViewer:
     cloud and accumulated world points.
     """
 
-    def __init__(self, dataset, title="Dataset", max_pcls=50, invert=False):
+    def __init__(self, dataset, title="Dataset", max_pcls=50, invert=False,
+                 camera_view=True):
         self.dataset = dataset
         self.title = title
         self.show_mask = False
         self.last_proc_data = {'idx': -1}
         self.invert = invert
 
-        self.context = tenviz.Context(640, 480)
+        self.cam_context = None
+        if camera_view:
+            self.cam_context = tenviz.Context(640, 480)
 
-        with self.context.current():
-            # TODO: fix tensorviz creating viewer without `current()`
-            pass
-
-        self.cam_viewer = self.context.viewer(
-            [], tenviz.CameraManipulator.TrackBall)
-        self.cam_viewer.title = "{}: camera space".format(title)
-        self.tv_camera_pcl = None
+            with self.cam_context.current():
+                # TODO: fix tensorviz creating viewer without `current()`
+                pass
+            self.cam_viewer = self.cam_context.viewer(
+                [], tenviz.CameraManipulator.TrackBall)
+            self.cam_viewer.title = "{}: camera space".format(title)
+            self.tv_camera_pcl = None
 
         self.wcontext = tenviz.Context(640, 480)
         with self.wcontext.current():
@@ -70,29 +72,28 @@ class DatasetViewer:
             'fg_mask': frame.fg_mask
         }
 
-        with self.context.current():
-            self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
-
         pcl = FramePointCloud.from_frame(
             frame).unordered_point_cloud(world_space=False, compute_normals=False)
         cam_space = pcl.points
 
-        with self.context.current():
-            self.tv_camera_pcl = tenviz.create_point_cloud(
-                cam_space, pcl.colors)
-        self.cam_viewer.get_scene().add(self.tv_camera_pcl)
+        if self.cam_context is not None:
+            with self.cam_context.current():
+                self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
+
+            with self.cam_context.current():
+                self.tv_camera_pcl = tenviz.create_point_cloud(
+                    cam_space, pcl.colors)
+            self.cam_viewer.get_scene().add(self.tv_camera_pcl)
+            self.cam_viewer.reset_view()
+            self.cam_context.collect_garbage()
 
         cam_proj = tenviz.projection_from_kcam(
             finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
-
-        self.cam_viewer.reset_view()
 
         if finfo.rt_cam is not None:
             self._update_world(idx, finfo.rt_cam,
                                cam_space,
                                pcl.colors, cam_proj)
-
-        self.context.collect_garbage()
 
     def _update_world(self, idx, rt_cam, cam_space, colors, cam_proj):
         if idx in self.visited_idxs:
@@ -116,6 +117,7 @@ class DatasetViewer:
             vcam = tenviz.create_virtual_camera(
                 cam_proj,
                 np.linalg.inv(rt_cam.opengl_view_cam))
+            vcam.visible = self._show_cams
             self.world_viewer.get_scene().add(vcam)
 
             self.pcl_deque.append((pcl, vcam))
@@ -173,9 +175,11 @@ class DatasetViewer:
                 cv_key = 0
 
             quit_loop = False
-            for key in [cv_key, self.cam_viewer.wait_key(0),
-                        self.world_viewer.wait_key(0)]:
+            keys = [cv_key, self.world_viewer.wait_key(0)]
+            if self.cam_context is not None:
+                keys.append(self.cam_viewer.wait_key(0))
 
+            for key in keys:
                 if key < 0:
                     quit_loop = True
 

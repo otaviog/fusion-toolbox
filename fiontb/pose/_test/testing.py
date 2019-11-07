@@ -19,6 +19,9 @@ from tenviz.pose import Pose
 
 def evaluate(gt_cam0, gt_cam1, relative_rt):
     gt_pose = Pose.from_matrix(gt_cam0.matrix.inverse() @ gt_cam1.matrix)
+    relative_rt = relative_rt.clone()
+    #relative_rt[:3, 1] *= -1
+
     pred_pose = Pose.from_matrix(relative_rt)
 
     gt_trans = torch.tensor(gt_pose.get_translation())
@@ -32,7 +35,7 @@ def evaluate(gt_cam0, gt_cam1, relative_rt):
 
 
 def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
-                  color_mode=ColorMode.HSV, frame0_idx=0, frame1_idx=8):
+                  color_mode=ColorMode.LAB, frame0_idx=0, frame1_idx=8):
     device = "cuda:0"
     frame_args = {
         'filter_depth': filter_depth,

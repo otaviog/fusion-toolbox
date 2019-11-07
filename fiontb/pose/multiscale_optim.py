@@ -95,17 +95,7 @@ class MultiscaleOptimization:
                            tgt_feats, src_feats, pyr_kcam) in zip(
                                self.estimators, pyramid[::-1]):
             icp_instance = icp_instance[1]
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.imshow(tgt_feats.squeeze().cpu())
 
-            plt.figure()
-            plt.imshow(src_feats.squeeze().cpu())
-            #plt.show()
-
-            print(tgt_feats.shape)
-            print(src_feats.shape)
-            
             result = icp_instance.estimate(
                 pyr_kcam, src_points, src_normals, src_mask,
                 source_feats=src_feats,

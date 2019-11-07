@@ -24,7 +24,7 @@ class ILRGBDDataset:
     def get_info(self, idx):
         rt_cam = self.trajectory[idx]
 
-        return FrameInfo(ASUS_KCAM, 0.001, rt_cam=rt_cam)
+        return FrameInfo(ASUS_KCAM, 0.001, rt_cam=rt_cam, timestamp=idx)
 
     def __getitem__(self, idx):
         rgb_image = cv2.imread(str(self.rgb_images[idx]))

@@ -2,6 +2,7 @@ import math
 import torch
 import scipy.optimize
 
+from fiontb.frame import FramePointCloud
 from fiontb.spatial.matching import DensePointMatcher
 from fiontb.pose.so3 import SO3tExp
 from fiontb.camera import Project, RigidTransform
@@ -120,7 +121,7 @@ class AutogradICP:
             tgt_matched_p3d, matched_index = matcher.match(
                 target_points, target_mask,
                 source_points, kcam, transform)
-            
+
             valid_matches = matched_index > -1
             src_matched_p3d = source_points[valid_matches]
 
@@ -143,6 +144,7 @@ class AutogradICP:
 
                 tgt_feats, bound_mask = FeatureMap.apply(
                     target_feats, tgt_uv)
+
                 bound_mask = bound_mask.detach()
 
                 tgt_feats = tgt_feats[:, bound_mask]
@@ -174,7 +176,6 @@ class AutogradICP:
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,
                        target_feats=None, transform=None, device="cpu"):
-        from fiontb.frame import FramePointCloud
 
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
         target_frame = FramePointCloud.from_frame(target_frame).to(device)

@@ -4,7 +4,6 @@ from pathlib import Path
 
 import torch
 import fire
-from tqdm import tqdm
 
 from fiontb.data import set_start_at_eye
 from fiontb.data.ftb import load_ftb
@@ -13,20 +12,17 @@ from fiontb.viz.show import show_pcls
 from fiontb.pose.icp import (
     ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOption)
 from fiontb.testing import prepare_frame, ColorMode
-from fiontb._utils import profile
-from fiontb.camera import RTCamera
 
-from .testing import (evaluate, evaluate_trajectory,
-                      run_trajectory_test, run_pair_test)
+from .testing import (evaluate, run_trajectory_test, run_pair_test)
 
 # pylint: disable=no-self-use
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.HSV,
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.LAB,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=28, color_mode=ColorMode.GRAY,
+REAL_FRAME_ARGS = dict(frame1_idx=28, color_mode=ColorMode.LAB,
                        blur=True, filter_depth=True)
 
 
@@ -34,7 +30,7 @@ class Tests:
     def depth_real(self):
         run_pair_test(
             ICPOdometry(15, geom_weight=1, feat_weight=0),
-            load_ftb(_TEST_DATA / "sample1"),
+            set_start_at_eye(load_ftb(_TEST_DATA / "sample1")),
             **REAL_FRAME_ARGS)
 
     def depth_synthetic(self):

@@ -13,12 +13,12 @@ from .testing import run_trajectory_test, run_pair_test
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.GRAY,
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.LAB,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=1,
-                       color_mode=ColorMode.GRAY,
-                       blur=False, filter_depth=True)
+REAL_FRAME_ARGS = dict(frame1_idx=29,
+                       color_mode=ColorMode.LAB,
+                       blur=True, filter_depth=True)
 
 
 class _Tests:

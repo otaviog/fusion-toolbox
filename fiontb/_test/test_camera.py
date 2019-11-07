@@ -1,9 +1,12 @@
 import unittest
+from pathlib import Path
 
 import torch
+import fire
 
 from fiontb.camera import (KCamera, RTCamera, Project,
                            RigidTransform)
+from fiontb.data.ftb import load_ftb
 
 
 class TestCamera(unittest.TestCase):
@@ -33,3 +36,41 @@ class TestCamera(unittest.TestCase):
 
             torch.autograd.gradcheck(proj, input, eps=1e-6, atol=1e-4,
                                      raise_exception=True)
+
+
+class InteractiveTests:
+    def project(self):
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        from fiontb.frame import FramePointCloud
+
+        dataset = load_ftb(Path(__file__).parent /
+                           "../../test-data/rgbd/sample2")
+        frame = dataset[0]
+        pcl = FramePointCloud.from_frame(frame).unordered_point_cloud(
+            world_space=False, compute_normals=False)
+
+        uvs = Project.apply(pcl.points, frame.info.kcam.matrix)
+        
+        img = np.zeros((frame.rgb_image.shape[0], frame.rgb_image.shape[1]))
+        import ipdb; ipdb.set_trace()
+
+        for uv in uvs:
+            
+            u = int(round(uv[0].item()))
+            v = int(round(uv[1].item()))
+            f = frame.rgb_image[v, u, 0]
+
+            img[v, u] = f
+
+        plt.figure()
+        plt.imshow(frame.rgb_image[:, :, 0])
+
+        plt.figure()
+        plt.imshow(img)
+        plt.show()
+
+
+if __name__ == '__main__':
+    fire.Fire(InteractiveTests())

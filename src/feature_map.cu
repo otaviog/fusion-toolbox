@@ -8,31 +8,6 @@
 namespace fiontb {
 namespace {
 
-#pragma nv_exec_check_disable
-template <typename scalar_t, typename Accessor>
-FTB_DEVICE_HOST scalar_t bilinear_interp(scalar_t u, scalar_t v,
-                                         const Accessor &feature_map) {
-  const int ui = int(u);
-  const int vi = int(v);
-
-  const scalar_t u_ratio = u - scalar_t(ui);
-  const scalar_t v_ratio = v - scalar_t(vi);
-
-  const int width = feature_map.size(1);
-  const int height = feature_map.size(0);
-
-  const scalar_t val00 = feature_map[vi][ui];
-  const scalar_t val10 = (ui + 1 < width) ? feature_map[vi][ui + 1] : 0;
-  const scalar_t val01 = (vi + 1 < height) ? feature_map[vi + 1][ui] : 0;
-  const scalar_t val11 =
-      (ui + 1 < width && vi + 1 < height) ? feature_map[vi + 1][ui + 1] : 0;
-
-  const scalar_t u0_interp = val00 * (1 - u_ratio) + val10 * u_ratio;
-  const scalar_t u1_interp = val01 * (1 - u_ratio) + val11 * u_ratio;
-  const scalar_t val = u0_interp * (1 - v_ratio) + u1_interp * v_ratio;
-  return val;
-}
-
 template <Device dev, typename scalar_t>
 struct ForwardKernel {
   const FeatureMap<dev, scalar_t> feature_map;

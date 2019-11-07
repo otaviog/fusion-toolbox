@@ -15,11 +15,11 @@ from fiontb.filtering import bilateral_depth_filter
 class ColorMode(Enum):
     RGB = 0,
     GRAY = 1
-    HSV = 2
+    LAB = 2
 
 
-def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.HSV, blur=False,
-                  compute_normals=False):
+def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB,
+                  blur=False, compute_normals=False):
     height, width = frame.depth_image.shape
     height, width = int(height*scale), int(width*scale)
 
@@ -53,13 +53,14 @@ def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.HSV, b
     return frame, features
 
 
-def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.HSV):
+def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.LAB):
     features = rgb_image
+
     if blur:
         features = cv2.blur(features, (5, 5))
 
-    if color_mode == ColorMode.HSV:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
+    if color_mode == ColorMode.LAB:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2LAB)
     elif color_mode == ColorMode.GRAY:
         features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
 

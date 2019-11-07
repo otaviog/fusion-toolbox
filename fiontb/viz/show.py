@@ -2,38 +2,9 @@ import torch
 
 import tenviz
 
-
-def show_surfels(surfels_list, width=640, height=480):
-    ctx = tenviz.Context(width, height)
-
-    scene = []
-    for surfel_cloud in surfels_list:
-        surfels = ctx.add_surfel_cloud()
-
-        with ctx.current():
-            surfels.points.from_tensor(surfel_cloud.points)
-            surfels.update_bounds(surfel_cloud.points)
-            surfels.normals.from_tensor(surfel_cloud.normals)
-
-            surfels.colors.from_tensor(surfel_cloud.colors)
-            radii = torch.full((surfel_cloud.size,), 0.01, dtype=torch.float)
-            surfels.radii.from_tensor(radii)
-            surfels.mark_visible(torch.arange(0, surfel_cloud.size))
-
-        scene.append(surfels)
-
-    viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
-    viewer.reset_view()
-    while True:
-        key = viewer.wait_key(1)
-        if key < 0:
-            break
-
-        key = chr(key & 0xff)
-        if '1' <= key <= '9':
-            toggle_idx = int(key) - 1
-            if toggle_idx < len(scene):
-                scene[toggle_idx].visible = not scene[toggle_idx].visible
+from fiontb.frame import FramePointCloud
+from fiontb.pointcloud import PointCloud
+from fiontb.surfel import SurfelCloud, SurfelModel
 
 
 def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
@@ -52,6 +23,44 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
                                       overlay_mesh.normals)
             mesh.style.polygon_mode = tenviz.PolygonMode.Wireframe
             scene.append(mesh)
+
+    viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
+    viewer.reset_view()
+    while True:
+        key = viewer.wait_key(1)
+        if key < 0:
+            break
+
+        key = chr(key & 0xff)
+        if '1' <= key <= '9':
+            toggle_idx = int(key) - 1
+            if toggle_idx < len(scene):
+                scene[toggle_idx].visible = not scene[toggle_idx].visible
+
+
+def show(geometries, width=640, height=480, point_size=3):
+
+    if isinstance(geometries, list):
+        if not geometries:
+            return
+
+    if not isinstance(geometries, list):
+        geometries = [geometries]
+
+    ctx = tenviz.Context(width, height)
+
+    scene = []
+    with ctx.current():
+        for geom in geometries:
+            if isinstance(geom, (FramePointCloud, PointCloud)):
+                if isinstance(geom, FramePointCloud):
+                    geom = geom.unordered_point_cloud(
+                        world_space=False, compute_normals=False)
+
+                pcl = tenviz.create_point_cloud(geom.points.view(-1, 3),
+                                                geom.colors.view(-1, 3))
+                pcl.style.point_size = int(point_size)
+                scene.append(pcl)
 
     viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
     viewer.reset_view()

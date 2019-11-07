@@ -8,6 +8,9 @@ about:
 fiontb.frame.normals:
 	python3 -m fiontb._test.test_frame normals
 
+fiontb.camera.project:
+	python3 -m fiontb._test.test_camera project
+
 #########
 # Viz
 #

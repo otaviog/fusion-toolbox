@@ -5,11 +5,11 @@
 
 namespace fiontb {
 template <Device dev, typename scalar_t>
-struct SimpleCorrespondece {
+struct SimpleCorrespondence {
   const PointGrid<dev, scalar_t> tgt;
   const KCamera<dev, scalar_t> kcam;
 
-  SimpleCorrespondece(const torch::Tensor &points, const torch::Tensor &normals,
+  SimpleCorrespondence(const torch::Tensor &points, const torch::Tensor &normals,
                       const torch::Tensor &mask, const torch::Tensor kcam)
       : tgt(points, normals, mask), kcam(kcam) {}
   FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
@@ -32,13 +32,13 @@ struct SimpleCorrespondece {
 };
 
 template <Device dev, typename scalar_t>
-struct RobustCorrespondece {
+struct RobustCorrespondence {
   const PointGrid<dev, scalar_t> tgt;
   const KCamera<dev, scalar_t> kcam;
   const float distance_thresh;
   const float angle_thresh;
 
-  RobustCorrespondece(const torch::Tensor &points, const torch::Tensor &normals,
+  RobustCorrespondence(const torch::Tensor &points, const torch::Tensor &normals,
                       const torch::Tensor &mask, const torch::Tensor kcam,
                       float distance_thresh = .1f,
                       float angle_thresh = sin(20.f * 3.14159254f / 180.f))

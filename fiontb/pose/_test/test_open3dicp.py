@@ -23,7 +23,7 @@ REAL_FRAME_ARGS = dict(frame1_idx=28, blur=False, filter_depth=False)
 class Tests:
 
     def rgbd_real(self):
-        run_pair_test(RGBDOdometry(), load_ftb(_TEST_DATA / "sample1"),
+        run_pair_test(RGBDOdometry(), load_ftb(_TEST_DATA / "sample4"),
                       **REAL_FRAME_ARGS)
 
     def rgbd_synthetic(self):
