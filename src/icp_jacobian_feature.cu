@@ -6,6 +6,7 @@
 #include "accessor.hpp"
 #include "atomic_int.hpp"
 #include "camera.hpp"
+#include "correspondence.hpp"
 #include "error.hpp"
 #include "icp_jacobian_common.hpp"
 #include "kernel.hpp"
@@ -174,19 +175,19 @@ struct FeatureJacobianKernel {
 
     ++match_count;
 
-
     const BilinearInterp<dev, scalar_t> interp(tgt_featmap.GetBilinear(u, v));
     const BilinearInterpGrad<dev, scalar_t> dx_interp(
         tgt_featmap.GetBilinearGrad(u, v, 0.05));
 
     for (int channel = 0; channel < tgt_featmap.channel_size; ++channel) {
-      const scalar_t feat_residual = (interp.Get(0) - src_feats[0][ri]);
+      const scalar_t feat_residual =
+          (interp.Get(channel) - src_feats[channel][ri]);
       scalar_t du, dv;
 
       dx_interp.Get(channel, du, dv);
 
       scalar_t j00_proj, j02_proj, j11_proj, j12_proj;
-      kcam.Dx_Projection(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
+      kcam.Dx_Project(Tsrc_point, j00_proj, j02_proj, j11_proj, j12_proj);
 
       const Vector<scalar_t, 3> gradk(du * j00_proj, dv * j11_proj,
                                       du * j02_proj + dv * j12_proj);

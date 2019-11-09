@@ -16,6 +16,7 @@ class ColorMode(Enum):
     RGB = 0,
     GRAY = 1
     LAB = 2
+    HSV = 3
 
 
 def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB,
@@ -61,6 +62,8 @@ def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.LAB):
 
     if color_mode == ColorMode.LAB:
         features = cv2.cvtColor(features, cv2.COLOR_RGB2LAB)
+    elif color_mode == ColorMode.HSV:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
     elif color_mode == ColorMode.GRAY:
         features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
 

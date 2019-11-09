@@ -54,7 +54,8 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   py::class_<Matching>(m, "Matching")
       .def_static("match_dense_points", &Matching::MatchDensePoints);
-
+  FPCLMatcherOp::RegisterPybind(m);
+  
   m.def("query_closest_points", &QueryClosestPoints);
 
   SurfelOp::RegisterPybind(m);

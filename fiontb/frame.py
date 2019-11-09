@@ -307,12 +307,13 @@ class FramePointCloud:
                                      normalize=True,
                                      method=downsample_xyz_method)
 
-        colors = self.colors.transpose(1, 2).transpose(1, 0).unsqueeze(0).float()
+        colors = self.colors.transpose(
+            1, 2).transpose(1, 0).unsqueeze(0).float()
         colors = interpolate(colors, scale_factor=scale, mode='bilinear',
                              align_corners=False)
         colors = colors.squeeze().transpose(0, 1).transpose(2, 1).byte()
         kcam = self.kcam.scaled(scale)
-        
+
         return FramePointCloud(None, mask, kcam, rt_cam=self.rt_cam,
                                points=points, normals=normals,
                                colors=colors)
@@ -328,16 +329,26 @@ class FramePointCloud:
         pyramid.reverse()
         return pyramid
 
-    def to(self, device):
-        return FramePointCloud(
-            self.image_points.to(device)
-            if self.image_points is not None else None,
-            self.mask.to(device),
-            self.kcam.to(device),
-            self.rt_cam,
-            self._points.to(device) if self._points is not None else None,
-            self._normals.to(device) if self._normals is not None else None,
-            self.colors.to(device) if self.colors is not None else None)
+    def to(self, dst):
+        if isinstance(dst, torch.dtype):
+            return FramePointCloud(
+                (self.image_points.to(dst) if self.image_points is not None else None),
+                self.mask,
+                self.kcam.to(dst),
+                self.rt_cam.to(dst),
+                self._points.to(dst) if self._points is not None else None,
+                self._normals.to(dst) if self._normals is not None else None,
+                self.colors if self.colors is not None else None)
+        else:
+            return FramePointCloud(
+                (self.image_points.to(dst)
+                 if self.image_points is not None else None),
+                self.mask.to(dst),
+                self.kcam.to(dst),
+                self.rt_cam,
+                self._points.to(dst) if self._points is not None else None,
+                self._normals.to(dst) if self._normals is not None else None,
+                self.colors.to(dst) if self.colors is not None else None)
 
     def __getitem__(self, *slices):
         slices = slices[0]

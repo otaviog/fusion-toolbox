@@ -17,10 +17,15 @@ class KDTreeLayer(torch.autograd.Function):
     @staticmethod
     def setup(target_xyz):
         KDTreeLayer.target_xyz = target_xyz
-        KDTreeLayer.tree = cKDTree(
-            target_xyz.cpu().numpy(),
-            balanced_tree=True
-        )
+        if True:
+            KDTreeLayer.tree = KDTree(
+                target_xyz.cpu().numpy(),
+                leafsize=32
+            )
+        else:
+            KDTreeLayer.tree = cKDTree(
+                target_xyz.cpu().numpy(),
+                balanced_tree=True)
         return KDTreeLayer.apply
 
     @staticmethod
@@ -30,7 +35,9 @@ class KDTreeLayer(torch.autograd.Function):
 
         distance, index = KDTreeLayer.tree.query(
             xyz.detach().cpu().numpy(), k=k,
-            distance_upper_bound=distance_upper_bound)
+            distance_upper_bound=distance_upper_bound,
+            eps=0.5,
+            sqr_dists=True)
 
         distance = torch.from_numpy(distance).to(
             ref_device).to(ref_dtype).view(-1, k)
@@ -61,6 +68,7 @@ class KDTreeLayer(torch.autograd.Function):
         FeatureMap3DOp.forward(distances, index, features, out_features)
         return out_features
 
+    @staticmethod
     def backward(ctx, dl_feat):
         source_xyz, index, features = ctx.saved_tensors
 

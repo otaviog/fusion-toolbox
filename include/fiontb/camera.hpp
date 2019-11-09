@@ -55,10 +55,9 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST inline void Dx_Projection(const Vector<scalar_t, 3> point,
-                                            scalar_t &j00, scalar_t &j02,
-                                            scalar_t &j11,
-                                            scalar_t &j12) const {
+  FTB_DEVICE_HOST inline void Dx_Project(const Vector<scalar_t, 3> point,
+                                         scalar_t &j00, scalar_t &j02,
+                                         scalar_t &j11, scalar_t &j12) const {
     const scalar_t fx = matrix[0][0];
     const scalar_t fy = matrix[1][1];
 

@@ -25,6 +25,15 @@ class PointCloud:
                    torch.from_numpy(np.array(pcl.colors, dtype=np.uint8)),
                    torch.from_numpy(np.array(pcl.normals, dtype=np.float32)))
 
+    @staticmethod
+    def from_frame(frame, world_space=True, compute_normals=True):
+        from .frame import FramePointCloud
+
+        fpcl = FramePointCloud.from_frame(frame)
+        return (fpcl.unordered_point_cloud(
+            world_space=world_space,
+            compute_normals=compute_normals), fpcl.mask)
+
     def __init__(self, points, colors=None, normals=None):
         self.points = points
         self.colors = colors
@@ -104,6 +113,11 @@ class PointCloud:
         """Returns whatever the point cloud is empty.
         """
         return self.points.size == 0
+
+    def to(self, dst):
+        return PointCloud(self.points.to(dst),
+                          (self.colors.to(dst) if self.colors is not None else None),
+                          (self.normals.to(dst) if self.normals is not None else None))
 
     @property
     def size(self):

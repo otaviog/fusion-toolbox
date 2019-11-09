@@ -42,7 +42,7 @@ class _ClosureBox:
             return 0
         value = loss.detach().cpu().item()
 
-        loss.backward(torch.ones(1, 6, device="cuda:0"))
+        loss.backward(torch.ones(1, 6, device=loss.device))
         grad = self.x.grad.cpu().numpy()
         grad = grad.transpose().flatten()
         return value, grad
@@ -56,9 +56,96 @@ class AutogradICP:
         self.feat_weight = feat_weight
         self.learning_rate = learning_rate
 
+    def estimate2(self, source_points, source_normals,
+                  source_feats, target_matcher, transform=None):
+        device = source_points.device
+        dtype = source_points.dtype
+
+        upsilon_omega = torch.zeros(
+            1, 6, requires_grad=True, device=device, dtype=dtype)
+        initial_transform = None
+        if transform is not None:
+            # TODO: investigate non-orthogonal matrices erro
+            # se3 = SE3.from_matrix(transform.cpu())
+            # upsilon_omega = se3.log().to(device).to(dtype).view(1, 6)
+            # upsilon_omega.requires_grad = True
+            source_points = RigidTransform(
+                transform.to(device)) @ source_points.clone()
+            initial_transform = transform.clone()
+
+        loss = math.inf
+
+        has_geom = self.geom_weight > 0
+        has_feat = (self.feat_weight > 0
+                    and source_feats is not None)
+
+        def _closure():
+            nonlocal loss
+
+            if upsilon_omega.grad is not None:
+                upsilon_omega.grad.zero_()
+
+            transform = SO3tExp.apply(upsilon_omega.cpu()).squeeze().to(device)
+
+            geom_loss = 0
+            feat_loss = 0
+
+            transform_source_points = (
+                RigidTransform(transform) @ source_points)
+            tpoints, tnormals, tfeatures, smask = target_matcher.find_correspondences(
+                transform_source_points)
+
+            if has_geom:
+                diff = tpoints - transform_source_points[smask]
+
+                cost = torch.bmm(tnormals.view(
+                    -1, 1, 3), diff.view(-1, 3, 1))
+                geom_loss = torch.pow(cost, 2).mean()
+
+            if has_feat:
+                res = torch.norm(
+                    tfeatures - source_feats[:, smask], 2, dim=0)
+                feat_loss = res.mean()
+
+            loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
+
+            print(loss.item())
+            if torch.isnan(loss):
+                return loss
+
+            return loss*self.learning_rate
+
+        box = _ClosureBox(_closure, upsilon_omega)
+        scipy.optimize.minimize(box.func, upsilon_omega.detach().cpu().numpy(),
+                                method='BFGS', jac=True,
+                                options=dict(disp=False, maxiter=self.num_iters))
+        transform = SO3tExp.apply(upsilon_omega.detach().cpu()).squeeze(0)
+        transform = _to_4x4(transform)
+
+        if initial_transform is not None:
+            transform = _to_4x4(initial_transform) @ transform
+
+        return ICPResult(transform, None, loss, 1.0)
+
     def estimate(self, kcam, source_points, source_normals, source_mask,
                  target_points=None, target_mask=None, target_normals=None,
                  target_feats=None, source_feats=None, transform=None):
+        source_points = source_points[source_mask].view(-1, 3)
+        # source_normals = source_normals[source_mask].view(-1, 3)
+
+        if source_feats is not None:
+            source_feats = source_feats[:, source_mask].view(source_feats.size(0), -1)
+
+        from fiontb.spatial.matching import FramePointCloudMatcher
+        matcher = FramePointCloudMatcher(target_points, target_normals, target_mask,
+                                         target_feats, kcam)
+
+        return self.estimate2(source_points, source_normals,
+                              source_feats, matcher, transform)
+
+    def _estimate(self, kcam, source_points, source_normals, source_mask,
+                  target_points=None, target_mask=None, target_normals=None,
+                  target_feats=None, source_feats=None, transform=None):
         has_geom = (self.geom_weight > 0
                     and target_points is not None
                     and target_normals is not None
@@ -113,7 +200,7 @@ class AutogradICP:
             if upsilon_omega.grad is not None:
                 upsilon_omega.grad.zero_()
 
-            transform = SO3tExp.apply(upsilon_omega).squeeze()
+            transform = SO3tExp.apply(upsilon_omega.cpu()).squeeze().to(device)
 
             geom_loss = 0
             feat_loss = 0

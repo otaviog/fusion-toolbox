@@ -93,13 +93,11 @@ struct BackwardKernel {
     if (u < 0 || u >= feature_map.width || v < 0 || v >= feature_map.height)
       return;
 
-    const scalar_t h = 0.05;
-
     scalar_t dl_ugrad = 0;
     scalar_t dl_vgrad = 0;
 
     BilinearInterpGrad<dev, scalar_t> grad =
-        feature_map.GetBilinearGrad(u, v, h);
+        feature_map.GetBilinearGrad(u, v, 0.05);
 
     for (int channel = 0; channel < feature_map.channel_size; ++channel) {
       scalar_t du, dv;

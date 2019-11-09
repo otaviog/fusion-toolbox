@@ -38,7 +38,7 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 
 
-def show(geometries, width=640, height=480, point_size=3):
+def geoshow(geometries, width=640, height=480, point_size=3):
 
     if isinstance(geometries, list):
         if not geometries:

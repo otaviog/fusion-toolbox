@@ -12,7 +12,8 @@ from fiontb._cfiontb import (so3t_exp_op_forward as _so3t_exp_op_forward,
 class SO3tExp(torch.autograd.Function):
     @staticmethod
     def forward(ctx, upsilon_omega):
-        y_matrices = _so3t_exp_op_forward(upsilon_omega.view(-1, 6))
+        upsilon_omega = upsilon_omega.cpu()
+        y_matrices = _so3t_exp_op_forward(upsilon_omega.view(-1, 6).cpu())
 
         ctx.save_for_backward(upsilon_omega, y_matrices)
         return y_matrices
@@ -20,9 +21,8 @@ class SO3tExp(torch.autograd.Function):
     @staticmethod
     def backward(ctx, dy_matrices):
         upsilon_omega, y_matrices = ctx.saved_tensors
-
         dx_upsilon_omega = _so3t_exp_op_backward(
             dy_matrices.view(-1, 3, 4), upsilon_omega.view(-1, 6),
             y_matrices.view(-1, 3, 4))
 
-        return dx_upsilon_omega
+        return dx_upsilon_omega.to(dy_matrices.device)

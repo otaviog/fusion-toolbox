@@ -79,7 +79,7 @@ struct ProjectBackwardKernel {
     Eigen::Matrix<scalar_t, 3, 1> point = to_vec3<scalar_t>(points[i]);
 
     scalar_t j00, j02, j11, j12;
-    kcamera.Dx_Projection(point, j00, j02, j11, j12);
+    kcamera.Dx_Project(point, j00, j02, j11, j12);
 
     dx_points[i][0] = j00 * dy_grad[i][0];
     dx_points[i][1] = j11 * dy_grad[i][1];

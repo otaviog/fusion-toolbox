@@ -140,6 +140,9 @@ fiontb.pose.autogradicp.ms-rgbd-synthetic:
 fiontb.pose.autogradicp.trajectory:
 	python3 -m fiontb.pose._test.test_autogradicp trajectory
 
+fiontb.pose.autogradicp.pcl-rgbd-real:
+	python3 -m fiontb.pose._test.test_autogradicp pcl-rgbd-real
+
 #########
 # Surfel
 #

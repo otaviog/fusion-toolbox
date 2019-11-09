@@ -6,18 +6,7 @@
 namespace fiontb {
 
 namespace {
-template <Device dev, typename scalar_t>
-class PointGrid : public BasePointGrid<dev> {
- public:
-  const typename Accessor<dev, scalar_t, 3>::T points;
-  const typename Accessor<dev, scalar_t, 3>::T normals;
 
-  PointGrid(const torch::Tensor &points, const torch::Tensor normals,
-            const torch::Tensor &mask)
-      : BasePointGrid<dev>(mask),
-        points(Accessor<dev, scalar_t, 3>::Get(points)),
-        normals(Accessor<dev, scalar_t, 3>::Get(normals)) {}
-};
 
 template <Device dev, typename scalar_t>
 FTB_DEVICE_HOST inline scalar_t EuclideanDistance(

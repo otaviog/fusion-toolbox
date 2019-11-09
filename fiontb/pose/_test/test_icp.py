@@ -19,7 +19,7 @@ from .testing import (evaluate, run_trajectory_test, run_pair_test)
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.LAB,
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.HSV,
                             blur=False, filter_depth=False)
 
 REAL_FRAME_ARGS = dict(frame1_idx=28, color_mode=ColorMode.LAB,

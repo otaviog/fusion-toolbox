@@ -33,7 +33,7 @@ class KCamera:
     """
 
     def __init__(self, matrix, undist_coeff=None, image_size=None):
-        self.matrix = ensure_torch(matrix).float()
+        self.matrix = ensure_torch(matrix)
 
         if undist_coeff is not None:
             self.undist_coeff = undist_coeff
@@ -177,8 +177,8 @@ class KCamera:
         return torch.from_numpy(
             self.get_projection_params(near, far).to_matrix()).to(dtype)
 
-    def to(self, device):
-        return KCamera(self.matrix.to(device), self.undist_coeff,
+    def to(self, dst):
+        return KCamera(self.matrix.to(dst), self.undist_coeff,
                        self.image_size)
 
     @property
@@ -395,6 +395,9 @@ class RTCamera:
 
     def difference(self, other):
         return RigidTransform(self.world_to_cam * other.matrix)
+
+    def to(self, dst):
+        return RTCamera(self.matrix.to(dst))
 
     @property
     def center(self):

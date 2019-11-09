@@ -142,6 +142,7 @@ torch::Tensor SO3tExpOp::Backward(const torch::Tensor &dy_matrices,
       x_upsilon_omegas.sizes(), torch::TensorOptions(x_upsilon_omegas.type())
                                     .device(x_upsilon_omegas.device()));
 
+  CudaCheck();
   const long size = x_upsilon_omegas.size(0);
   AT_DISPATCH_FLOATING_TYPES(
       x_upsilon_omegas.scalar_type(), "ExpBackward", ([&] {

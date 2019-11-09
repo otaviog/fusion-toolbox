@@ -45,3 +45,6 @@ fiontb.pose.so3:
 
 fiontb.spatial.kdtreelayer:
 	python3 -m unittest fiontb.spatial._test.test_kdtree_layer
+
+fiontb.spatial.fpcl_matcher:
+	python3 -m unittest fiontb.spatial._test.test_fpcl_matcher
