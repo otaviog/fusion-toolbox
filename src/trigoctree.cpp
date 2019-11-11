@@ -1,6 +1,8 @@
 #include "trigoctree.hpp"
 
-#include "metrics.hpp"
+#include <torch/csrc/utils/pybind.h>
+
+#include "mesh.hpp"
 
 using namespace std;
 
@@ -64,7 +66,7 @@ class TrigOctNode : public ATrigOctNode {
       torch::Tensor face_mask = torch::zeros({faces.size(0)}, torch::kUInt8);
       auto fmask_acc = face_mask.accessor<uint8_t, 1>();
 
-      #pragma omp parallel for
+#pragma omp parallel for
       for (int face = 0; face < face_acc.size(0); ++face) {
         const long f0 = face_acc[face][0];
         const long f1 = face_acc[face][1];
@@ -185,6 +187,12 @@ TrigOctree::TrigOctree(torch::Tensor verts, const torch::Tensor &faces,
   root_ = new TrigOctNode(verts_, faces, AABB(verts), leaf_num_trigs);
 }
 
+void TrigOctree::RegisterPybind(pybind11::module &m) {
+  py::class_<TrigOctree>(m, "TrigOctree")
+      .def(py::init<torch::Tensor, torch::Tensor, int>())
+      .def("query_closest_points", &TrigOctree::QueryClosest);
+}
+
 TrigOctree::~TrigOctree() { delete root_; }
 
 pair<torch::Tensor, torch::Tensor> TrigOctree::QueryClosest(
@@ -197,7 +205,7 @@ pair<torch::Tensor, torch::Tensor> TrigOctree::QueryClosest(
   auto idx_acc = idx_mtx.accessor<long, 1>();
   const auto qacc = points.accessor<float, 2>();
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int i = 0; i < points.size(0); ++i) {
     Eigen::Vector3f qpoint(qacc[i][0], qacc[i][1], qacc[i][2]);
     const auto bounded_qpoint = root_->get_box().GetClosestPoint(qpoint);

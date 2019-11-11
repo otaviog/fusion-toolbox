@@ -1,14 +1,13 @@
-#include "surfel_fusion_common.hpp"
+#include "surfel_fusion.hpp"
 
 #include <mutex>
 
 #include "camera.hpp"
 #include "kernel.hpp"
 #include "math.hpp"
-//#include "zbuffer.hpp"
+#include "surfel_fusion_common.hpp"
 
 namespace fiontb {
-namespace {
 
 template <Device dev>
 struct FindMergeKernel {
@@ -22,25 +21,28 @@ struct FindMergeKernel {
   const int time;
 
   MergeMap<dev> merge_map;
-  typename Accessor<dev, bool, 1>::T new_surfel_map;
+  typename Accessor<dev, bool, 1>::T new_surfels_map;
+  const SurfelModelAccessor<dev> model;
 
   FindMergeKernel(const IndexMap &model_indexmap,
                   const SurfelCloud &live_surfels, const torch::Tensor &kcam,
                   float max_normal_angle, int search_size_, int time, int scale,
-                  torch::Tensor merge_map, torch::Tensor new_surfel_map)
+                  torch::Tensor merge_map, torch::Tensor new_surfels_map,
+                  const MappedSurfelModel &model)
       : model_indexmap(model_indexmap),
         live_surfels(live_surfels),
         kcam(kcam),
         max_normal_angle(max_normal_angle),
         time(time),
         merge_map(merge_map),
-        new_surfel_map(Accessor<dev, bool, 1>::Get(new_surfel_map)) {
+        new_surfels_map(Accessor<dev, bool, 1>::Get(new_surfels_map)),
+        model(model) {
     search_size = int(scale * search_size_);
   }
 
 #pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(int live_index) {
-    new_surfel_map[live_index] = true;
+    new_surfels_map[live_index] = true;
 
     const Eigen::Vector3f live_pos(live_surfels.position(live_index));
     int u, v;
@@ -67,10 +69,19 @@ struct FindMergeKernel {
       for (int kcol = xstart; kcol <= xend; kcol++) {
         if (model_indexmap.empty(krow, kcol)) continue;
 
-        const Vector<float, 3> model_pos = model_indexmap.position(krow, kcol);
-        const float dist = ray.cross(model_pos).norm() / ray.norm();
-        const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
+        const int32_t model_target = model_indexmap.index(krow, kcol);
 
+        const int64_t feature_size =
+            min(model.features.size(0), live_surfels.features.size(0));
+        const int live_height = live_surfels.features.size(1);
+        float dist = 0;
+        for (int64_t i = 0; i < feature_size; ++i) {
+          const float model_feat_channel = model.features[i][model_target];
+          const float live_feat_channel = live_surfels.features[i][live_index];
+          dist += model_feat_channel * live_feat_channel;
+        }
+
+        const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
         if (dist < best_dist &&
             GetVectorsAngle(normal, live_normal) < max_normal_angle) {
           best_dist = dist;
@@ -83,7 +94,7 @@ struct FindMergeKernel {
     if (best_dist < NumericLimits<dev, float>::infinity()) {
       merge_map.Set(best_row, best_col, int32_t(double(best_dist) * 1e15),
                     live_index);
-      new_surfel_map[live_index] = false;
+      new_surfels_map[live_index] = false;
     }
   }
 };
@@ -160,8 +171,6 @@ struct UpdateKernel {
   }
 };
 
-}  // namespace
-
 void SurfelFusionOp::Update(const IndexMap &model_indexmap,
                             const SurfelCloud &live_surfels,
                             MappedSurfelModel model, const torch::Tensor &kcam,
@@ -179,9 +188,9 @@ void SurfelFusionOp::Update(const IndexMap &model_indexmap,
   FTB_CHECK_DEVICE(reference_dev, new_surfels_map);
 
   if (reference_dev.is_cuda()) {
-    FindMergeKernel<kCUDA> find_kernel(model_indexmap, live_surfels, kcam,
-                                       max_normal_angle, search_size, time,
-                                       scale, merge_map, new_surfels_map);
+    FindMergeKernel<kCUDA> find_kernel(
+        model_indexmap, live_surfels, kcam, max_normal_angle, search_size, time,
+        scale, merge_map, new_surfels_map, model);
     Launch1DKernelCUDA(find_kernel, live_surfels.get_size());
 
     UpdateKernel<kCUDA> update_kernel(model_indexmap, live_surfels, merge_map,
@@ -191,7 +200,7 @@ void SurfelFusionOp::Update(const IndexMap &model_indexmap,
   } else {
     FindMergeKernel<kCPU> find_kernel(model_indexmap, live_surfels, kcam,
                                       max_normal_angle, search_size, time,
-                                      scale, merge_map, new_surfels_map);
+                                      scale, merge_map, new_surfels_map, model);
 
     Launch1DKernelCPU(find_kernel, live_surfels.get_size());
     UpdateKernel<kCPU> update_kernel(model_indexmap, live_surfels, merge_map,

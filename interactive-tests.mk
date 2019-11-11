@@ -23,10 +23,7 @@ fiontb.viz.trajectoryviewer:
 #
 
 fiontb.filtering.bilateral:
-	python3 -m fiontb.filtering bilateral
-
-fiontb.filtering.featuremap:
-	python3 -m fiontb.filtering featuremap
+	python3 -m fiontb._test.test_filtering bilateral
 
 fiontb.spatial.indexmap:
 	python3 -m fiontb.spatial.indexmap

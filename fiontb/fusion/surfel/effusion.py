@@ -23,6 +23,7 @@ class EFFusion:
         self._time = 0
 
     def fuse(self, frame_pcl, rt_cam, features=None, confidence_weight=1.0):
+        device = frame_pcl.device
         live_surfels = SurfelCloud.from_frame_pcl(
             frame_pcl, time=self._time,
             features=features, confidence_weight=confidence_weight)
@@ -47,8 +48,7 @@ class EFFusion:
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
 
-        model_indexmap = self.model_raster.to_indexmap()
-        model_indexmap.synchronize()
+        model_indexmap = self.model_raster.to_indexmap(device=device)
         # import cv2
         # cv2.imshow("indexmap", model_indexmap.color.cpu().numpy())
 
@@ -57,10 +57,6 @@ class EFFusion:
             rt_cam, self._time, self.model)
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
-
-        self.model_raster.raster(gl_proj_matrix, rt_cam,
-                                 indexmap_size[0], indexmap_size[1])
-        model_indexmap = self.model_raster.to_indexmap()
 
         stats.removed_count += self._clean(
             frame_pcl.kcam, frame_pcl.rt_cam,

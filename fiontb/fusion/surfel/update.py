@@ -5,6 +5,8 @@ import torch
 from fiontb._cfiontb import SurfelFusionOp, ElasticFusionOp
 from fiontb._utils import empty_ensured_size
 
+_INT_MAX = 2147483647
+
 
 class Update:
     def __init__(self, elastic_fusion=False,
@@ -24,12 +26,12 @@ class Update:
             device=ref_device)
 
         model_merge_map = torch.full((model_indexmap.height, model_indexmap.width, 3),
-                                     2147483647,
-                                     dtype=torch.int32, device=ref_device)
+                                     _INT_MAX, dtype=torch.int32, device=ref_device)
         with surfel_model.gl_context.current():
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
 
                 scale = int(model_indexmap.height / kcam.image_height)
+
                 if self.elastic_fusion:
                     ElasticFusionOp.update(
                         model_indexmap, live_surfels.to_cpp_(), mapped_model,

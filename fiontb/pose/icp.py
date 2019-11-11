@@ -5,7 +5,7 @@ import math
 import torch
 from tenviz.pose import SE3, SO3
 
-from fiontb.downsample import DownsampleXYZMethod
+from fiontb.processing import DownsampleXYZMethod
 from fiontb._cfiontb import ICPJacobian as _ICPJacobian
 from fiontb._utils import empty_ensured_size
 

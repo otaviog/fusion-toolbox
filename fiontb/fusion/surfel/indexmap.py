@@ -26,16 +26,16 @@ class _BaseIndexMapRaster:
                 3: tenviz.FramebufferTarget.RGBInt32
             })
 
-    def to_indexmap(self, device=None):
+    def to_indexmap(self, device=None, non_blocking=False):
         with self.gl_context.current():
             indexmap = IndexMap()
             indexmap.position_confidence = self.framebuffer[0].to_tensor(
-                non_blocking=False)
+                non_blocking=non_blocking)
             indexmap.normal_radius = self.framebuffer[1].to_tensor(
-                non_blocking=False)
-            indexmap.color = self.framebuffer[2].to_tensor(non_blocking=False)
+                non_blocking=non_blocking)
+            indexmap.color = self.framebuffer[2].to_tensor(non_blocking=non_blocking)
             indexmap.indexmap = self.framebuffer[3].to_tensor(
-                non_blocking=False)
+                non_blocking=non_blocking)
 
         if device is not None:
             indexmap = indexmap.to(str(device))

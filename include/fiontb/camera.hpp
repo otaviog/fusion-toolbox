@@ -131,6 +131,9 @@ struct RTCamera {
   Eigen::Matrix<scalar_t, 3, 4> rt_matrix;
   Eigen::Matrix<scalar_t, 3, 3> normal_matrix;
 
+#ifdef __CUDACC__
+#pragma nv_exec_check_disable
+#endif
   RTCamera(const torch::Tensor &matrix) {
     auto cpu_matrix = matrix.cpu();
     rt_matrix = to_matrix<scalar_t, 3, 4>(cpu_matrix.accessor<scalar_t, 2>());
@@ -160,7 +163,19 @@ struct RTCamera {
 #endif
   FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> TransformNormal(
       const Eigen::Matrix<scalar_t, 3, 1> &normal) const {
-    return normal_matrix * normal;
+    const scalar_t nx = normal_matrix(0, 0) * normal[0] +
+                        normal_matrix(0, 1) * normal[1] +
+                        normal(0, 2) * normal[2];
+
+    const scalar_t ny = normal_matrix(1, 0) * normal[0] +
+                        normal_matrix(1, 1) * normal[1] +
+                        normal_matrix(1, 2) * normal[2];
+
+    const scalar_t nz = normal_matrix(2, 0) * normal[0] +
+                        normal_matrix(2, 1) * normal[1] +
+                        normal_matrix(2, 2) * normal[2];
+
+    return Eigen::Matrix<scalar_t, 3, 1>(nx, ny, nz);
   }
 };
 

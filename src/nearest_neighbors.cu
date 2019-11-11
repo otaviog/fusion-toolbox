@@ -1,4 +1,4 @@
-#include "filtering.hpp"
+#include "nearest_neighbors.hpp"
 
 #include "accessor.hpp"
 #include "error.hpp"
@@ -6,7 +6,6 @@
 #include "math.hpp"
 
 namespace fiontb {
-namespace {
 
 template <Device dev, typename scalar_t>
 struct ForwardKernel {
@@ -72,12 +71,11 @@ struct ForwardKernel {
     }
   }
 };
-}  // namespace
 
-void FeatureMap3DOp::Forward(const torch::Tensor &nn_distances,
-                             const torch::Tensor &nn_index,
-                             const torch::Tensor &features,
-                             torch::Tensor out_features) {
+void NearestNeighborsOp::Forward(const torch::Tensor &nn_distances,
+                                 const torch::Tensor &nn_index,
+                                 const torch::Tensor &features,
+                                 torch::Tensor out_features) {
   const auto ref_device = nn_distances.device();
   const auto ref_type = nn_distances.scalar_type();
 
@@ -87,14 +85,14 @@ void FeatureMap3DOp::Forward(const torch::Tensor &nn_distances,
 
   if (ref_device.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
-        ref_type, "FeatureMap3DOp::Forward", ([&] {
+        ref_type, "NearestNeighborsOp::Forward", ([&] {
           ForwardKernel<kCUDA, scalar_t> kernel(nn_distances, nn_index,
                                                 features, out_features);
           Launch1DKernelCUDA(kernel, out_features.size(1));
         }));
   } else {
     AT_DISPATCH_FLOATING_TYPES(
-        ref_type, "FeatureMap3DOp::Forward", ([&] {
+        ref_type, "NearestNeighborsOp::Forward", ([&] {
           ForwardKernel<kCPU, scalar_t> kernel(nn_distances, nn_index, features,
                                                out_features);
           Launch1DKernelCPU(kernel, out_features.size(1));
@@ -102,7 +100,6 @@ void FeatureMap3DOp::Forward(const torch::Tensor &nn_distances,
   }
 }
 
-namespace {
 template <Device dev, typename scalar_t>
 struct EpsilonDistancesKernel {
   const typename Accessor<dev, scalar_t, 2>::T target_xyz;
@@ -173,9 +170,8 @@ struct EpsilonDistancesKernel {
     }
   }
 };
-}  // namespace
 
-void FeatureMap3DOp::ComputeEpsilonDistances(
+void NearestNeighborsOp::ComputeEpsilonDistances(
     const torch::Tensor &target_xyz, const torch::Tensor &source_xyz,
     const torch::Tensor &nn_index, const torch::Tensor &epsilon_distances) {
   const auto ref_device = target_xyz.device();
@@ -205,16 +201,15 @@ void FeatureMap3DOp::ComputeEpsilonDistances(
   }
 }
 
-namespace {
 template <Device dev, typename scalar_t>
-struct Backward {
+struct NNGrad {
   const typename Accessor<dev, scalar_t, 2>::Ts epsilon_distances;
   const typename Accessor<dev, int64_t, 1>::Ts nn_index;
   const typename Accessor<dev, scalar_t, 2>::T features;
   const scalar_t div;
   const int64_t max_index;
 
-  FTB_DEVICE_HOST Backward(
+  FTB_DEVICE_HOST NNGrad(
       const typename Accessor<dev, scalar_t, 2>::Ts epsilon_distances,
       const typename Accessor<dev, int64_t, 1>::Ts nn_index,
       const typename Accessor<dev, scalar_t, 2>::T features, scalar_t h = 0.05)
@@ -266,7 +261,7 @@ struct BackwardKernel {
         dl_xyz(Accessor<dev, scalar_t, 2>::Get(dl_xyz)) {}
 
   FTB_DEVICE_HOST void operator()(int idx) {
-    const Backward<dev, scalar_t> backward(epsilon_distances[idx],
+    const NNGrad<dev, scalar_t> backward(epsilon_distances[idx],
                                            nn_index[idx], features);
     scalar_t dl_x = 0, dl_y = 0, dl_z = 0;
     for (int channel = 0; channel < features.size(0); ++channel) {
@@ -284,13 +279,12 @@ struct BackwardKernel {
     dl_xyz[idx][2] = dl_z;
   }
 };
-}  // namespace
 
-void FeatureMap3DOp::Backward(const torch::Tensor &epsilon_distances,
-                              const torch::Tensor &nn_index,
-                              const torch::Tensor &features,
-                              const torch::Tensor &dl_features,
-                              torch::Tensor dl_xyz) {
+void NearestNeighborsOp::Backward(const torch::Tensor &epsilon_distances,
+                                  const torch::Tensor &nn_index,
+                                  const torch::Tensor &features,
+                                  const torch::Tensor &dl_features,
+                                  torch::Tensor dl_xyz) {
   const auto ref_device = epsilon_distances.device();
   const auto ref_type = epsilon_distances.scalar_type();
 
@@ -301,14 +295,14 @@ void FeatureMap3DOp::Backward(const torch::Tensor &epsilon_distances,
   FTB_CHECK_DEVICE(ref_device, dl_xyz);
 
   if (ref_device.is_cuda()) {
-    AT_DISPATCH_FLOATING_TYPES(ref_type, "FeatureMap3DOp::Backward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES(ref_type, "NearestNeighborsOp::Backward", ([&] {
                                  BackwardKernel<kCUDA, scalar_t> kernel(
                                      epsilon_distances, nn_index, features,
                                      dl_features, dl_xyz);
                                  Launch1DKernelCUDA(kernel, dl_xyz.size(0));
                                }));
   } else {
-    AT_DISPATCH_FLOATING_TYPES(ref_type, "FeatureMap3DOp::Backward", ([&] {
+    AT_DISPATCH_FLOATING_TYPES(ref_type, "NearestNeighborsOp::Backward", ([&] {
                                  BackwardKernel<kCPU, scalar_t> kernel(
                                      epsilon_distances, nn_index, features,
                                      dl_features, dl_xyz);
@@ -317,4 +311,4 @@ void FeatureMap3DOp::Backward(const torch::Tensor &epsilon_distances,
   }
 }
 
-}  // namespace fiontb
+}  // namespace

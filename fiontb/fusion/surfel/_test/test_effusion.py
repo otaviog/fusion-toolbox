@@ -32,7 +32,7 @@ def _test():
     rec_ui = SurfelReconstructionUI(model, RunMode.STEP,
                                     stable_conf_thresh=fusion.stable_conf_thresh)
     sensor = DatasetSensor(dataset)
-    device = "cuda:0"
+    device = "cpu:0"
     with profile(Path(__file__).parent / "fusion.prof"):
         for _ in rec_ui:
             frame = sensor.next_frame()

@@ -1,32 +1,9 @@
 """Metrics that use polygon information.
 """
 
-from multiprocessing import Pool
 
 import numpy as np
 import torch
-from tqdm import tqdm
-
-from fiontb._cfiontb import query_closest_points as _query_closest_points
-
-
-def query_closest_points(source_points, verts, trigs):
-    """Returns the closest points on a mesh's surface from a given set of
-    points.
-
-    Args:
-
-        source_points (:obj:`torch.Tensor`): Source points, [Nx3] shape
-
-        verts (:obj:`torch.Tensor`): The mesh vertices, [Vx3] shape.
-
-        faces (:obj:`torch.Tensor`): The mesh face indices, [Fx3] shape.
-
-    Returns: (:obj:`torch.Tensor`): The closest points, [Nx3] shape.
-
-    """
-
-    return _query_closest_points(source_points.float(), verts.float(), trigs.long())
 
 
 def mesh_accuracy(source_points, closest_pts, thresh_distance=0.01):

@@ -1,4 +1,4 @@
-#include "filtering.hpp"
+#pragma once
 
 #include "accessor.hpp"
 #include "cuda_utils.hpp"

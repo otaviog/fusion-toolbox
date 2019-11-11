@@ -3,8 +3,8 @@ from pykdtree.kdtree import KDTree
 import torch.autograd
 import numpy
 
-
-from fiontb._cfiontb import FeatureMap3DOp
+from fiontb._cfiontb import (
+    NearestNeighborsOp as _NearestNeighborsOp)
 
 
 class KDTreeLayer(torch.autograd.Function):
@@ -65,7 +65,7 @@ class KDTreeLayer(torch.autograd.Function):
                                    dtype=ref_dtype,
                                    device=ref_device)
 
-        FeatureMap3DOp.forward(distances, index, features, out_features)
+        _NearestNeighborsOp.forward(distances, index, features, out_features)
         return out_features
 
     @staticmethod
@@ -78,7 +78,7 @@ class KDTreeLayer(torch.autograd.Function):
         epsilon_distances = torch.empty(index.size(0), 6, index.size(1),
                                         dtype=ref_dtype,
                                         device=ref_device)
-        FeatureMap3DOp.compute_epsilon_distances(
+        _NearestNeighborsOp.compute_epsilon_distances(
             KDTreeLayer.target_xyz, source_xyz,
             index, epsilon_distances)
 
@@ -86,7 +86,7 @@ class KDTreeLayer(torch.autograd.Function):
                              dtype=ref_dtype,
                              device=ref_device)
 
-        FeatureMap3DOp.backward(epsilon_distances, index,
-                                features, dl_feat, dl_xyz)
+        _NearestNeighborsOp.backward(epsilon_distances, index,
+                                     features, dl_feat, dl_xyz)
 
         return None, dl_xyz

@@ -1,4 +1,4 @@
-#include "filtering.hpp"
+#include "processing.hpp"
 
 #include "accessor.hpp"
 #include "cuda_utils.hpp"
@@ -72,11 +72,9 @@ struct BilateralDepthFilterKernel {
   }
 };
 
-torch::Tensor BilateralDepthFilter(const torch::Tensor &input,
-                                   const torch::Tensor &mask,
-                                   torch::Tensor result, int filter_width,
-                                   float sigma_color, float sigma_space,
-                                   float depth_scale) {
+torch::Tensor Processing::BilateralDepthFilter(
+    const torch::Tensor &input, const torch::Tensor &mask, torch::Tensor result,
+    int filter_width, float sigma_color, float sigma_space, float depth_scale) {
   const int width = input.size(1);
   const int height = input.size(0);
 
@@ -86,7 +84,7 @@ torch::Tensor BilateralDepthFilter(const torch::Tensor &input,
 
   FTB_CHECK_DEVICE(input.device(), mask);
   FTB_CHECK_DEVICE(input.device(), result);
-  
+
   if (input.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(
         input.scalar_type(), "BilateralFilterDepthImage_gpu", ([&] {

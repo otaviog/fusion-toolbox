@@ -4,7 +4,7 @@ import torch
 import tenviz
 
 from fiontb.frame import FramePointCloud
-from fiontb.filtering import BilateralDepthFilter, bilateral_depth_filter
+from fiontb.processing import BilateralDepthFilter, bilateral_depth_filter
 from fiontb.camera import RTCamera
 from fiontb.pose.icp import MultiscaleICPOdometry, ICPOption, ICPVerifier
 from fiontb.surfel import SurfelModel
@@ -25,6 +25,8 @@ def _estimate_confidence_weight(prev_rt_cam, curr_rt_cam):
     return conf_weight
 
 
+_DEBUG = False
+
 class SurfelSLAM:
     def __init__(self, max_surfels=1024*1024*15, device="cuda:0",
                  tracking_mode='frame-to-frame',
@@ -43,6 +45,7 @@ class SurfelSLAM:
             ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
             # ICPOption(1.0, 10, feat_weight=1, so3=True),
         ])
+
         self.icp_verifier = ICPVerifier()
 
         self._previous_fpcl = None
@@ -95,14 +98,16 @@ class SurfelSLAM:
                 previous_fpcl.points[:, :, 2] = self._depth_filter(
                     previous_fpcl.points[:, :, 2], previous_fpcl.mask)
 
-                import cv2
-                cv2.imshow("curr", cv2.cvtColor(filtered_live_fpcl.colors.cpu().numpy(),
-                                                 cv2.COLOR_RGB2BGR))
-                cv2.imshow("prev", cv2.cvtColor(previous_fpcl.colors.cpu().numpy(),
-                                                 cv2.COLOR_RGB2BGR))
+                if _DEBUG:
+                    import cv2
+                    cv2.imshow("curr", cv2.cvtColor(filtered_live_fpcl.colors.cpu().numpy(),
+                                                    cv2.COLOR_RGB2BGR))
+                    cv2.imshow("prev", cv2.cvtColor(previous_fpcl.colors.cpu().numpy(),
+                                                    cv2.COLOR_RGB2BGR))
 
                 result = self.icp.estimate(
                     frame.info.kcam, filtered_live_fpcl.points,
+                    filtered_live_fpcl.normals,
                     filtered_live_fpcl.mask,
                     source_feats=features,
                     target_points=previous_fpcl.points,
@@ -143,7 +148,8 @@ class SurfelSLAM:
         from ..fusion.surfel.indexmap import show_indexmap
         # show_indexmap(indexmap)
         import cv2
-        cv2.imshow("model", cv2.cvtColor(indexmap.color.cpu().numpy(), cv2.COLOR_RGB2BGR))
+        cv2.imshow("model", cv2.cvtColor(
+            indexmap.color.cpu().numpy(), cv2.COLOR_RGB2BGR))
         mask = indexmap.indexmap[:, :, 1]
         fill_ratio = mask.sum().item()/(mask.size(0)*mask.size(1))
         print(fill_ratio)

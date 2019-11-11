@@ -1,33 +1,109 @@
 #pragma once
 
-#include "feature_map.hpp"
-#include "pointgrid.hpp"
+#include "accessor.hpp"
+#include "eigen_common.hpp"
 
 namespace fiontb {
 
 namespace {
 
-
 template <Device dev, typename scalar_t>
-FTB_DEVICE_HOST inline scalar_t EuclideanDistance(
-    const BilinearInterp<dev, scalar_t> f1,
-    const typename Accessor<dev, scalar_t, 2>::T f2, int f2_index) {
-  scalar_t dist = scalar_t(0);
-  for (int channel = 0; channel < f2.size(0); ++channel) {
-    const scalar_t diff = f1.Get(channel) - f2[channel][f2_index];
-    dist += diff * diff;
+struct SE3ICPJacobian {
+  typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial;
+  typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial;
+
+  FTB_DEVICE_HOST SE3ICPJacobian(
+      typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial,
+      typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial)
+      : JtJ_partial(JtJ_partial), Jtr_partial(Jtr_partial) {
+#pragma unroll
+    for (int k = 0; k < 6; ++k) {
+      Jtr_partial[k] = scalar_t(0);
+    }
+
+#pragma unroll
+    for (int krow = 0; krow < 6; ++krow) {
+#pragma unroll
+      for (int kcol = 0; kcol < 6; ++kcol) {
+        JtJ_partial[krow][kcol] = scalar_t(0);
+      }
+    }
   }
 
-  return sqrt(dist);
-}
+  FTB_DEVICE_HOST inline void Compute(const Vector<scalar_t, 3> &Tsrc_point,
+                                      const Vector<scalar_t, 3> &normal,
+                                      scalar_t residual) {
+    scalar_t jacobian[6];
+    jacobian[0] = normal[0];
+    jacobian[1] = normal[1];
+    jacobian[2] = normal[2];
 
-template <typename scalar_t>
-FTB_DEVICE_HOST inline scalar_t Df1_EuclideanDistance(
-    scalar_t f1_nth_val, scalar_t f2_nth_val, scalar_t inv_forward_result) {
-  if (inv_forward_result > 0)
-    return (f1_nth_val - f2_nth_val) * inv_forward_result;
-  else
-    return 0;
-}
+    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(normal);
+    jacobian[3] = rot_twist[0];
+    jacobian[4] = rot_twist[1];
+    jacobian[5] = rot_twist[2];
+
+    for (int k = 0; k < 6; ++k) {
+      Jtr_partial[k] = jacobian[k] * residual;
+    }
+
+#pragma unroll
+    for (int krow = 0; krow < 6; ++krow) {
+#pragma unroll
+      for (int kcol = 0; kcol < 6; ++kcol) {
+        JtJ_partial[krow][kcol] = jacobian[kcol] * jacobian[krow];
+      }
+    }
+  }
+};
+
+template <Device dev, typename scalar_t>
+struct SO3ICPJacobian {
+  typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial;
+  typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial;
+
+  FTB_DEVICE_HOST SO3ICPJacobian(
+      typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial,
+      typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial)
+      : JtJ_partial(JtJ_partial), Jtr_partial(Jtr_partial) {
+#pragma unroll
+    for (int k = 0; k < 3; ++k) {
+      Jtr_partial[k] = scalar_t(0);
+    }
+
+#pragma unroll
+    for (int krow = 0; krow < 3; ++krow) {
+#pragma unroll
+      for (int kcol = 0; kcol < 3; ++kcol) {
+        JtJ_partial[krow][kcol] = scalar_t(0);
+      }
+    }
+  }
+
+#pragma nv_exec_check_disable
+  FTB_DEVICE_HOST inline void Compute(const Vector<scalar_t, 3> &Tsrc_point,
+                                      const Vector<scalar_t, 3> &normal,
+                                      scalar_t residual) {
+    scalar_t jacobian[3];
+    const Vector<scalar_t, 3> rot_twist = Tsrc_point.cross(normal);
+    jacobian[0] = rot_twist[0];
+    jacobian[1] = rot_twist[1];
+    jacobian[2] = rot_twist[2];
+
+    for (int k = 0; k < 3; ++k) {
+      Jtr_partial[k] = jacobian[k] * residual;
+    }
+
+#pragma unroll
+    for (int krow = 0; krow < 3; ++krow) {
+#pragma unroll
+      for (int kcol = 0; kcol < 3; ++kcol) {
+        JtJ_partial[krow][kcol] = jacobian[kcol] * jacobian[krow];
+      }
+    }
+  }
+};
+
+
 }  // namespace
 }  // namespace fiontb

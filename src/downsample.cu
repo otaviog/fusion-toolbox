@@ -1,4 +1,4 @@
-#include "downsample.hpp"
+#include "processing.hpp"
 
 #include "accessor.hpp"
 #include "cuda_utils.hpp"
@@ -7,7 +7,6 @@
 #include "math.hpp"
 
 namespace fiontb {
-namespace {
 template <Device dev, typename scalar_t>
 struct DownsampleXYZNearestKernel {
   const typename Accessor<dev, scalar_t, 3>::T xyz_img;
@@ -72,9 +71,8 @@ struct DownsampleXYZNearestKernel {
     dst[dst_row][dst_col][2] = nearest_xyz[2];
   }
 };
-}  // namespace
 
-void Downsample::DownsampleXYZ(const torch::Tensor &xyz_image,
+void Processing::DownsampleXYZ(const torch::Tensor &xyz_image,
                                const torch::Tensor &mask, float scale,
                                torch::Tensor dst, bool normalize,
                                DownsampleXYZMethod method) {
@@ -83,21 +81,22 @@ void Downsample::DownsampleXYZ(const torch::Tensor &xyz_image,
   FTB_CHECK_DEVICE(reference_dev, dst);
 
   if (reference_dev.is_cuda()) {
-    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", ([&] {
-      DownsampleXYZNearestKernel<kCUDA, scalar_t> kernel(xyz_image, mask, scale,
-                                                         dst);
-      Launch2DKernelCUDA(kernel, dst.size(1), dst.size(0));
+    AT_DISPATCH_FLOATING_TYPES(
+        xyz_image.scalar_type(), "DownsambleXYZ", ([&] {
+          DownsampleXYZNearestKernel<kCUDA, scalar_t> kernel(xyz_image, mask,
+                                                             scale, dst);
+          Launch2DKernelCUDA(kernel, dst.size(1), dst.size(0));
         }));
   } else {
-    AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "DownsambleXYZ", ([&] {
-      DownsampleXYZNearestKernel<kCPU, scalar_t> kernel(xyz_image, mask, scale,
-                                                        dst);
-      Launch2DKernelCPU(kernel, dst.size(1), dst.size(0));
+    AT_DISPATCH_FLOATING_TYPES(
+        xyz_image.scalar_type(), "DownsambleXYZ", ([&] {
+          DownsampleXYZNearestKernel<kCPU, scalar_t> kernel(xyz_image, mask,
+                                                            scale, dst);
+          Launch2DKernelCPU(kernel, dst.size(1), dst.size(0));
         }));
   }
 }
 
-namespace {
 template <Device dev>
 struct DownsampleMaskKernel {
   const typename Accessor<dev, bool, 2>::T mask;
@@ -116,9 +115,8 @@ struct DownsampleMaskKernel {
     dst[dst_row][dst_col] = mask[src_row][src_col];
   }
 };
-}  // namespace
 
-void Downsample::DownsampleMask(const torch::Tensor &mask, float scale,
+void Processing::DownsampleMask(const torch::Tensor &mask, float scale,
                                 torch::Tensor dst) {
   const auto reference_dev = mask.device();
   FTB_CHECK_DEVICE(reference_dev, dst);

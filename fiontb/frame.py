@@ -4,12 +4,11 @@
 import torch
 from torch.nn.functional import interpolate
 
-from fiontb._cfiontb import (estimate_normals as _estimate_normals,
-                             EstimateNormalsMethod)
-from fiontb.downsample import (
+from fiontb.processing import (
     downsample_xyz, downsample_mask, DownsampleXYZMethod)
+from fiontb._cfiontb import (Processing as _Processing, EstimateNormalsMethod)
+from fiontb._utils import ensure_torch, depth_image_to_uvz
 
-from fiontb._utils import ensure_torch
 from .camera import KCamera, RTCamera
 from .pointcloud import PointCloud
 
@@ -173,34 +172,6 @@ class _DepthImagePointCloud:
         return self._points
 
 
-def depth_image_to_uvz(depth_image, finfo):
-    """Converts an depth image to a meshgrid of u (columns), v (rows) an z
-     coordinates.
-
-    Args:
-
-        depth_image (:obj:`torch.Tensor`): [WxH] depth image.
-
-        finfo (:obj:`FrameInfo`): The source frame description.
-
-    Returns: (:obj:`torch.Tensor`): [WxHx3] the depth image with the u
-     and v pixel coordinates.
-
-    """
-
-    depth_image = (depth_image.float()*finfo.depth_scale +
-                   finfo.depth_bias)
-    device = depth_image.device
-    dtype = depth_image.dtype
-    ys, xs = torch.meshgrid(torch.arange(depth_image.size(0), dtype=dtype),
-                            torch.arange(depth_image.size(1), dtype=dtype))
-
-    image_points = torch.stack(
-        [xs.to(device), ys.to(device), depth_image], 2)
-
-    return image_points
-
-
 class FramePointCloud:
     """A framed point cloud: point, normal or color can be retrivied by
      pixel coordinates.
@@ -268,7 +239,7 @@ class FramePointCloud:
             self._normals = torch.empty(self.points.size(0), self.points.size(1), 3,
                                         dtype=self.points.dtype, device=self.points.device)
 
-            _estimate_normals(
+            _Processing.estimate_normals(
                 self.points, self.mask, self._normals,
                 EstimateNormalsMethod.CentralDifferences)
 
@@ -394,20 +365,3 @@ class FramePointCloud:
 
         if show:
             plt.show()
-
-
-def estimate_normals(depth_image, frame_info, mask,
-                     method=EstimateNormalsMethod.CentralDifferences,
-                     out_tensor=None):
-    image_points = depth_image_to_uvz(ensure_torch(depth_image), frame_info)
-    xyz_img = frame_info.kcam.backproject(
-        image_points.reshape(-1, 3)).reshape(image_points.shape)
-
-    if out_tensor is None:
-        out_tensor = torch.empty(xyz_img.size(0), xyz_img.size(1), 3, dtype=xyz_img.dtype,
-                                 device=xyz_img.device)
-
-    _estimate_normals(xyz_img, ensure_torch(mask, dtype=torch.bool),
-                      out_tensor, method)
-
-    return out_tensor

@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import cv2
@@ -52,3 +53,41 @@ class TestFiltering(unittest.TestCase):
                                 [5, 5]], dtype=torch.double, requires_grad=True))
         torch.autograd.gradcheck(feat_map, inputs, eps=1e-6, atol=1e-4,
                                  raise_exception=True)
+
+
+class InteractiveTests:
+    def bilateral(self):
+        """Uses bilateral_depth_filter on a sample image and compares with OpenCV.
+        """
+
+        depth = torch.from_numpy(cv2.imread(
+            str(Path(__file__).parent / "_tests/assets" / "frame_depth.png"),
+            cv2.IMREAD_ANYDEPTH).astype(np.int32))
+        mask = depth > 0
+
+        plt.figure()
+        plt.title("input")
+        plt.imshow(depth)
+        filter_depth = bilateral_depth_filter(
+            depth, mask,
+            None, 13, 4.50000000225,
+            29.9999880000072)
+
+        filtered_depth_image = cv2.bilateralFilter(
+            depth.float().numpy(), 13, 4.50000000225,
+            29.9999880000072)
+        plt.figure()
+        plt.title("cv2")
+        plt.imshow(filtered_depth_image)
+
+        plt.figure()
+        plt.title("bilateral")
+        plt.imshow(filter_depth)
+
+        plt.show()
+
+
+if __name__ == '__main__':
+    import fire
+
+    fire.Fire(InteractiveTests)

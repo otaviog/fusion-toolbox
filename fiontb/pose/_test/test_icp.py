@@ -31,7 +31,8 @@ class Tests:
         run_pair_test(
             ICPOdometry(15, geom_weight=1, feat_weight=0),
             set_start_at_eye(load_ftb(_TEST_DATA / "sample1")),
-            **REAL_FRAME_ARGS)
+            **REAL_FRAME_ARGS,
+            device="cuda:0")
 
     def depth_synthetic(self):
         run_pair_test(

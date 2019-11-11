@@ -1,6 +1,6 @@
 import torch
 
-from fiontb.downsample import (
+from fiontb.processing import (
     downsample_xyz, downsample_mask, DownsampleXYZMethod)
 
 

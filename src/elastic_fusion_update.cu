@@ -41,15 +41,6 @@ struct FindMergeKernel {
 
 #if 0
 
-    const int neighborhood[4][2] = {{-1, 0}, {0, 1}, {0, -1}, {0, 1}};
-    for (int k = 0; k < 4; ++k) {
-      const int r = row + neighborhood[k][0];
-      const int c = col + neighborhood[k][1];
-      if (r >= 0 && r < live_indexmap.height() && c >= 0 &&
-          c < live_indexmap.width()) {
-        if (live_indexmap.empty(r, c)) return;
-      }
-    }
 
 #endif
 

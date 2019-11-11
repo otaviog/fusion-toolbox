@@ -8,8 +8,8 @@ import cv2
 import numpy as np
 from torchvision.transforms.functional import to_tensor
 
-from fiontb.frame import estimate_normals
-from fiontb.filtering import bilateral_depth_filter
+from fiontb.processing import (estimate_normals,
+                               bilateral_depth_filter)
 
 
 class ColorMode(Enum):

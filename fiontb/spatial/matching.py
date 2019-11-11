@@ -4,28 +4,7 @@ from .kdtree_layer import KDTreeLayer
 import torch
 
 from fiontb._utils import empty_ensured_size
-from fiontb._cfiontb import (Matching as _Matching,
-                             FPCLMatcherOp as _FPCLMatcherOp)
-
-
-class DensePointMatcher:
-    def __init__(self):
-        self.out_point = None
-        self.out_index = None
-
-    def match(self, target_points, target_mask, source_points, kcam, rt_cam):
-        device = source_points.device
-        self.out_point = empty_ensured_size(self.out_point, source_points.size(0), 3,
-                                            dtype=source_points.dtype,
-                                            device=device)
-        self.out_index = empty_ensured_size(self.out_index, source_points.size(0),
-                                            dtype=torch.int64, device=device)
-
-        _Matching.match_dense_points(target_points, target_mask, source_points,
-                                     kcam.matrix, rt_cam,
-                                     self.out_point, self.out_index)
-
-        return self.out_point, self.out_index
+from fiontb._cfiontb import (FPCLMatcherOp as _FPCLMatcherOp)
 
 
 class FPCLMatcherOp(torch.autograd.Function):
@@ -59,7 +38,7 @@ class FPCLMatcherOp(torch.autograd.Function):
         match.mask = torch.empty(size, device=device, dtype=torch.bool)
 
         _FPCLMatcherOp.forward(target.points, target.normals, target.mask,
-                               target.features, source_points, target.kcam.matrix,
+                               target.features, source_points, target.kcam.matrix.to(device),
                                match.points, match.normals, match.features,
                                match.mask)
 
@@ -81,7 +60,7 @@ class FPCLMatcherOp(torch.autograd.Function):
                                 ctx.source_points,
                                 ctx.match_mask,
                                 dl_features,
-                                ctx.target.kcam.matrix,
+                                ctx.target.kcam.matrix.to(device),
                                 ctx.grad_precision,
                                 dx_points)
 
@@ -103,7 +82,7 @@ class FramePointCloudMatcher:
         match = FPCLMatcherOp.Match()
         FPCLMatcherOp.apply(source_points, self.target, match)
         return (match.points[match.mask, :], match.normals[match.mask, :],
-                match.features[match.mask, :], match.mask)
+                match.features[:, match.mask], match.mask)
 
 
 class PointCloudMatcher:

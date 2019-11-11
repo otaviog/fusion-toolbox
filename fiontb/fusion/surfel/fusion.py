@@ -3,9 +3,8 @@ import math
 import torch
 
 from fiontb.surfel import SurfelCloud
-from fiontb.frame import FramePointCloud
 
-from .indexmap import ModelIndexMapRaster, SurfelIndexMapRaster
+from .indexmap import ModelIndexMapRaster
 from .update import Update
 from .merge import Merge
 from .carve_space import CarveSpace
@@ -18,12 +17,11 @@ class SurfelFusion:
                  stable_conf_thresh=10, stable_time_thresh=20,
                  search_size=2, indexmap_scale=4,
                  max_merge_distance=0.01, min_z_difference=0.01):
-        gl_context = model.gl_context
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
         self._update = Update(
-            gl_context, elastic_fusion=False, max_normal_angle=normal_max_angle,
+            elastic_fusion=False, max_normal_angle=normal_max_angle,
             search_size=search_size)
         self._carve = CarveSpace(stable_conf_thresh=stable_conf_thresh,
                                  stable_time_thresh=stable_time_thresh,

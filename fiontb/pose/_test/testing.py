@@ -35,8 +35,8 @@ def evaluate(gt_cam0, gt_cam1, relative_rt):
 
 
 def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
-                  color_mode=ColorMode.LAB, frame0_idx=0, frame1_idx=8):
-    device = "cuda:0"
+                  color_mode=ColorMode.LAB, frame0_idx=0, frame1_idx=8,
+                  device="cuda:0"):
     frame_args = {
         'filter_depth': filter_depth,
         'blur': blur,

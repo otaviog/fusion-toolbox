@@ -1,4 +1,4 @@
-#include "metrics.hpp"
+#include "mesh.hpp"
 
 #include <cmath>
 
@@ -99,78 +99,6 @@ pair<Eigen::Vector3f, long> QueryClosestPoint(const Eigen::Vector3f &qpoint,
   }
 
   return make_pair(min_closest, min_face);
-}
-
-torch::Tensor QueryClosestPoints(const torch::Tensor &queries,
-                                 const torch::Tensor &verts,
-                                 const torch::Tensor &faces) {
-  const auto queries_acc = queries.accessor<float, 2>();
-  torch::Tensor result_points =
-      torch::full({queries.size(0), 3}, std::numeric_limits<float>::infinity(),
-                  torch::kFloat);
-
-  auto res_acc = result_points.accessor<float, 2>();
-
-  #pragma omp parallel for
-  for (long q = 0; q < queries.size(0); ++q) {
-    Eigen::Vector3f qpoint(queries_acc[q][0], queries_acc[q][1],
-                           queries_acc[q][2]);
-
-    auto closest = QueryClosestPoint(qpoint, verts, faces).first;
-
-    res_acc[q][0] = closest[0];
-    res_acc[q][1] = closest[1];
-    res_acc[q][2] = closest[2];
-  }
-  return result_points;
-}
-
-pair<torch::Tensor, torch::Tensor> QueryPointToTriangles(
-    const torch::Tensor &queries, const torch::Tensor &verts,
-    const torch::Tensor &faces) {
-  const auto queries_acc = queries.accessor<float, 2>();
-  const auto face_acc = faces.accessor<long, 2>();
-  const auto vert_acc = verts.accessor<float, 2>();
-
-  torch::Tensor dist_mtx = torch::full(
-      {queries.size(0)}, std::numeric_limits<float>::infinity(), torch::kFloat);
-
-  torch::Tensor idx_mtx = torch::full({queries.size(0)}, -1, torch::kInt64);
-
-  auto dist_acc = dist_mtx.accessor<float, 1>();
-  auto idx_acc = idx_mtx.accessor<long, 1>();
-  for (long q = 0; q < queries.size(0); ++q) {
-    Eigen::Vector3f qpoint(queries_acc[q][0], queries_acc[q][1],
-                           queries_acc[q][2]);
-
-    float min_distance = std::numeric_limits<float>::infinity();
-    long min_idx = 0;
-    for (long i = 0; i < face_acc.size(0); ++i) {
-      long f0 = face_acc[i][0];
-      long f1 = face_acc[i][1];
-      long f2 = face_acc[i][2];
-
-      const Eigen::Vector3f p0(vert_acc[f0][0], vert_acc[f0][1],
-                               vert_acc[f0][2]);
-      const Eigen::Vector3f p1(vert_acc[f1][0], vert_acc[f1][1],
-                               vert_acc[f1][2]);
-      const Eigen::Vector3f p2(vert_acc[f2][0], vert_acc[f2][1],
-                               vert_acc[f2][2]);
-
-      const Eigen::Vector3f closest =
-          GetClosestPointTriangle(p0, p1, p2, qpoint);
-      const float distance = (closest - qpoint).norm();
-
-      if (distance < min_distance) {
-        min_distance = distance;
-        min_idx = i;
-      }
-    }
-
-    dist_acc[q] = min_distance;
-    idx_acc[q] = min_idx;
-  }
-  return make_pair(dist_mtx, idx_mtx);
 }
 
 }  // namespace fiontb

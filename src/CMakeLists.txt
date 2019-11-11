@@ -1,20 +1,23 @@
 include_directories(${PYTHON_INCLUDE_DIR})
 
 cuda_add_library(fiontb
-  feature_map3d.cu
   cuda_utils.cpp
   normals.cu
-  bilateralfilter.cu
-  feature_map.cu
-  aabb.cpp
-  sat.cpp metrics.cpp
-  trigoctree.cpp 
-  dense_volume.cpp
-  sparse_volume.cpp
-  tsdf_fusion.cpp
+  bilateral_depth_filter.cu
+  downsample.cu
+  processing.cpp
   camera.cpp
-  camera.cu
+  camera.cu  
+  icp_jacobian.cu
+  icp_jacobian_feature.cu
   so3.cu
+  aabb.cpp
+  sat.cpp mesh.cpp
+  trigoctree.cpp
+  nearest_neighbors.cu
+  nearest_neighbors.cpp
+  fpcl_matcher.cu
+  matching.cpp
   surfel.cpp
   surfel.cu
   surfel_allocator.cpp
@@ -28,16 +31,7 @@ cuda_add_library(fiontb
   elastic_fusion_update.cu
   elastic_fusion_clean.cu
   fsf.cpp
-  fsf_merge_surfels.cu
-  # kernel_indexmap.cu  
-  icp_jacobian.cu
-  icp_jacobian_feature.cu  
-  downsample.cu
-  matching.cpp
-  fpcl_matcher.cu
-  dense_matcher.cu
-  surfel_allocator.cpp
-  )
+  fsf_merge_surfels.cu)
 
 target_include_directories(fiontb
   PUBLIC

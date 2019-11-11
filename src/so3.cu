@@ -3,6 +3,7 @@
 
 #include "so3.hpp"
 
+#include <torch/csrc/utils/pybind.h>
 #include <sophus/se3.hpp>
 #include "eigen_common.hpp"
 
@@ -159,4 +160,9 @@ torch::Tensor SO3tExpOp::Backward(const torch::Tensor &dy_matrices,
   return dx_upsilon_omegas;
 }
 
+void SO3tExpOp::RegisterPybind(pybind11::module &m) {
+  pybind11::class_<SO3tExpOp>(m, "SO3tExpOp")
+      .def_static("forward", &SO3tExpOp::Forward)
+      .def_static("backward", &SO3tExpOp::Backward);
+}
 }  // namespace fiontb

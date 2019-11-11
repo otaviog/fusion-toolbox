@@ -6,21 +6,17 @@
 #include <torch/torch.h>
 
 #include "camera.hpp"
-#include "dense_volume.hpp"
-#include "downsample.hpp"
 #include "elastic_fusion.hpp"
-#include "filtering.hpp"
 #include "fsf.hpp"
 #include "icpodometry.hpp"
 #include "matching.hpp"
-#include "metrics.hpp"
-#include "normals.hpp"
+#include "mesh.hpp"
+#include "nearest_neighbors.hpp"
+#include "processing.hpp"
 #include "so3.hpp"
-#include "sparse_volume.hpp"
 #include "surfel.hpp"
 #include "surfel_fusion.hpp"
 #include "trigoctree.hpp"
-#include "tsdf_fusion.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -28,36 +24,21 @@ namespace py = pybind11;
 PYBIND11_MODULE(_cfiontb, m) {
   using namespace fiontb;
 
-  m.def("estimate_normals", &EstimateNormals);
-  py::enum_<EstimateNormalsMethod>(m, "EstimateNormalsMethod")
-      .value("CentralDifferences", EstimateNormalsMethod::kCentralDifferences)
-      .value("Average8", EstimateNormalsMethod::kAverage8);
+  // fiontb.frame
+  Processing::RegisterPybind(m);
 
-  m.def("bilateral_depth_filter", &BilateralDepthFilter);
+  // fiontb.pose
+  ICPJacobian::RegisterPybind(m);
+  ProjectOp::RegisterPybind(m);
+  RigidTransformOp::RegisterPybind(m);
+  SO3tExpOp::RegisterPybind(m);
 
-  py::class_<TrigOctree>(m, "TrigOctree")
-      .def(py::init<torch::Tensor, torch::Tensor, int>())
-      .def("query_closest_points", &TrigOctree::QueryClosest);
-
-  py::class_<DenseVolume, shared_ptr<DenseVolume>>(m, "DenseVolume")
-      .def(py::init<int, float, Eigen::Vector3i>())
-      .def("to_point_cloud", &DenseVolume::ToPointCloud)
-      .def_readwrite("sdf", &DenseVolume::sdf)
-      .def_readwrite("weights", &DenseVolume::weights);
-
-  py::class_<SparseVolume, shared_ptr<SparseVolume>>(m, "SparseVolume")
-      .def(py::init<float, int>())
-      .def("get_unit", &SparseVolume::GetUnit);
-
-  m.def("fuse_dense_volume", &FuseDenseVolume);
-  m.def("fuse_sparse_volume", &FuseSparseVolume);
-
-  py::class_<Matching>(m, "Matching")
-      .def_static("match_dense_points", &Matching::MatchDensePoints);
+  // fiontb.spatial
+  TrigOctree::RegisterPybind(m);
   FPCLMatcherOp::RegisterPybind(m);
-  
-  m.def("query_closest_points", &QueryClosestPoints);
+  NearestNeighborsOp::RegisterPybind(m);
 
+  // fiontb.fusion.surfel
   SurfelOp::RegisterPybind(m);
   SurfelAllocator::RegisterPybind(m);
   IndexMap::RegisterPybind(m);
@@ -66,27 +47,4 @@ PYBIND11_MODULE(_cfiontb, m) {
   ElasticFusionOp::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
   FSFOp::RegisterPybind(m);
-
-  ICPJacobian::RegisterPybind(m);
-
-  ProjectOp::RegisterPybind(m);
-  RigidTransformOp::RegisterPybind(m);
-
-  m.def("so3t_exp_op_forward", &SO3tExpOp::Forward);
-  m.def("so3t_exp_op_backward", &SO3tExpOp::Backward);
-
-  m.def("featuremap_op_forward", &FeatureMapOp::Forward);
-  m.def("featuremap_op_backward", &FeatureMapOp::Backward);
-
-  py::class_<FeatureMap3DOp>(m, "FeatureMap3DOp")
-      .def_static("forward", &FeatureMap3DOp::Forward)
-      .def_static("compute_epsilon_distances",
-                  &FeatureMap3DOp::ComputeEpsilonDistances)
-      .def_static("backward", &FeatureMap3DOp::Backward);
-
-  py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
-      .value("Nearest", DownsampleXYZMethod::kNearest);
-  py::class_<Downsample>(m, "Downsample")
-      .def_static("downsample_xyz", &Downsample::DownsampleXYZ)
-      .def_static("downsample_mask", &Downsample::DownsampleMask);
 }

@@ -1,4 +1,4 @@
-#include "normals.hpp"
+#include "processing.hpp"
 
 #include <cuda_runtime.h>
 
@@ -11,7 +11,6 @@
 
 namespace fiontb {
 
-namespace {
 template <Device dev, typename scalar_t>
 struct CentralDifferencesKernel {
   // TODO: Code taken from Bad-SLAM? Verify the license before open-source
@@ -186,11 +185,12 @@ void _EstimateNormals(const torch::Tensor xyz_image,
   };
 }
 
-}  // namespace
 
-void EstimateNormals(const torch::Tensor xyz_image,
-                     const torch::Tensor mask_image, torch::Tensor out_normals,
-                     EstimateNormalsMethod method) {
+
+void Processing::EstimateNormals(const torch::Tensor xyz_image,
+                                 const torch::Tensor mask_image,
+                                 torch::Tensor out_normals,
+                                 EstimateNormalsMethod method) {
   FTB_CHECK_DEVICE(xyz_image.device(), mask_image);
   FTB_CHECK_DEVICE(xyz_image.device(), out_normals);
 
