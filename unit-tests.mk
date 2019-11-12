@@ -28,9 +28,6 @@ fiontb.camera:
 fiontb.frame:
 	python3 -m unittest fiontb._test.test_frame
 
-fiontb.spatial.aabb:
-	python3 -m unittest fiontb.spatial._test.test_aabb
-
 fiontb.spatial.trigoctree:
 	python3 -m unittest fiontb.spatial._test.test_trigoctree
 

@@ -5,11 +5,9 @@ about:
 # Frame
 #
 
-fiontb.frame.normals:
-	python3 -m fiontb._test.test_frame normals
-
 fiontb.camera.project:
 	python3 -m fiontb._test.test_camera project
+
 
 #########
 # Viz
@@ -22,11 +20,12 @@ fiontb.viz.trajectoryviewer:
 # Filtering
 #
 
-fiontb.filtering.bilateral:
-	python3 -m fiontb._test.test_filtering bilateral
+fiontb.processing.bilateral:
+	python3 -m fiontb._test.test_processing bilateral
 
-fiontb.spatial.indexmap:
-	python3 -m fiontb.spatial.indexmap
+fiontb.processing.normals:
+	python3 -m fiontb._test.test_frame normals
+
 
 #########
 # Pose
