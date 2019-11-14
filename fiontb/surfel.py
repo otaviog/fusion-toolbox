@@ -28,13 +28,14 @@ class ComputeConfidences:
 
     def __call__(self, kcam, weight, width, height):
         center = kcam.pixel_center
-        max_dist = math.sqrt((width - center[0])*(width - center[0]) 
+        max_dist = math.sqrt((width - center[0])*(width - center[0])
                              + (height - center[1])*(height - center[1]))
 
         self._confidences = _utils.empty_ensured_size(self._confidences, height, width,
                                                       dtype=torch.float,
                                                       device=kcam.device)
-        _SurfelOp.compute_confidences(kcam.matrix, weight, max_dist, self._confidences)
+        _SurfelOp.compute_confidences(
+            kcam.matrix, weight, max_dist, self._confidences)
         return self._confidences
 
 
@@ -432,7 +433,10 @@ class SurfelModel:
 
     def allocated_indices(self):
         return self.allocator.allocated_indices()
-    
+
+    def clear(self):
+        self.allocator.clear_all()
+
     @property
     def device(self):
         # TODO: unhard-code device

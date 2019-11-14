@@ -10,7 +10,7 @@ import cv2
 
 from fiontb._cfiontb import (Processing as _Processing, EstimateNormalsMethod,
                              DownsampleXYZMethod)
-from fiontb._utils import ensure_torch, empty_ensured_size
+from fiontb._utils import ensure_torch, empty_ensured_size, depth_image_to_uvz
 
 
 def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,

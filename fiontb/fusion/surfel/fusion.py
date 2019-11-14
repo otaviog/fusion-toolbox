@@ -29,7 +29,7 @@ class SurfelFusion:
         self._merge = Merge(max_merge_distance, normal_max_angle=normal_max_angle,
                             search_size=search_size,
                             stable_conf_thresh=stable_conf_thresh)
-        self._clean = Clean(elastic_fusion=False,
+        self._clean = Clean(elastic_fusion=True,
                             stable_conf_thresh=stable_conf_thresh,
                             stable_time_thresh=stable_time_thresh)
 

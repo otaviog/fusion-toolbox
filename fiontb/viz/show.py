@@ -5,7 +5,7 @@ import tenviz
 from fiontb.frame import FramePointCloud
 from fiontb.pointcloud import PointCloud
 from fiontb.surfel import SurfelCloud, SurfelModel
-
+from .surfelrender import SurfelRender
 
 def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
     ctx = tenviz.Context(width, height)
@@ -61,6 +61,11 @@ def geoshow(geometries, width=640, height=480, point_size=3):
                                                 geom.colors.view(-1, 3))
                 pcl.style.point_size = int(point_size)
                 scene.append(pcl)
+            if isinstance(geom, (SurfelCloud, SurfelModel)):
+                if isinstance(geom, SurfelCloud):
+                    geom = SurfelModel.from_surfel_cloud(ctx, geom)
+                node = SurfelRender(geom)
+                scene.append(node)
 
     viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
     viewer.reset_view()
