@@ -4,7 +4,7 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-
+import numpy as np
 import tenviz
 
 from fiontb.frame import Frame
@@ -33,7 +33,8 @@ class _BaseIndexMapRaster:
                 non_blocking=non_blocking)
             indexmap.normal_radius = self.framebuffer[1].to_tensor(
                 non_blocking=non_blocking)
-            indexmap.color = self.framebuffer[2].to_tensor(non_blocking=non_blocking)
+            indexmap.color = self.framebuffer[2].to_tensor(
+                non_blocking=non_blocking)
             indexmap.indexmap = self.framebuffer[3].to_tensor(
                 non_blocking=non_blocking)
 
@@ -72,8 +73,8 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
         with surfel_model.gl_context.current():
             self.program = tenviz.DrawProgram(
                 tenviz.DrawMode.Points,
-                vert_shader=_SHADER_DIR / "model_indexmap.vert",
-                frag_shader=_SHADER_DIR / "indexmap.frag",
+                vert_shader_file=_SHADER_DIR / "model_indexmap.vert",
+                frag_shader_file=_SHADER_DIR / "indexmap.frag",
                 # ignore_missing=True
             )
 
@@ -123,7 +124,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
         else:
             view_cam = rt_cam
 
-        gl_context.set_clear_color(0, 0, 0, 0)
+        gl_context.clear_color = np.array([0, 0, 0, 0])
         gl_context.render(proj_matrix, view_cam,
                           self.framebuffer,
                           [self.program], width, height)
@@ -146,9 +147,9 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
         with surfel_model.gl_context.current():
             self.program = tenviz.DrawProgram(
                 tenviz.DrawMode.Points,
-                vert_shader=_SHADER_DIR / "surfel_indexmap.vert",
-                frag_shader=_SHADER_DIR / "surfel_indexmap.frag",
-                geo_shader=_SHADER_DIR / "surfel_indexmap.geom",
+                vert_shader_file=_SHADER_DIR / "surfel_indexmap.vert",
+                frag_shader_file=_SHADER_DIR / "surfel_indexmap.frag",
+                geo_shader_file=_SHADER_DIR / "surfel_indexmap.geom",
                 ignore_missing=True
             )
 
@@ -199,7 +200,7 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
         else:
             view_cam = rt_cam
 
-        gl_context.set_clear_color(0, 0, 0, 0)
+        gl_context.clear_color = np.array([0, 0, 0, 0])
         gl_context.render(proj_matrix, view_cam,
                           self.framebuffer,
                           [self.program], width, height)

@@ -104,3 +104,33 @@ class ColorICP:
         return ICPResult(transform, torch.eye(4),
                          result.inlier_rmse,
                          1.0)
+
+    def estimate(self, source_pcl, target_pcl, transform=None, **kwargs):
+        source_pcl = source_pcl.to_open3d()
+        target_pcl = target_pcl.to_open3d()
+
+        for radius, iters in zip(self.scales, self.iters):
+            source_down = open3d.voxel_down_sample(source_pcl, radius)
+            target_down = open3d.voxel_down_sample(target_pcl, radius)
+
+            open3d.estimate_normals(
+                source_down,
+                open3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
+            open3d.estimate_normals(
+                target_down,
+                open3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
+
+            conv_criteria = open3d.registration.ICPConvergenceCriteria(
+                relative_fitness=1e-6,
+                relative_rmse=1e-6,
+                max_iteration=iters)
+            result = open3d.registration.registration_colored_icp(
+                source_pcl, target_pcl, radius, transform,
+                conv_criteria)
+
+            transform = result.transformation
+
+        transform = torch.from_numpy(result.transformation)
+        return ICPResult(transform, torch.eye(4),
+                         result.inlier_rmse,
+                         1.0)

@@ -170,7 +170,7 @@ class KCamera:
                        self.image_size)
 
     def get_projection_params(self, near, far):
-        return tenviz.projection_from_kcam(
+        return tenviz.Projection.from_intrinsics(
             self.matrix, near, far)
 
     def get_opengl_projection_matrix(self, near, far, dtype=torch.float):

@@ -24,9 +24,9 @@ class SurfelRender(tenviz.DrawProgram):
 
         with surfel_model.gl_context.current():
             super(SurfelRender, self).__init__(tenviz.DrawMode.Points,
-                                               vert_shader=_SHADER_DIR / "surfel.vert",
-                                               frag_shader=_SHADER_DIR / "surfel.frag",
-                                               geo_shader=_SHADER_DIR / "surfel.geom",
+                                               vert_shader_file=_SHADER_DIR / "surfel.vert",
+                                               frag_shader_file=_SHADER_DIR / "surfel.frag",
+                                               geo_shader_file=_SHADER_DIR / "surfel.geom",
                                                ignore_missing=True)
 
             self['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
@@ -45,7 +45,7 @@ class SurfelRender(tenviz.DrawProgram):
             cmap_tensor = cmap_tensor.view(1, -1, 3)
 
             self['ColorMap'] = tenviz.tex_from_tensor(
-                cmap_tensor, target=tenviz.GLTexTarget.k2D)
+                cmap_tensor, target=tenviz.TexTarget.k2D)
 
         self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)

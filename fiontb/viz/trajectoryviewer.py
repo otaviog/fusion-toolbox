@@ -32,7 +32,7 @@ class TrajectoryViewer:
             xs.extend([rt_cam.center[0].item() for rt_cam in traj.values()])
 
         with self.gl_context.current():
-            axis = tenviz.create_axis_grid(min(xs), max(xs), 10)
+            axis = tenviz.nodes.create_axis_grid(min(xs), max(xs), 10)
             self._scene.append(axis)
 
     def add_trajectory(self, trajectory, colormap=None):
@@ -45,7 +45,7 @@ class TrajectoryViewer:
         with self.gl_context.current():
             for i, rt_cam in enumerate(trajectory.values()):
                 color = cmap(i)[:3]
-                node = tenviz.create_virtual_camera(
+                node = tenviz.nodes.create_virtual_camera(
                     self.proj_cam,
                     rt_cam.opengl_view_cam.inverse().numpy(),
                     color=color)

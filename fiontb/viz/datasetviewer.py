@@ -41,7 +41,7 @@ class DatasetViewer:
 
         self.wcontext = tenviz.Context(640, 480)
         with self.wcontext.current():
-            axis = tenviz.create_axis_grid(-1, 1, 10)
+            axis = tenviz.nodes.create_axis_grid(-1, 1, 10)
 
         self.world_viewer = self.wcontext.viewer(
             [axis], tenviz.CameraManipulator.WASD)
@@ -81,13 +81,13 @@ class DatasetViewer:
                 self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
 
             with self.cam_context.current():
-                self.tv_camera_pcl = tenviz.create_point_cloud(
+                self.tv_camera_pcl = tenviz.nodes.create_point_cloud(
                     cam_space, pcl.colors)
             self.cam_viewer.get_scene().add(self.tv_camera_pcl)
             self.cam_viewer.reset_view()
             self.cam_context.collect_garbage()
 
-        cam_proj = tenviz.projection_from_kcam(
+        cam_proj = tenviz.Projection.from_intrinsics(
             finfo.kcam.matrix, 0.5, cam_space[:, 2].max())
 
         if finfo.rt_cam is not None:
@@ -112,9 +112,9 @@ class DatasetViewer:
             invert_cam @ rt_cam.cam_to_world) @ cam_space
 
         with self.wcontext.current():
-            pcl = tenviz.create_point_cloud(world_space, colors)
+            pcl = tenviz.nodes.create_point_cloud(world_space, colors)
             self.world_viewer.get_scene().add(pcl)
-            vcam = tenviz.create_virtual_camera(
+            vcam = tenviz.nodes.create_virtual_camera(
                 cam_proj,
                 np.linalg.inv(rt_cam.opengl_view_cam))
             vcam.visible = self._show_cams

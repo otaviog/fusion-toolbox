@@ -3,6 +3,7 @@ import ipdb
 
 import torch
 import cv2
+import numpy as np
 
 import tenviz
 import tenviz.io
@@ -45,7 +46,7 @@ class SurfelReconstructionUI:
             inv = torch.eye(4, dtype=torch.float32)
             inv[1, 1] = -1
             inv[0, 0] = -1
-            self.surfel_render.set_transform(inv)
+            self.surfel_render.transform = inv
 
         self._quit_flag = False
         self._read_next_frame = True
@@ -147,7 +148,7 @@ class SurfelReconstructionUI:
                     inv[0, 0] = -1
                     self.viewer.camera_matrix = self.rt_camera.opengl_view_cam.numpy() @ inv
 
-            self.surfel_model.gl_context.set_clear_color(0.32, 0.34, 0.87, 1)
+            self.surfel_model.gl_context.clear_color = np.array([0.32, 0.34, 0.87, 1])
             keys = [self.viewer.wait_key(0), cv2.waitKey(1)]
 
             if keys[0] < 0:

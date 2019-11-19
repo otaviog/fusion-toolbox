@@ -315,23 +315,23 @@ class SurfelModel:
 
         with self.gl_context.current():
             self.positions = tenviz.buffer_empty(
-                max_surfels, 3, tenviz.BType.Float)
+                max_surfels, 3, tenviz.DType.Float)
             self.normals = tenviz.buffer_empty(
-                max_surfels, 3, tenviz.BType.Float)
+                max_surfels, 3, tenviz.DType.Float)
             self.colors = tenviz.buffer_empty(
-                max_surfels, 3, tenviz.BType.Uint8, normalize=True)
+                max_surfels, 3, tenviz.DType.Uint8, normalize=True)
 
             self.radii = tenviz.buffer_empty(
-                max_surfels, 1, tenviz.BType.Float)
+                max_surfels, 1, tenviz.DType.Float)
             self.confidences = tenviz.buffer_empty(
-                max_surfels, 1, tenviz.BType.Float)
+                max_surfels, 1, tenviz.DType.Float)
 
             self.times = tenviz.buffer_empty(
-                max_surfels, 1, tenviz.BType.Int32,
+                max_surfels, 1, tenviz.DType.Int32,
                 integer_attrib=True)
 
             self.free_mask_gl = tenviz.buffer_empty(
-                max_surfels, 1, tenviz.BType.Uint8, integer_attrib=True)
+                max_surfels, 1, tenviz.DType.Uint8, integer_attrib=True)
             self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
 
         if feature_size > 0:

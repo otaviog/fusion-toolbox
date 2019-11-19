@@ -7,20 +7,21 @@ from fiontb.pointcloud import PointCloud
 from fiontb.surfel import SurfelCloud, SurfelModel
 from .surfelrender import SurfelRender
 
+
 def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
     ctx = tenviz.Context(width, height)
 
     with ctx.current():
         scene = []
         for pcl in pcl_list:
-            tv_pcl = tenviz.create_point_cloud(pcl.points.view(-1, 3),
-                                               pcl.colors.view(-1, 3))
+            tv_pcl = tenviz.nodes.create_point_cloud(pcl.points.view(-1, 3),
+                                                     pcl.colors.view(-1, 3))
             tv_pcl.style.point_size = int(point_size)
             scene.append(tv_pcl)
 
         if overlay_mesh is not None:
-            mesh = tenviz.create_mesh(overlay_mesh.verts, overlay_mesh.faces,
-                                      overlay_mesh.normals)
+            mesh = tenviz.nodes.create_mesh(overlay_mesh.verts, overlay_mesh.faces,
+                                            overlay_mesh.normals)
             mesh.style.polygon_mode = tenviz.PolygonMode.Wireframe
             scene.append(mesh)
 
@@ -57,7 +58,7 @@ def geoshow(geometries, width=640, height=480, point_size=3):
                     geom = geom.unordered_point_cloud(
                         world_space=False, compute_normals=False)
 
-                pcl = tenviz.create_point_cloud(geom.points.view(-1, 3),
+                pcl = tenviz.nodes.create_point_cloud(geom.points.view(-1, 3),
                                                 geom.colors.view(-1, 3))
                 pcl.style.point_size = int(point_size)
                 scene.append(pcl)

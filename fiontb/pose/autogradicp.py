@@ -42,7 +42,7 @@ class _ClosureBox:
             return 0
         value = loss.detach().cpu().item()
 
-        loss.backward(torch.ones(1, 6, device=loss.device))
+        loss.backward()
         grad = self.x.grad.cpu().numpy()
         grad = grad.transpose().flatten()
         return value, grad
