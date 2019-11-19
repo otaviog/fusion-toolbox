@@ -58,8 +58,9 @@ def geoshow(geometries, width=640, height=480, point_size=3):
                     geom = geom.unordered_point_cloud(
                         world_space=False, compute_normals=False)
 
-                pcl = tenviz.nodes.create_point_cloud(geom.points.view(-1, 3),
-                                                geom.colors.view(-1, 3))
+                pcl = tenviz.nodes.create_point_cloud(
+                    geom.points.view(-1, 3),
+                    geom.colors.view(-1, 3))
                 pcl.style.point_size = int(point_size)
                 scene.append(pcl)
             if isinstance(geom, (SurfelCloud, SurfelModel)):

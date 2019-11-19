@@ -113,12 +113,13 @@ class ColorICP:
             source_down = open3d.voxel_down_sample(source_pcl, radius)
             target_down = open3d.voxel_down_sample(target_pcl, radius)
 
-            open3d.estimate_normals(
-                source_down,
-                open3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
-            open3d.estimate_normals(
-                target_down,
-                open3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
+            if False:
+                open3d.estimate_normals(
+                    source_down,
+                    open3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
+                open3d.estimate_normals(
+                    target_down,
+                    open3d.geometry.KDTreeSearchParamHybrid(radius=radius * 2, max_nn=30))
 
             conv_criteria = open3d.registration.ICPConvergenceCriteria(
                 relative_fitness=1e-6,
