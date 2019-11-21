@@ -88,21 +88,21 @@ class PointCloud:
         Returns:
             (:obj:`open3d.PointCloud`): Open3D point cloud.
         """
-        from open3d import estimate_normals, KDTreeSearchParamHybrid, Vector3dVector
-        from open3d import PointCloud as o3dPointCloud
+        import open3d as o3d
 
-        pcl = o3dPointCloud()
+        pcl = o3d.geometry.PointCloud()
 
         if self.is_empty():
             return pcl
 
-        pcl.points = Vector3dVector(self.points.squeeze())
-        pcl.colors = Vector3dVector(self.colors.squeeze().float()/255.0)
+        pcl.points = o3d.utility.Vector3dVector(self.points.numpy())
+        pcl.colors = o3d.utility.Vector3dVector(
+            self.colors.float().numpy()/255.0)
 
         if self.normals is not None:
-            pcl.normals = Vector3dVector(self.normals)
+            pcl.normals = o3d.utility.Vector3dVector(self.normals.numpy())
         elif compute_normals:
-            estimate_normals(pcl, search_param=KDTreeSearchParamHybrid(
+            estimate_normals(pcl, search_param=o3d.geometry.KDTreeSearchParamHybrid(
                 radius=0.1, max_nn=30))
             self.normals = torch.from_numpy(
                 np.array(pcl.normals, dtype=np.float32))

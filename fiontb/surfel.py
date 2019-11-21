@@ -151,16 +151,10 @@ class SurfelCloud:
                            features=self.features.to(device)
                            if self.features is not None else None)
 
-    def to_open3d(self):
-        from open3d import PointCloud as o3dPointCloud, Vector3dVector
+    def as_point_cloud(self):
+        from fiontb.pointcloud import PointCloud
 
-        pcl = o3dPointCloud()
-
-        pcl.points = Vector3dVector(self.positions.squeeze().cpu().numpy())
-        pcl.colors = Vector3dVector(self.colors.squeeze().cpu().numpy())
-        pcl.normals = Vector3dVector(self.normals.cpu().numpy())
-
-        return pcl
+        return PointCloud(self.positions, self.colors, self.normals)
 
     def to_cpp_(self):
         params = CppSurfelCloud()
