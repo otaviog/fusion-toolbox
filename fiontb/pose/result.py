@@ -11,6 +11,8 @@ class ICPResult:
 
     def __str__(self):
         return (f"ICPResult with: "
+                + f"transform = {self.transform} "
+                + f"hessian = {self.hessian} "
                 + f"residual = {self.residual} "
                 + f"match_ratio = {self.match_ratio}")
 

@@ -5,7 +5,8 @@ import scipy.optimize
 
 from fiontb.frame import FramePointCloud
 from fiontb.camera import RigidTransform
-from fiontb.spatial.matching import FramePointCloudMatcher
+from fiontb.spatial.matching import (FramePointCloudMatcher,
+                                     PointCloudMatcher)
 from fiontb.processing import DownsampleXYZMethod
 
 from .so3 import SO3tExp
@@ -56,7 +57,7 @@ class AutogradICP:
         self.feat_weight = feat_weight
         self.learning_rate = learning_rate
 
-    def estimate2(self, source_points, source_normals,
+    def _estimate(self, source_points, source_normals,
                   source_feats, target_matcher, transform=None):
         device = source_points.device
         dtype = source_points.dtype
@@ -139,7 +140,14 @@ class AutogradICP:
         matcher = FramePointCloudMatcher(target_points, target_normals, target_mask,
                                          target_feats, kcam.to(target_points.device))
 
-        return self.estimate2(source_points, source_normals,
+        return self.estimate(source_points, source_normals,
+                             source_feats, matcher, transform)
+
+    def estimate_pcl(self, source_pcl, target_pcl, transform=None, source_feats=None,
+                     target_feats=None):
+        matcher = PointCloudMatcher(
+            target_pcl.points, target_pcl.normals, target_feats)
+        return self._estimate(source_pcl.points, source_pcl.normals,
                               source_feats, matcher, transform)
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,

@@ -83,6 +83,12 @@ class SceneNN:
     def __len__(self):
         return len(self.trajectory)
 
+    def get_info(self, idx):
+        rt_mtx = self.trajectory[idx]
+
+        info = FrameInfo(self.kcam, depth_scale=0.001, rt_cam=RTCamera(rt_mtx))
+        return info
+
 
 def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_model_path=None):
     trajectory = []

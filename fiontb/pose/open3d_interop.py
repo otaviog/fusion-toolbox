@@ -105,13 +105,13 @@ class ColorICP:
                          result.inlier_rmse,
                          1.0)
 
-    def estimate(self, source_pcl, target_pcl, transform=None, **kwargs):
+    def estimate_pcl(self, source_pcl, target_pcl, transform=None, **kwargs):
         source_pcl = source_pcl.to_open3d()
         target_pcl = target_pcl.to_open3d()
 
         for radius, iters in zip(self.scales, self.iters):
-            source_down = open3d.voxel_down_sample(source_pcl, radius)
-            target_down = open3d.voxel_down_sample(target_pcl, radius)
+            source_down = source_pcl.voxel_down_sample(radius)
+            target_down = target_pcl.voxel_down_sample(radius)
 
             if False:
                 open3d.estimate_normals(
@@ -132,6 +132,6 @@ class ColorICP:
             transform = result.transformation
 
         transform = torch.from_numpy(result.transformation)
-        return ICPResult(transform, torch.eye(4),
+        return ICPResult(transform, torch.eye(6, dtype=transform.dtype),
                          result.inlier_rmse,
                          1.0)

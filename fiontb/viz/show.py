@@ -39,7 +39,7 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 
 
-def geoshow(geometries, width=640, height=480, point_size=3):
+def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.geoshow"):
 
     if isinstance(geometries, list):
         if not geometries:
@@ -70,7 +70,9 @@ def geoshow(geometries, width=640, height=480, point_size=3):
                 scene.append(node)
 
     viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
+    viewer.title = title
     viewer.reset_view()
+
     while True:
         key = viewer.wait_key(1)
         if key < 0:

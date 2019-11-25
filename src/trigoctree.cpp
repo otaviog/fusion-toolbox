@@ -63,8 +63,8 @@ class TrigOctNode : public ATrigOctNode {
       const AABB &curr_box = octo_boxes[box_idx];
       children_[box_idx] = nullptr;
 
-      torch::Tensor face_mask = torch::zeros({faces.size(0)}, torch::kUInt8);
-      auto fmask_acc = face_mask.accessor<uint8_t, 1>();
+      torch::Tensor face_mask = torch::zeros({faces.size(0)}, torch::kBool);
+      auto fmask_acc = face_mask.accessor<bool, 1>();
 
 #pragma omp parallel for
       for (int face = 0; face < face_acc.size(0); ++face) {
@@ -80,7 +80,7 @@ class TrigOctNode : public ATrigOctNode {
                                  vert_acc[f2][2]);
 
         if (curr_box.Intersects(p0, p1, p2)) {
-          fmask_acc[face] = 1;
+          fmask_acc[face] = true;
         }
       }
 

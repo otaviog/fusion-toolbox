@@ -8,69 +8,56 @@ import tenviz.io
 import tenviz.geometry
 
 
+def _create_node(geo):
+    if isinstance(geo, tenviz.geometry.Geometry):
+        if geo.faces is not None:
+            node = tenviz.nodes.create_mesh(
+                geo.verts, geo.faces, normals=geo.normals)
+        else:
+            node = tenviz.nodes.create_point_cloud(geo.verts,
+                                                   geo.colors)
+            node.style.point_size = 2
+    else:
+        node = tenviz.nodes.create_point_cloud(geo.points, geo.colors)
+        node.style.point_size = 2
+
+    return node
+
+
 class ReconstructionViewer:
-    _GT_BRIGHTNESS = "Ground truth brightness"
-    _REC_BRIGHTNESS = "Reconstruction brightness"
 
     def __init__(self, gt_geo, rec_geo, title="Viewer"):
         self.context = tenviz.Context(640, 480)
 
         with self.context.current():
-            gt_geo = gt_geo
-            if isinstance(gt_geo, tenviz.geometry.Geometry):
-                if gt_geo.faces is not None:
-                    self.gt_geo = tenviz.create_mesh(
-                        gt_geo.verts, gt_geo.faces, normals=gt_geo.normals)
-                else:
-                    self.gt_geo = tenviz.create_point_cloud(
-                        gt_geo.verts,
-                        gt_geo.colors)
-                    self.gt_geo.style.point_size = 2
-            else:
-                self.gt_geo = tenviz.create_point_cloud(
-                    gt_geo.points,
-                    gt_geo.colors)
-                self.gt_geo.style.point_size = 2
-
-            self.rec_pcl = tenviz.create_point_cloud(rec_geo.verts,
-                                                     rec_geo.colors)
+            self.gt_geo = _create_node(gt_geo)
+            self.rec_pcl = _create_node(rec_geo)
             self.rec_pcl.point_size = 2
 
-            grid = tenviz.create_axis_grid(-5, 5, 10)
+            grid = tenviz.nodes.create_axis_grid(-5, 5, 10)
 
         self.viewer = self.context.viewer([self.rec_pcl, self.gt_geo, grid],
                                           tenviz.CameraManipulator.WASD)
 
         self.title = title
         cv2.namedWindow(self.title)
-        cv2.createTrackbar(self._GT_BRIGHTNESS, self.title,
-                           100, 100, self._update_scene)
-        cv2.createTrackbar(self._REC_BRIGHTNESS, self.title,
-                           100, 100, self._update_scene)
-
-    def _update_scene(self, _):
-        if hasattr(self.gt_geo, "transparency"):
-            self.gt_geo.transparency = cv2.getTrackbarPos(
-                self._GT_BRIGHTNESS, self.title) / 100.0
-
-        self.rec_pcl.transparency = cv2.getTrackbarPos(
-            self._REC_BRIGHTNESS, self.title) / 100.0
 
     def run(self):
         while True:
-            self.viewer.draw(0)
-
-            key = cv2.waitKey(5) & 0xff
-            if key == 27:
+            vkey = self.viewer.wait_key(0)
+            if vkey < 0:
                 break
+            for key in [vkey & 0xff, cv2.waitKey(5) & 0xff]:
+                if key == 27:
+                    break
 
-            key = chr(key)
+                key = chr(key)
 
-            if key == '1':
-                self.gt_geo.visible = not self.gt_geo.visible
+                if key == '1':
+                    self.gt_geo.visible = not self.gt_geo.visible
 
-            if key == '2':
-                self.rec_pcl.visible = not self.rec_pcl.visible
+                if key == '2':
+                    self.rec_pcl.visible = not self.rec_pcl.visible
 
         cv2.destroyWindow(self.title)
         self.viewer = None
@@ -132,4 +119,4 @@ class AlignTool(ReconstructionViewer):
             self._ZT, self.title) / self._TSIZE)*20 - 10
 
         self.transformation = torch.from_numpy(trans @ rot).float()
-        self.rec_pcl.set_transform(self.transformation)
+        self.rec_pcl.transform = self.transformation
