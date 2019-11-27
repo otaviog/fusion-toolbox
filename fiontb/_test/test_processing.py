@@ -5,8 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import cv2
+import tenviz
 
-from fiontb.filtering import bilateral_depth_filter, FeatureMap
+from fiontb.processing import (bilateral_depth_filter, erode_mask,
+                               estimate_normals, EstimateNormalsMethod)
+from fiontb.data.ftb import load_ftb
+from fiontb.camera import KCamera
+from fiontb.frame import FrameInfo, FramePointCloud
 
 # pylint: disable=no-self-use
 
@@ -39,20 +44,34 @@ class TestFiltering(unittest.TestCase):
                                       filter_depth_gpu.cpu(),
                                       1.0, 0.0)
 
-    def test_featuremap(self):
-        """Sanity check gradient produced by feature map. The gradient is not
-        necessary the same as PyTorch's numerical one.
-        """
+    def test_erode_mask(self):
+        depth = torch.from_numpy(cv2.imread(
+            str(Path(__file__).parent / "assets" / "frame_depth.png"),
+            cv2.IMREAD_ANYDEPTH).astype(np.int32))
+        mask = depth > 0
 
-        feat_map = FeatureMap.apply
-        torch.set_printoptions(precision=8)
-        torch.manual_seed(10)
-        inputs = (torch.rand(16, 24, 32, dtype=torch.double),
-                  torch.tensor([[15, 15],
-                                [20, 20],
-                                [5, 5]], dtype=torch.double, requires_grad=True))
-        torch.autograd.gradcheck(feat_map, inputs, eps=1e-6, atol=1e-4,
-                                 raise_exception=True)
+        cpu_out = erode_mask(mask)
+        gpu_out = erode_mask(mask.to("cuda:0"))
+
+        torch.testing.assert_allclose(cpu_out,
+                                      gpu_out.cpu(),
+                                      1.0, 0.0)
+
+    def test_compute_normals(self):
+        depth_image = torch.from_numpy(
+            cv2.imread(str(Path(__file__).parent / "assets" / "frame_depth.png"),
+                       cv2.IMREAD_ANYDEPTH).astype(np.int32))
+        mask = depth_image > 0
+        info = FrameInfo(KCamera(np.array([[544.47327, 0., 320.],
+                                           [0., 544.47327, 240.],
+                                           [0., 0., 1.]])), 0.001, 0.0)
+
+        normals_cpu = estimate_normals(depth_image, info, mask)
+        normals_gpu = estimate_normals(
+            depth_image.to("cuda:0"), info, mask.to("cuda:0"))
+
+        torch.testing.assert_allclose(normals_gpu.cpu(), normals_cpu,
+                                      1.0, 0.0)
 
 
 class InteractiveTests:
@@ -61,7 +80,7 @@ class InteractiveTests:
         """
 
         depth = torch.from_numpy(cv2.imread(
-            str(Path(__file__).parent / "_tests/assets" / "frame_depth.png"),
+            str(Path(__file__).parent / "assets" / "frame_depth.png"),
             cv2.IMREAD_ANYDEPTH).astype(np.int32))
         mask = depth > 0
 
@@ -85,6 +104,42 @@ class InteractiveTests:
         plt.imshow(filter_depth)
 
         plt.show()
+
+    def erode_mask(self):
+        depth = torch.from_numpy(cv2.imread(
+            str(Path(__file__).parent / "assets" / "frame_depth.png"),
+            cv2.IMREAD_ANYDEPTH).astype(np.int32))
+        mask = depth > 0
+
+        out_mask = erode_mask(mask)
+        plt.figure()
+        plt.title("original")
+        plt.imshow(mask)
+
+        plt.figure()
+        plt.title("output")
+        plt.imshow(out_mask)
+
+        plt.show()
+
+    def normals(self):
+        dataset = load_ftb(Path(__file__).parent /
+                           "../../test-data/rgbd/sample2")
+
+        pcl = FramePointCloud.from_frame(dataset[0]).unordered_point_cloud(
+            world_space=False, compute_normals=True)
+
+        context = tenviz.Context()
+        with context.current():
+            points = tenviz.nodes.create_point_cloud(
+                pcl.points, pcl.colors.float()/255, point_size=4)
+
+            normals = tenviz.nodes.create_quiver(pcl.points, pcl.normals*.005,
+                                                 torch.ones(pcl.size, 3))
+        viewer = context.viewer(
+            [points, normals], cam_manip=tenviz.CameraManipulator.WASD)
+
+        viewer.show(1)
 
 
 if __name__ == '__main__':

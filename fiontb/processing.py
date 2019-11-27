@@ -50,7 +50,7 @@ class BilateralDepthFilter:
 
 
 #############################
-# Normals                   #
+# Normals
 #############################
 
 def estimate_normals(depth_image, frame_info, mask,
@@ -70,7 +70,7 @@ def estimate_normals(depth_image, frame_info, mask,
     return out_tensor
 
 #############################
-# Downsample                #
+# Downsample
 #############################
 
 
@@ -120,3 +120,14 @@ def downsample(image, scale, method=DownsampleMethod.Nearest):
         return torch.nn.functional.interpolate(
             image.unsqueeze(0), scale_factor=scale,
             mode=method_to_torch[method]).squeeze()
+
+################################
+# Erode
+################################
+
+def erode_mask(in_mask):
+    out_mask = torch.empty(in_mask.size(), dtype=torch.bool,
+                           device=in_mask.device)
+
+    _Processing.erode_mask(in_mask, out_mask)
+    return out_mask

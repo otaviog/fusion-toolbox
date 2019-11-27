@@ -25,8 +25,8 @@ view.fiontb.data.sens:
 fiontb.camera:
 	python3 -m unittest fiontb._test.test_camera
 
-fiontb.frame:
-	python3 -m unittest fiontb._test.test_frame
+fiontb.processing:
+	python3 -m unittest fiontb._test.test_processing
 
 fiontb.spatial.trigoctree:
 	python3 -m unittest fiontb.spatial._test.test_trigoctree

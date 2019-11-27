@@ -5,6 +5,7 @@ cuda_add_library(fiontb
   normals.cu
   bilateral_depth_filter.cu
   downsample.cu
+  erode_mask.cu
   processing.cpp
   camera.cpp
   camera.cu  
