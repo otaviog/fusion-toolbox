@@ -5,7 +5,7 @@ about:
 # Frame
 #
 
-fiontb.camera.project:
+fiontb.camera-project:
 	python3 -m fiontb._test.test_camera project
 
 
@@ -13,18 +13,20 @@ fiontb.camera.project:
 # Viz
 #
 
-fiontb.viz.trajectoryviewer:
+fiontb.viz-trajectoryviewer:
 	python3 -m fiontb.viz.trajectoryviewer
 
 #########
-# Filtering
-#
+# Processing
 
-fiontb.processing.bilateral:
+fiontb.processing-bilateral:
 	python3 -m fiontb._test.test_processing bilateral
 
-fiontb.processing.normals:
-	python3 -m fiontb._test.test_frame normals
+fiontb.processing-normals:
+	python3 -m fiontb._test.test_processing normals
+
+fiontb.processing-erode_mask:
+	python3 -m fiontb._test.test_processing erode_mask
 
 
 #########
