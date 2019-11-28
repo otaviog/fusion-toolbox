@@ -19,7 +19,7 @@ class RunMode(Enum):
 
 class SurfelReconstructionUI:
     def __init__(self, surfel_model, run_mode=RunMode.PLAY, inverse=False, gt_mesh=None,
-                 stable_conf_thresh=10.0, time_thresh=20):
+                 stable_conf_thresh=10.0, time_thresh=20, title="Surfel Reconstruction"):
         self.run_mode = run_mode
         self.surfel_render = SurfelRender(surfel_model)
 
@@ -29,7 +29,7 @@ class SurfelReconstructionUI:
         scene = [self.surfel_render]
         if gt_mesh is not None:
             with surfel_model.gl_context.current():
-                self.gt_mesh_node = tenviz.create_mesh(
+                self.gt_mesh_node = tenviz.nodes.create_mesh(
                     gt_mesh.verts, gt_mesh.faces, normals=gt_mesh.normals)
                 scene.append(self.gt_mesh_node)
 
@@ -39,6 +39,8 @@ class SurfelReconstructionUI:
 
         self.viewer = surfel_model.gl_context.viewer(
             scene, cam_manip=tenviz.CameraManipulator.WASD)
+
+        self.viewer.title = title
         self.viewer.reset_view()
         self.surfel_model = surfel_model
 
@@ -84,7 +86,12 @@ class SurfelReconstructionUI:
         self.surfel_render.set_stable_threshold(-1)
 
     def toggle_camera_mode(self):
-        self._use_camera_view = not self._use_camera_view
+        if self._use_camera_view:
+            print("Set to free view")
+            self._use_camera_view = False
+        else:
+            print("Set to camera's view")
+            self._use_camera_view = True
 
     def save_model(self, output_filename):
         cloud = self.surfel_model.to_surfel_cloud()[0]
@@ -148,7 +155,8 @@ class SurfelReconstructionUI:
                     inv[0, 0] = -1
                     self.viewer.camera_matrix = self.rt_camera.opengl_view_cam.numpy() @ inv
 
-            self.surfel_model.gl_context.clear_color = np.array([0.32, 0.34, 0.87, 1])
+            self.surfel_model.gl_context.clear_color = np.array(
+                [0.32, 0.34, 0.87, 1])
             keys = [self.viewer.wait_key(0), cv2.waitKey(1)]
 
             if keys[0] < 0:

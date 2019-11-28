@@ -2,6 +2,8 @@
 
 #include <torch/torch.h>
 
+#include "surfel.hpp"
+
 #include "error.hpp"
 
 namespace pybind11 {
@@ -56,22 +58,6 @@ struct MappedSurfelModel {
   }
 };
 
-struct SurfelCloud {
-  torch::Tensor positions, confidences, normals, radii, colors, times, features;
-
-  static void RegisterPybind(pybind11::module &m);
-
-  void CheckDevice(const torch::Device &dev) const {
-    FTB_CHECK_DEVICE(dev, positions);
-    FTB_CHECK_DEVICE(dev, confidences);
-    FTB_CHECK_DEVICE(dev, normals);
-    FTB_CHECK_DEVICE(dev, radii);
-    FTB_CHECK_DEVICE(dev, colors);
-    FTB_CHECK_DEVICE(dev, times);
-  }
-
-  int64_t get_size() const { return positions.size(0); }
-};
 
 struct SurfelFusionOp {
   static void Update(const IndexMap &model_indexmap,

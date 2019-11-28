@@ -140,8 +140,8 @@ class AutogradICP:
         matcher = FramePointCloudMatcher(target_points, target_normals, target_mask,
                                          target_feats, kcam.to(target_points.device))
 
-        return self.estimate(source_points, source_normals,
-                             source_feats, matcher, transform)
+        return self._estimate(source_points, source_normals,
+                              source_feats, matcher, transform)
 
     def estimate_pcl(self, source_pcl, target_pcl, transform=None, source_feats=None,
                      target_feats=None):

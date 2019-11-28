@@ -6,7 +6,7 @@ import tenviz
 
 from fiontb.data.ftb import load_ftb
 from fiontb.data import set_start_at_eye
-from fiontb.filtering import bilateral_depth_filter
+from fiontb.processing import bilateral_depth_filter
 from fiontb.frame import FramePointCloud
 from fiontb.surfel import SurfelModel
 from fiontb.ui import FrameUI, SurfelReconstructionUI, RunMode
@@ -19,7 +19,7 @@ from ..fusion import SurfelFusion
 def _test():
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
-    dataset = load_ftb(test_data / "sample1")  # 20 frames
+    dataset = load_ftb(test_data / "sample1")  # 30 frames
     dataset = set_start_at_eye(dataset)
 
     gl_context = tenviz.Context()

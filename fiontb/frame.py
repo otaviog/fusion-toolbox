@@ -5,7 +5,7 @@ import torch
 from torch.nn.functional import interpolate
 
 from fiontb.processing import (
-    downsample_xyz, downsample_mask, DownsampleXYZMethod)
+    downsample_xyz, downsample_mask, DownsampleXYZMethod, erode_mask)
 from fiontb._cfiontb import (Processing as _Processing, EstimateNormalsMethod)
 from fiontb._utils import ensure_torch, depth_image_to_uvz
 
@@ -198,6 +198,7 @@ class FramePointCloud:
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
         mask = depth_image > 0
+        mask = erode_mask(mask)
         if frame.fg_mask is not None:
             mask = torch.logical_and(
                 torch.from_numpy(frame.fg_mask), mask)

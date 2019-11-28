@@ -145,8 +145,11 @@ fiontb.pose.autogradicp.pcl-rgbd-real:
 # Surfel
 #
 
-fiontb.surfel:
+fiontb.surfel-adding:
 	python3 -m fiontb._test.test_surfel adding
+
+fiontb.surfel-downsample:
+	python3 -m fiontb._test.test_surfel downsample
 
 fiontb.viz.surfelrender:
 	python3 -m fiontb.viz.surfelrender

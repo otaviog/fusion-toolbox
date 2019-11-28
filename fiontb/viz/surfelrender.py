@@ -3,8 +3,9 @@ from enum import Enum
 
 import torch
 from matplotlib.pyplot import get_cmap
-
 import tenviz
+
+from fiontb.surfel import SurfelModel, SurfelCloud
 
 _SHADER_DIR = Path(__file__).parent / 'shaders'
 
@@ -49,7 +50,8 @@ class SurfelRender(tenviz.DrawProgram):
 
         self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)
-
+        #self.set_bounds(torch.tensor([[0, 0, 0],
+        #                              [100, 100, 100]], dtype=torch.float32))
     def set_render_mode(self, render_mode):
         with self.surfel_model.gl_context.current():
             self['RenderMode'] = int(render_mode.value)
@@ -73,10 +75,21 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
                  max_time=10, max_conf=10, view_matrix=None):
     from fiontb.fusion.surfel.indexmap import SurfelIndexMapRaster
 
-    scene = [SurfelRender(surfels) for surfels in surfels_list]
+    scene = []
+
+    for surfels in surfels_list:
+        if isinstance(surfels, SurfelCloud):
+            node = SurfelRender(
+                SurfelModel.from_surfel_cloud(gl_context, surfels))
+        elif isinstance(surfels, SurfelModel):
+            node = SurfelRender(surfels)
+        else:
+            print("Invalid instance")
+        scene.append(node)
+
     viewer = gl_context.viewer(scene, tenviz.CameraManipulator.WASD)
 
-    raster = SurfelIndexMapRaster(surfels_list[0])
+    raster = SurfelIndexMapRaster(scene[0].surfel_model)
 
     if view_matrix is not None:
         viewer.set_camera_matrix(view_matrix.clone().numpy())
@@ -139,7 +152,6 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
 
 def _test():
     import tenviz.io
-    from fiontb.surfel import SurfelModel, SurfelCloud
 
     geo = tenviz.io.read_3dobject(
         Path(__file__).parent / "../../test-data/bunny/bun_zipper_res4.ply").torch()

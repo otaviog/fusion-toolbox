@@ -32,6 +32,7 @@ struct FindMergeKernel {
       : model_indexmap(model_indexmap),
         live_surfels(live_surfels),
         kcam(kcam),
+        scale(scale),
         max_normal_angle(max_normal_angle),
         time(time),
         merge_map(merge_map),
@@ -62,8 +63,7 @@ struct FindMergeKernel {
         min(v * scale + search_size, int(model_indexmap.height()) - 1);
 
     float best_dist = NumericLimits<dev, float>::infinity();
-    int best_row, best_col;
-    best_row = best_col = -1;
+    int best_row = -1, best_col = -1;
 
     for (int krow = ystart; krow <= yend; krow++) {
       for (int kcol = xstart; kcol <= xend; kcol++) {
@@ -81,10 +81,18 @@ struct FindMergeKernel {
           dist += model_feat_channel * live_feat_channel;
         }
 
+        if (dist > 89)
+          continue;
+        const Vector<float, 3> model_pos = model_indexmap.position(krow, kcol);
+        if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
+          continue;
+
+        const float geom_dist = ray.cross(model_pos).norm() / ray.norm();
+
         const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
-        if (dist < best_dist &&
-            GetVectorsAngle(normal, live_normal) < max_normal_angle) {
-          best_dist = dist;
+        if (geom_dist < best_dist &&
+            GetVectorsAngle(normal, live_normal) < .5) {
+          best_dist = geom_dist;
           best_row = krow;
           best_col = kcol;
         }

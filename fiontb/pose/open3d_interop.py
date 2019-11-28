@@ -109,6 +109,8 @@ class ColorICP:
         source_pcl = source_pcl.to_open3d()
         target_pcl = target_pcl.to_open3d()
 
+        if transform is None:
+            transform = np.eye(4)
         for radius, iters in zip(self.scales, self.iters):
             source_down = source_pcl.voxel_down_sample(radius)
             target_down = target_pcl.voxel_down_sample(radius)

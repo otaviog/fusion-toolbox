@@ -39,11 +39,6 @@ struct FindMergeKernel {
   FTB_DEVICE_HOST void operator()(int live_index) {
     new_surfel_map[live_index] = false;
 
-#if 0
-
-
-#endif
-
     const Eigen::Vector3f live_pos(live_surfels.position(live_index));
     int col, row;
     kcam.Projecti(live_pos, col, row);

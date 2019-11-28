@@ -56,12 +56,18 @@ inline void Launch2DKernelCUDA(Kernel kern, int width, int height) {
 #endif
 
 template <typename Kernel>
-inline void Launch1DKernelCPU(Kernel kern, int size) {
+inline void Launch1DKernelCPU(Kernel kern, int size, bool sequential = false) {
+  if (!sequential) {
 #ifdef NDEBUG
 #pragma omp parallel for
 #endif
-  for (int i = 0; i < size; ++i) {
-    kern(i);
+    for (int i = 0; i < size; ++i) {
+      kern(i);
+    }
+  } else {
+    for (int i = 0; i < size; ++i) {
+      kern(i);
+    }
   }
 }
 

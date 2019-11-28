@@ -172,6 +172,18 @@ class SurfelCloud:
                 device=self.device)
         return params
 
+    def downsample(self, voxel_size):
+        ds_surfels = CppSurfelCloud()
+        _SurfelOp.downsample(self.to_cpp_(), voxel_size, ds_surfels)
+        return SurfelCloud(ds_surfels.positions,
+                           ds_surfels.confidences,
+                           ds_surfels.normals,
+                           ds_surfels.radii,
+                           ds_surfels.colors,
+                           ds_surfels.times,
+                           # ds_surfels.features
+                           )
+
     def __getitem__(self, *args):
         return SurfelCloud(
             self.positions[args],
