@@ -47,7 +47,8 @@ class SurfelReconstructionUI:
         if inverse:
             inv = torch.eye(4, dtype=torch.float32)
             inv[1, 1] = -1
-            inv[0, 0] = -1
+            # TODO: remove?
+            #inv[0, 0] = -1
             self.surfel_render.transform = inv
 
         self._quit_flag = False

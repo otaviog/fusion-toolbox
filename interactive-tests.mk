@@ -154,13 +154,13 @@ fiontb.surfel-downsample:
 fiontb.viz.surfelrender:
 	python3 -m fiontb.viz.surfelrender
 
-fiontb.fusion.surfel.indexmap.surfel-raster:
+fiontb.fusion.surfel.indexmap-surfel-raster:
 	python3 -m fiontb.fusion.surfel._test.test_indexmap surfel-raster
 
-fiontb.fusion.surfel.update.vanilla:
+fiontb.fusion.surfel.update-vanilla:
 	python3 -m fiontb.fusion.surfel._test.test_update vanilla
 
-fiontb.fusion.surfel.update.ef_like:
+fiontb.fusion.surfel.update-ef_like:
 	python3 -m fiontb.fusion.surfel._test.test_update ef_like
 
 fiontb.fusion.surfel.merge:
@@ -201,8 +201,8 @@ fiontb.fusion.fsf.fusion:
 fiontb.fusion.fsf.merge:
 	python3 -m fiontb.fusion.fsf._test.test_merge
 
-fiontb.pipeline.fsf.real-scene:
+fiontb.pipeline.fsf-real-scene:
 	python3 -m fiontb.pipeline._test.test_fsf_slam real_scene
 
-fiontb.pipeline.fsf.synthetic-scene:
+fiontb.pipeline.fsf-synthetic-scene:
 	python3 -m fiontb.pipeline._test.test_fsf_slam synthetic_scene

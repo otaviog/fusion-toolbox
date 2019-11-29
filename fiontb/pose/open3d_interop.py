@@ -18,7 +18,8 @@ class RGBDOdometry:
         if iterations is None:
             iterations = [20, 10, 5]
         self.option = open3d.odometry.OdometryOption()
-        self.option.iteration_number_per_pyramid_level = open3d.IntVector(
+
+        self.option.iteration_number_per_pyramid_level = open3d.utility.IntVector(
             iterations)
 
     def estimate_frame(self, source_frame, target_frame, transform=None, **kwargs):

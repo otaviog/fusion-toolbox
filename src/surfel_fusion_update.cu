@@ -83,6 +83,7 @@ struct FindMergeKernel {
 
         if (dist > 89)
           continue;
+		
         const Vector<float, 3> model_pos = model_indexmap.position(krow, kcol);
         if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
           continue;

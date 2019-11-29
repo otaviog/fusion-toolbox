@@ -14,8 +14,8 @@ from fiontb._utils import ensure_torch, empty_ensured_size, depth_image_to_uvz
 
 
 def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,
-                           sigma_d=4.50000000225,
-                           sigma_r=29.9999880000072,
+                           sigma_color=29.9999880000072,
+                           sigma_space=4.50000000225,
                            depth_scale=1.0):
     depth = ensure_torch(depth)
     mask = ensure_torch(mask, dtype=torch.bool)
@@ -23,7 +23,7 @@ def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,
                                     dtype=depth.dtype, device=depth.device)
 
     _Processing.bilateral_depth_filter(depth, mask, out_tensor,
-                                       filter_width, sigma_d, sigma_r, depth_scale)
+                                       filter_width, sigma_color, sigma_space, depth_scale)
 
     return out_tensor
 

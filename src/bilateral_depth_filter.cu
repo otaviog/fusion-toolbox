@@ -41,19 +41,19 @@ struct BilateralDepthFilterKernel {
     const int width = input.size(1);
 
     for (int y = -half_width; y <= half_width; ++y) {
-      const int crow = row + y;
-      if (crow < 0 || crow >= height) continue;
+      const int krow = row + y;
+      if (krow < 0 || krow >= height) continue;
 
       for (int x = -half_width; x <= half_width; ++x) {
-        const int ccol = col + x;
-        if (ccol < 0 || ccol >= width) continue;
+        const int kcol = col + x;
+        if (kcol < 0 || kcol >= width) continue;
 
-        if (mask[crow][ccol] == 0) continue;
+        if (mask[krow][kcol] == 0) continue;
 
-        const float curr_depth = input[crow][ccol] * depth_scale;
+        const float curr_depth = input[krow][kcol] * depth_scale;
 
-        const float dx = col - ccol;
-        const float dy = row - crow;
+        const float dx = col - kcol;
+        const float dy = row - krow;
         const float space_sqr = dx * dx + dy * dy;
 
         const float dcolor = depth - curr_depth;

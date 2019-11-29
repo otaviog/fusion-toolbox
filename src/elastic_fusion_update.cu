@@ -73,7 +73,7 @@ struct FindMergeKernel {
         if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
           continue;
 
-        const float dist = ray.cross(model_pos).norm() / ray.norm();
+        const float dist = ray.cross(model_pos).norm() / ray.norm();	
 
         const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
         if (dist < best_dist && (GetVectorsAngle(normal, live_normal) < .5 ||
@@ -118,7 +118,6 @@ struct UpdateKernel {
   FTB_DEVICE_HOST void operator()(int row, int col) {
     if (model_indexmap.empty(row, col)) return;
     const int32_t live_index = model_merge_map[row][col][1];
-
     if (live_index == INT_MAX) return;
 
     const int32_t model_target = model_indexmap.index(row, col);

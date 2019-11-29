@@ -85,8 +85,8 @@ struct CentralDifferencesKernel {
       bottom_to_top = top - center;
     }
 
-    // Vector<scalar_t, 3> normal = left_to_right.cross(bottom_to_top);
-    Vector<scalar_t, 3> normal = bottom_to_top.cross(left_to_right);
+	Vector<scalar_t, 3> normal = left_to_right.cross(bottom_to_top);
+    //Vector<scalar_t, 3> normal = bottom_to_top.cross(left_to_right);
     const scalar_t length = normal.norm();
     if (!(length > 1e-6f)) {
       normal = Vector<scalar_t, 3>(0, 0, -1);

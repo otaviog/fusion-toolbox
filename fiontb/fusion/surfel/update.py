@@ -25,7 +25,7 @@ class Update:
             live_surfels.size, dtype=torch.bool,
             device=ref_device)
 
-        model_merge_map = torch.full((model_indexmap.height, model_indexmap.width, 3),
+        model_merge_map = torch.full((model_indexmap.height, model_indexmap.width, 2),
                                      _INT_MAX, dtype=torch.int32, device=ref_device)
         with surfel_model.gl_context.current():
             with surfel_model.map_as_tensors(ref_device) as mapped_model:

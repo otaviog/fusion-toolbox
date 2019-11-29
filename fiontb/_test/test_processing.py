@@ -88,9 +88,8 @@ class InteractiveTests:
         plt.title("input")
         plt.imshow(depth)
         filter_depth = bilateral_depth_filter(
-            depth, mask,
-            None, 13, 4.50000000225,
-            29.9999880000072)
+            depth, mask, filter_width=13, sigma_d=4.50000000225,
+            sigma_r=29.9999880000072)
 
         filtered_depth_image = cv2.bilateralFilter(
             depth.float().numpy(), 13, 4.50000000225,
@@ -123,23 +122,33 @@ class InteractiveTests:
         plt.show()
 
     def normals(self):
-        dataset = load_ftb(Path(__file__).parent /
-                           "../../test-data/rgbd/sample2")
+        dataset = load_ftb(
+            Path(__file__).parent /
+            "../../test-data/rgbd/sample1")
 
-        pcl = FramePointCloud.from_frame(dataset[0]).unordered_point_cloud(
+        frame0 = dataset[0]
+        frame0.depth_image = bilateral_depth_filter(
+            frame0.depth_image, frame0.depth_image > 0,
+            filter_width=13,
+            # depth_scale=frame0.info.depth_scale
+        )
+
+        pcl = FramePointCloud.from_frame(frame0).unordered_point_cloud(
             world_space=False, compute_normals=True)
 
         context = tenviz.Context()
+        transform = np.eye(4)
+        transform[1, 1] = -1
+
         with context.current():
             points = tenviz.nodes.create_point_cloud(
-                pcl.points, pcl.colors.float()/255, point_size=4)
-
+                pcl.points, pcl.colors.float()/255, point_size=8)
+            points.transform = transform
             normals = tenviz.nodes.create_quiver(pcl.points, pcl.normals*.005,
                                                  torch.ones(pcl.size, 3))
-        viewer = context.viewer(
-            [points, normals], cam_manip=tenviz.CameraManipulator.WASD)
-
-        viewer.show(1)
+            normals.transform = transform
+        context.show([points, normals],
+                     cam_manip=tenviz.CameraManipulator.WASD)
 
 
 if __name__ == '__main__':

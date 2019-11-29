@@ -16,9 +16,9 @@ from ..update import Update
 
 class Tests:
     def _test(self, elastic_fusion):
-        test_data = Path(__file__).parent / "../../../../test-data/rgbd"
-
-        dataset = set_start_at_eye(load_ftb(test_data / "sample2"))
+        # dataset = set_start_at_eye(load_ftb(Path(__file__).parent / "../../../../test-data/rgbd"))
+        dataset = set_start_at_eye(load_ftb(
+            "/home/otavio_gomes/3drec/slam-feature/data/replica/replica-ftb/apartment_0"))
 
         device = torch.device("cpu:0")
         gl_context = tenviz.Context()
@@ -29,14 +29,14 @@ class Tests:
             dataset[0], time=0, confidence_weight=0.8).to(device)
         torch.manual_seed(10)
         # model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
-        model_surfels.radii *= 0.25
+        #model_surfels.radii *= 0.25
 
         surfel_model.add_surfels(model_surfels, update_gl=True)
 
         live_frame = dataset[14]
         live_surfels = SurfelCloud.from_frame(
             live_frame, time=1, confidence_weight=0.8).to(device)
-        live_surfels.radii *= 0.25
+        #live_surfels.radii *= 0.25
 
         height, width = live_frame.depth_image.shape
         proj_matrix = live_frame.info.kcam.get_opengl_projection_matrix(
@@ -63,7 +63,8 @@ class Tests:
         show_surfels(gl_context,
                      [prev_model,
                       SurfelModel.from_surfel_cloud(gl_context, live_surfels),
-                      surfel_model])
+                      surfel_model],
+                     title="Update test")
 
     def vanilla(self):
         self._test(False)

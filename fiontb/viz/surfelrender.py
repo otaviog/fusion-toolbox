@@ -2,6 +2,7 @@ from pathlib import Path
 from enum import Enum
 
 import torch
+import numpy as np
 from matplotlib.pyplot import get_cmap
 import tenviz
 
@@ -50,8 +51,9 @@ class SurfelRender(tenviz.DrawProgram):
 
         self.set_stable_threshold(-1.0)
         self.set_render_mode(RenderMode.Color)
-        #self.set_bounds(torch.tensor([[0, 0, 0],
+        # self.set_bounds(torch.tensor([[0, 0, 0],
         #                              [100, 100, 100]], dtype=torch.float32))
+
     def set_render_mode(self, render_mode):
         with self.surfel_model.gl_context.current():
             self['RenderMode'] = int(render_mode.value)
@@ -72,10 +74,14 @@ class SurfelRender(tenviz.DrawProgram):
 
 
 def show_surfels(gl_context, surfels_list, title="Surfels",
-                 max_time=10, max_conf=10, view_matrix=None):
+                 max_time=10, max_conf=10, view_matrix=None, invert_y=True):
     from fiontb.fusion.surfel.indexmap import SurfelIndexMapRaster
 
     scene = []
+
+    transform = np.eye(4)
+    if invert_y:
+        transform[1, 1] = -1
 
     for surfels in surfels_list:
         if isinstance(surfels, SurfelCloud):
@@ -85,6 +91,9 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
             node = SurfelRender(surfels)
         else:
             print("Invalid instance")
+            continue
+
+        node.transform = transform
         scene.append(node)
 
     viewer = gl_context.viewer(scene, tenviz.CameraManipulator.WASD)
@@ -92,7 +101,7 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
     raster = SurfelIndexMapRaster(scene[0].surfel_model)
 
     if view_matrix is not None:
-        viewer.set_camera_matrix(view_matrix.clone().numpy())
+        viewer.view_matrix = view_matrix.clone().numpy()
     else:
         viewer.reset_view()
     viewer.title = title
@@ -133,7 +142,7 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
             import matplotlib.pyplot as plt
 
             raster.raster(torch.from_numpy(viewer.projection_matrix),
-                          torch.from_numpy(viewer.camera_matrix),
+                          torch.from_numpy(viewer.view_matrix),
                           viewer.width, viewer.height)
             indexmap = raster.to_indexmap()
             _, ax = plt.subplots()
