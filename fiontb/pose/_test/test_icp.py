@@ -19,7 +19,7 @@ from .testing import (evaluate, run_trajectory_test, run_pair_test)
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=10, color_mode=ColorMode.HSV,
+SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=12, color_mode=ColorMode.GRAY,
                             blur=False, filter_depth=False)
 
 REAL_FRAME_ARGS = dict(frame1_idx=28, color_mode=ColorMode.LAB,
@@ -60,8 +60,10 @@ class Tests:
 
     def rgbd_synthetic(self):
         run_pair_test(
-            ICPOdometry(40, geom_weight=.5, feat_weight=.5),
-            load_ftb(_TEST_DATA / "sample2"),
+            ICPOdometry(40, geom_weight=1, feat_weight=1),
+            load_ftb(
+                _TEST_DATA / "sample2"
+            ),
             **SYNTHETIC_FRAME_ARGS)
 
     def ms_depth_real(self):
@@ -112,37 +114,46 @@ class Tests:
             **REAL_FRAME_ARGS)
 
     def ms_rgbd_synthetic(self):
+        geom_weight = 10
+        feat_weight = 0
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 10, geom_weight=10, feat_weight=1),
-                ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-                ICPOption(0.5, 10, geom_weight=10, feat_weight=1)]),
-            load_ftb(_TEST_DATA / "sample2"),
+                ICPOption(1.0, 10, geom_weight=geom_weight,
+                          feat_weight=feat_weight),
+                ICPOption(0.5, 20, geom_weight=geom_weight,
+                          feat_weight=feat_weight),
+                ICPOption(0.5, 20, geom_weight=geom_weight,
+                          feat_weight=feat_weight),
+                ICPOption(0.5, 30, geom_weight=geom_weight,
+                          feat_weight=feat_weight)
+            ]),
+            _TEST_DATA / "sample2"
+            ),
             **SYNTHETIC_FRAME_ARGS)
 
     def fail(self):
         run_pair_test(ICPOdometry(10), load_ftb(_TEST_DATA / "sample1"))
 
     def so3(self):
-        dataset = load_ftb(_TEST_DATA / "sample1")
-        dataset = set_start_at_eye(dataset)
-        device = "cuda:0"
+        dataset=load_ftb(_TEST_DATA / "sample1")
+        dataset=set_start_at_eye(dataset)
+        device="cuda:0"
 
-        icp_verifier = ICPVerifier()
-        frame, features0 = prepare_frame(
-            dataset[0], scale=1, filter_depth=True, to_hsv=True, blur=True)
-        next_frame, features1 = prepare_frame(
-            dataset[6], scale=1, filter_depth=True, to_hsv=True, blur=True)
+        icp_verifier=ICPVerifier()
+        frame, features0=prepare_frame(
+            dataset[0], scale = 1, filter_depth = True, to_hsv = True, blur = True)
+        next_frame, features1=prepare_frame(
+            dataset[6], scale = 1, filter_depth = True, to_hsv = True, blur = True)
 
-        fpcl = FramePointCloud.from_frame(frame).to(device)
-        next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
+        fpcl=FramePointCloud.from_frame(frame).to(device)
+        next_fpcl=FramePointCloud.from_frame(next_frame).to(device)
 
-        init_transform = torch.eye(4, dtype=next_fpcl.rt_cam.matrix.dtype,
-                                   device=next_fpcl.device)
-        init_transform[: 3, 3] = -next_fpcl.rt_cam.center
+        init_transform=torch.eye(4, dtype = next_fpcl.rt_cam.matrix.dtype,
+                                   device = next_fpcl.device)
+        init_transform[: 3, 3]=-next_fpcl.rt_cam.center
 
-        icp = ICPOdometry(100, feat_weight=1.0, so3=True)
-        result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
+        icp=ICPOdometry(100, feat_weight = 1.0, so3 = True)
+        result=icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
                               source_feats=features1.to(
                                   device),
                               target_points=fpcl.points,

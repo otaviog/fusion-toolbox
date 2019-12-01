@@ -47,22 +47,22 @@ class _Step:
                 match_count = _ICPJacobian.estimate_geometric(
                     target_points, target_normals, target_mask,
                     source_points, source_normals, source_mask,
-                    kcam, transform, self.JtJ, self.Jtr, self.residual)
+                    kcam, transform.to(dtype), self.JtJ, self.Jtr, self.residual)
             else:
                 match_count = _ICPJacobian.estimate_feature(
                     target_points, target_normals, target_feats,
                     target_mask, source_points,
-                    source_feats, source_mask, kcam, transform,
+                    source_feats, source_mask, kcam, transform.to(dtype),
                     self.JtJ, self.Jtr, self.residual)
         else:
             match_count = _ICPJacobian.estimate_feature_so3(
                 target_points, target_normals, target_feats,
                 target_mask, source_points, source_feats,
-                source_mask, kcam, transform,
+                source_mask, kcam, transform.to(dtype),
                 self.JtJ, self.Jtr, self.residual)
 
-        Jtr = self.Jtr.sum(0)
-        JtJ = self.JtJ.sum(0)
+        Jtr = self.Jtr.double().sum(0)
+        JtJ = self.JtJ.double().sum(0)
         residual = self.residual.sum()
 
         return JtJ, Jtr, residual, match_count
@@ -131,9 +131,9 @@ class ICPOdometry:
         dtype = source_points.dtype
         kcam = kcam.matrix.to(device)
         if transform is None:
-            transform = torch.eye(4, device=device, dtype=dtype)
+            transform = torch.eye(4, device=device, dtype=torch.double)
         else:
-            transform = transform.to(device)
+            transform = transform.to(device).double()
 
         source_points = source_points.view(-1, 3)
         source_normals = source_normals.view(-1, 3)
@@ -144,7 +144,7 @@ class ICPOdometry:
         if not geom_only:
             source_feats = source_feats.view(source_feats.size(0), -1)
 
-        best_result = ICPResult(None, None, math.inf, 0)
+        best_result = ICPResult()
 
         has_features = (source_feats is not None
                         and target_feats is not None
@@ -177,6 +177,7 @@ class ICPOdometry:
                 match_count = max(geom_count, match_count)
 
             try:
+                # Classic gauss newton update step:
                 # update = JtJ.cpu().inverse() @ Jr.cpu()
 
                 upper_JtJ = torch.cholesky(JtJ)
@@ -188,11 +189,11 @@ class ICPOdometry:
 
             if not self.so3:
                 update_matrix = SE3.exp(
-                    update).to_matrix().to(device).to(dtype)
+                    update).to_matrix().to(device)
                 transform = update_matrix @ transform
             else:
                 update_matrix = SO3.exp(
-                    update).to_matrix().to(device).to(dtype)
+                    update).to_matrix().to(device)
                 transform = update_matrix @ transform
 
             residual = residual.item() / match_count

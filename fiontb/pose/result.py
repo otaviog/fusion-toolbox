@@ -1,9 +1,11 @@
+import math
+
 import torch
 
 
 class ICPResult:
-    def __init__(self, transform, hessian,
-                 residual, match_ratio):
+    def __init__(self, transform=None, hessian=None,
+                 residual=math.inf, match_ratio=0):
         self.transform = transform
         self.hessian = hessian
         self.residual = residual
@@ -15,6 +17,9 @@ class ICPResult:
                 + f"hessian = {self.hessian} "
                 + f"residual = {self.residual} "
                 + f"match_ratio = {self.match_ratio}")
+
+    def __bool__(self):
+        return self.transform is not None
 
     def __repr__(self):
         return str(self)

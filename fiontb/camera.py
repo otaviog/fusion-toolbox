@@ -232,12 +232,23 @@ class RigidTransform:
 
     def __init__(self, matrix):
         self.matrix = matrix
+        self._normal_matrix = None
+
+    @property
+    def normal_matrix(self):
+        if self._normal_matrix is None:
+            self._normal_matrix = normal_transform_matrix(self.matrix)
+
+        return self._normal_matrix
 
     def __matmul__(self, points):
         points = self.matrix[:3, :3].matmul(points.view(-1, 3, 1))
         points += self.matrix[:3, 3].view(3, 1)
 
         return points.squeeze()
+
+    def transform_normals(self, normals):
+        return (self.normal_matrix @ normals.view(-1, 3, 1)).view(-1, 3)
 
     def inplace(self, points):
         points = points.view(-1, 3)
@@ -246,7 +257,7 @@ class RigidTransform:
 
     def inplace_normals(self, normals):
         normals = normals.view(-1, 3)
-        _RigidTransformOp.transform_inplace(self.matrix, normals)
+        _RigidTransformOp.transform_normals_inplace(self.matrix, normals)
         return normals
 
     def outplace(self, points, out):
@@ -303,11 +314,11 @@ class RTCamera:
 
     """
 
-    def __init__(self, matrix=None, dtype=None):
+    def __init__(self, matrix=None):
         if matrix is not None:
-            self.matrix = ensure_torch(matrix, dtype=dtype)
+            self.matrix = ensure_torch(matrix, dtype=torch.double)
         else:
-            self.matrix = torch.eye(4, dtype=dtype)
+            self.matrix = torch.eye(4, dtype=torch.double)
 
     @classmethod
     def create_from_pos_rot(cls, position, rotation_matrix):
@@ -321,9 +332,9 @@ class RTCamera:
         g_trans = torch.tensor([[1.0, 0.0, 0.0, posx],
                                 [0.0, 1.0, 0.0, posy],
                                 [0.0, 0.0, 1.0, posz],
-                                [0.0, 0.0, 0.0, 1.0]])
-        g_rot = torch.eye(4)
-        g_rot[0:3, 0:3] = rotation_matrix
+                                [0.0, 0.0, 0.0, 1.0]], dtype=torch.double)
+        g_rot = torch.eye(4, dtype=torch.double)
+        g_rot[0:3, 0:3] = rotation_matrix.double()
         return cls(g_trans @ g_rot)
 
     @classmethod
@@ -332,17 +343,18 @@ class RTCamera:
         g_trans = torch.tensor([[1.0, 0.0, 0.0, x],
                                 [0.0, 1.0, 0.0, y],
                                 [0.0, 0.0, 1.0, z],
-                                [0.0, 0.0, 0.0, 1.0]])
-        g_rot = torch.eye(4)
+                                [0.0, 0.0, 0.0, 1.0]],
+                               dtype=torch.double)
+        g_rot = torch.eye(4, dtype=torch.double)
         g_rot[0:3, 0:3] = torch.from_numpy(quaternion.as_rotation_matrix(
-            np.quaternion(qw, qx, qy, qz)))
+            np.quaternion(qw, qx, qy, qz))).double()
 
         # return cls(g_trans @ g_rot)
 
         rot_mtx = torch.from_numpy(quaternion.as_rotation_matrix(
-            np.quaternion(qw, qx, qy, qz)))
+            np.quaternion(qw, qx, qy, qz))).double()
 
-        cam_mtx = np.eye(4)
+        cam_mtx = np.eye(4, dtype=torch.double)
         cam_mtx[0:3, 0:3] = rot_mtx
         cam_mtx[0:3, 3] = [x, y, z]
 
@@ -350,7 +362,7 @@ class RTCamera:
 
     @classmethod
     def from_json(cls, json):
-        return cls(torch.tensor(json['matrix'], dtype=torch.float).view(-1, 4))
+        return cls(torch.tensor(json['matrix'], dtype=torch.double).view(-1, 4))
 
     def to_json(self):
         return {'matrix': self.matrix.tolist()}
@@ -372,20 +384,16 @@ class RTCamera:
         return _GL_HAND_MTX @ self.world_to_cam.float()
 
     def integrate(self, matrix):
-        return RTCamera(matrix.to(self.device) @ self.matrix)
+        return RTCamera(matrix.cpu().double() @ self.matrix)
 
     def transform(self, matrix):
-        return RTCamera(self.matrix @ matrix.to(self.device))
-
-    @property
-    def device(self):
-        return self.matrix.device
+        return RTCamera(self.matrix @ matrix.cpu().double())
 
     def translate(self, tx, ty, tz):
         return RTCamera(self.matrix @ torch.tensor([[1, 0, 0, tx],
                                                     [0, 1, 0, ty],
                                                     [0, 0, 1, tz],
-                                                    [0, 0, 0, 1]]))
+                                                    [0, 0, 0, 1]], dtype=torch.double))
 
     def inverse(self):
         return RTCamera(self.world_to_cam)
@@ -395,9 +403,6 @@ class RTCamera:
 
     def difference(self, other):
         return RigidTransform(self.world_to_cam * other.matrix)
-
-    def to(self, dst):
-        return RTCamera(self.matrix.to(dst))
 
     @property
     def center(self):
@@ -410,4 +415,4 @@ class RTCamera:
         return str(self.__dict__)
 
     def __matmul__(self, other):
-        return RTCamera(self.matrix @ other.matrix)
+        return RTCamera(self.matrix @ other.matrix.double())

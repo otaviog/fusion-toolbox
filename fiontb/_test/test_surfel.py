@@ -3,6 +3,8 @@ from pathlib import Path
 import fire
 import tenviz
 import torch
+import quaternion
+import numpy as np
 
 from fiontb.frame import FramePointCloud
 from fiontb.viz.surfelrender import show_surfels
@@ -28,13 +30,29 @@ class TestDatatype:
         dataset = load_ftb(Path(__file__).parent /
                            "../../test-data/rgbd/sample2")
 
-        live_surfels = SurfelCloud.from_frame_pcl(
-            FramePointCloud.from_frame(dataset[0]))
+        live_surfels = SurfelCloud.from_frame(dataset[0])
 
         downsampled = live_surfels.downsample(0.05)
 
-        gl_context = tenviz.Context()
-        show_surfels(gl_context, [live_surfels, downsampled])
+        show_surfels(tenviz.Context(), [live_surfels, downsampled])
+
+    def transform(self):
+        dataset = load_ftb(Path(__file__).parent /
+                           "../../test-data/rgbd/sample2")
+        surfels0 = SurfelCloud.from_frame(dataset[0])
+        surfels1 = surfels0.clone()
+
+        transformation = torch.eye(4)
+        np.random.seed(5)
+        transformation[:3, :3] = torch.from_numpy(quaternion.as_rotation_matrix(
+            quaternion.from_euler_angles(np.random.rand(3))))
+        transformation[0, 3] = 2
+        transformation[1, 3] = 0
+        transformation[2, 3] = 2
+
+        surfels1.itransform(transformation)
+
+        show_surfels(tenviz.Context(), [surfels0, surfels1, surfels0.transform(transformation)])
 
 
 if __name__ == '__main__':

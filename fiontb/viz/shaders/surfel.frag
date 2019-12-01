@@ -36,8 +36,12 @@ void main() {
   if (RenderMode == 0) {  // Color
     frag_color.xyz = frag_in.color;
   } else if (RenderMode == 1) {  // Confidence
-    frag_color.xyz = texture(ColorMap, vec2(frag_in.conf / MaxConf, 0)).xyz;
-	//frag_color.xyz = vec3(frag_in.conf / 50, frag_in.conf / 50, frag_in.conf / 50);
+    if (frag_in.conf < MaxConf) {
+      float temp = frag_in.conf / MaxConf;
+      frag_color.xyz = texture(ColorMap, vec2(temp, 0)).xyz;
+    } else {
+      frag_color.xyz = vec3(1, 1, 1);
+    }
   } else if (RenderMode == 2) {  // Normal
     frag_color.xyz = frag_in.normal;
   } else if (RenderMode == 3) {  // No color
@@ -46,8 +50,9 @@ void main() {
     frag_color.xyz = vec3(intensity, intensity, intensity);
   } else if (RenderMode == 4) {
     frag_color.xyz =
-        texture(ColorMap, vec2(float(frag_in.time) / float(MaxTime), 0)).xyz;
-	//frag_color.xyz = vec3(float(MaxTime)/2, 0, 0);
+        texture(ColorMap,
+                vec2(min(float(frag_in.time) / float(MaxTime), 0.9999), 0))
+            .xyz;
   } else if (RenderMode == 5) {
     int id_hash = hash32shiftmult(frag_in.id);
 

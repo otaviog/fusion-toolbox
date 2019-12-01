@@ -8,8 +8,8 @@ class FrameUI:
 
     _DEPTH_OPPACITY_LABEL = "Depth oppacity"
     _NORMAL_OPPACITY_LABEL = "normal oppacity"
-    
-    def __init__(self, title):
+
+    def __init__(self, title="fiontb.ui.FrameUI"):
         self.title = title
         cv2.namedWindow(self.title, cv2.WINDOW_NORMAL)
         cv2.createTrackbar(FrameUI._DEPTH_OPPACITY_LABEL,
@@ -53,6 +53,7 @@ class FrameUI:
             self.normal_image = convert_normals_to_rgb(
                 frame.normal_image.cpu())
         self._update(0)
+
 
 def convert_normals_to_rgb(normal_image):
     normal_image = (normal_image + 1)*0.5*255

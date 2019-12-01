@@ -49,27 +49,20 @@ class PointCloud:
         if self.points.size == 0:
             return PointCloud(self.points)
 
-        points = RigidTransform(matrix) @ self.points
+        rit = RigidTransform(matrix)
+        points = rit @ self.points
 
+        normals = None
         if self.normals is not None:
-            normal_matrix = normal_transform_matrix(matrix)
-            normals = (
-                normal_matrix @ self.normals.reshape(-1, 3, 1)).squeeze()
-        else:
-            normals = None
+            normals = rit.transform_normals(self.normals)
 
         return PointCloud(points, self.colors, normals)
 
     def itransform(self, matrix):
-        if self.points.size == 0:
-            return
-
-        self.points @= matrix[:3, :3].transpose(1, 0)
-        self.points += matrix[:3, 3]
-
+        transform = RigidTransform(matrix.float().to(self.device))
+        transform.inplace(self.points)
         if self.normals is not None:
-            normal_matrix = normal_transform_matrix(matrix)
-            self.normals @= normal_matrix.transpose(1, 0)
+            transform.inplace_normals(self.normals)
 
     def index_select(self, index):
         return PointCloud(

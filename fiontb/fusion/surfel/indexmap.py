@@ -111,7 +111,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
         gl_context = self.surfel_model.gl_context
 
         with gl_context.current():
-            world_to_cam = rt_cam.world_to_cam
+            world_to_cam = rt_cam.world_to_cam.float()
             self.program['WorldToCam'] = world_to_cam
             self.program['WorldToCamNormal'] = normal_transform_matrix(
                 world_to_cam)
@@ -188,7 +188,7 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
 
         if isinstance(rt_cam, RTCamera):
             view_cam = rt_cam.opengl_view_cam
-            world_to_cam = rt_cam.world_to_cam
+            world_to_cam = rt_cam.world_to_cam.float()
         else:
             view_cam = rt_cam
             world_to_cam = rt_cam

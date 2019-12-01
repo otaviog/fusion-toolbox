@@ -2,6 +2,7 @@ import torch
 
 from fiontb.processing import (
     downsample_xyz, downsample_mask, DownsampleXYZMethod)
+from .result import ICPResult
 
 
 class MultiscaleOptimization:
@@ -90,21 +91,23 @@ class MultiscaleOptimization:
                  source_points, source_normals, source_mask,
                  target_feats, source_feats, kcam))
 
+        result = ICPResult()
         for icp_instance, (tgt_points, tgt_normals, tgt_mask,
                            src_points, src_normals, src_mask,
                            tgt_feats, src_feats, pyr_kcam) in zip(
                                self.estimators, pyramid[::-1]):
             icp_instance = icp_instance[1]
 
-            result = icp_instance.estimate(
+            curr_result = icp_instance.estimate(
                 pyr_kcam, src_points, src_normals, src_mask,
                 source_feats=src_feats,
                 target_points=tgt_points,
                 target_mask=tgt_mask, target_normals=tgt_normals,
                 target_feats=tgt_feats,
                 transform=transform)
-
-            transform = result.transform.clone()
+            if curr_result:
+                transform = curr_result.transform.clone()
+                result = curr_result
 
         return result
 

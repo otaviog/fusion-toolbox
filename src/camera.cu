@@ -204,20 +204,15 @@ struct TransformNormalsKernel {
 
 void RigidTransformOp::TransformNormals(const torch::Tensor &matrix,
                                         torch::Tensor normals) {
-  const auto ref_device = matrix.device();
+  const auto ref_device = normals.device();
+  const torch::Tensor matrix_cpu = matrix.cpu();
 
-  FTB_CHECK_DEVICE(ref_device, normals);
-
-  const auto matrix_cpu = matrix.cpu();
   AT_DISPATCH_FLOATING_TYPES(matrix.scalar_type(), "TransformNormals", [&] {
-    const auto cpu_acc = matrix_cpu.accessor<scalar_t, 2>();
-    Eigen::Matrix<scalar_t, 3, 3> eigen_matrix;
-
-    for (int i = 0; i < 3; ++i)
-      for (int j = 0; j < 3; ++j) eigen_matrix << cpu_acc[i][j];
+    Eigen::Matrix<scalar_t, 3, 3> eigen_matrix =
+        to_matrix<scalar_t, 3, 3>(matrix_cpu.accessor<scalar_t, 2>());
 
     Eigen::Matrix<scalar_t, 3, 3> normal_matrix =
-        normal_matrix.inverse().transpose();
+        eigen_matrix.inverse().transpose();
 
     if (ref_device.is_cuda()) {
       TransformNormalsKernel<kCUDA, scalar_t> kernel(normal_matrix, normals);

@@ -35,17 +35,19 @@ class Update:
                 if self.elastic_fusion:
                     ElasticFusionOp.update(
                         model_indexmap, live_surfels.to_cpp_(), mapped_model,
-                        kcam.matrix.to(ref_device), rt_cam.cam_to_world,
+                        kcam.matrix.to(ref_device),
+                        rt_cam.cam_to_world.float(),
                         self.search_size, time, scale,
                         model_merge_map, self._new_surfels_map)
                 else:
                     SurfelFusionOp.update(
                         model_indexmap, live_surfels.to_cpp_(), mapped_model,
-                        kcam.matrix.to(ref_device), rt_cam.cam_to_world,
+                        kcam.matrix.to(ref_device),
+                        rt_cam.cam_to_world.float(),
                         self.max_normal_angle, self.search_size, time, scale,
                         model_merge_map, self._new_surfels_map)
 
+        # import ipdb; ipdb.set_trace()
         new_surfels = live_surfels[self._new_surfels_map]
-
         new_surfels.itransform(rt_cam.cam_to_world)
         return new_surfels

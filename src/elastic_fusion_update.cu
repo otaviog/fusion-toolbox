@@ -46,7 +46,6 @@ struct FindMergeKernel {
     if (row % 2 == time % 2 || col % 2 == time % 2) return;
 
     new_surfel_map[live_index] = true;
-
     const Vector<float, 3> ray(live_pos[0] / live_pos[2],
                                live_pos[1] / live_pos[2], 1);
     const float lambda = sqrt(ray[0] * ray[0] + ray[1] * ray[1] + 1);

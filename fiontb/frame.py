@@ -264,7 +264,7 @@ class FramePointCloud:
                          normals)
 
         if world_space and self.rt_cam is not None:
-            pcl = pcl.transform(self.rt_cam.cam_to_world.to(self.device))
+            pcl = pcl.transform(self.rt_cam.cam_to_world.to(self.device).float())
 
         return pcl
 

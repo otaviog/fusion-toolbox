@@ -42,7 +42,7 @@ class SurfelRender(tenviz.DrawProgram):
             self['in_mask'] = surfel_model.free_mask_gl
             self._max_conf = 0
 
-            cmap = get_cmap('plasma', 2048)
+            cmap = get_cmap('inferno', 2048)
             cmap_tensor = torch.tensor([cmap(i) for i in range(2048)])[:, :3]
             cmap_tensor = cmap_tensor.view(1, -1, 3)
 

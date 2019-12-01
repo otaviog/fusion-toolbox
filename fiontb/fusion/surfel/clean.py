@@ -25,15 +25,15 @@ class Clean:
             with model.map_as_tensors(ref_device) as mapped_model:
                 if self.elastic_fusion:
                     ElasticFusionOp.clean(mapped_model, alloc_indices,
-                                          indexmap, kcam.matrix,
-                                          rt_cam.world_to_cam,
+                                          indexmap, kcam.matrix.float(),
+                                          rt_cam.world_to_cam.float().to(ref_device),
                                           time, self.stable_time_thresh,
                                           self.search_size, self.stable_conf_thresh,
                                           remove_mask)
                 else:
                     SurfelFusionOp.clean(mapped_model, alloc_indices,
-                                         indexmap, kcam.matrix,
-                                         rt_cam.world_to_cam.to(ref_device),
+                                         indexmap, kcam.matrix.float(),
+                                         rt_cam.world_to_cam.float().to(ref_device),
                                          time, self.stable_time_thresh,
                                          2, self.stable_conf_thresh,
                                          remove_mask)

@@ -146,7 +146,9 @@ class SurfelReconstructionUI:
 
                 with self.surfel_model.gl_context.current():
                     self.surfel_render.set_max_confidence(
-                        self.surfel_model.max_confidence)
+                        #self.surfel_model.max_confidence
+                        self.stable_conf_thresh
+                    )
                     self.surfel_render.set_max_time(self.surfel_model.max_time)
 
                 if self._use_camera_view and self.rt_camera is not None:

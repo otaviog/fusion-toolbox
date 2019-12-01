@@ -23,6 +23,7 @@ class SurfelFusion:
         self._update = Update(
             elastic_fusion=False, max_normal_angle=normal_max_angle,
             search_size=search_size)
+
         self._carve = CarveSpace(stable_conf_thresh=stable_conf_thresh,
                                  stable_time_thresh=stable_time_thresh,
                                  min_z_difference=min_z_difference)
@@ -73,8 +74,8 @@ class SurfelFusion:
         model_indexmap = self.model_raster.to_indexmap()
         model_indexmap.synchronize()
 
-        self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap, self._time,
-                    self.model)
+        # self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap, self._time,
+        #            self.model)
 
         stats.removed_count += self._clean(
             frame_pcl.kcam, frame_pcl.rt_cam,

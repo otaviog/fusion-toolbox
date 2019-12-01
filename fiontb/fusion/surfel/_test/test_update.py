@@ -16,24 +16,26 @@ from ..update import Update
 
 class Tests:
     def _test(self, elastic_fusion):
-        # dataset = set_start_at_eye(load_ftb(Path(__file__).parent / "../../../../test-data/rgbd"))
-        dataset = set_start_at_eye(load_ftb(
-            "/home/otavio_gomes/3drec/slam-feature/data/replica/replica-ftb/apartment_0"))
+        dataset = set_start_at_eye(
+            load_ftb(Path(__file__).parent / "../../../../test-data/rgbd"))
 
         device = torch.device("cpu:0")
         gl_context = tenviz.Context()
 
-        surfel_model = SurfelModel(gl_context, 640*480*2)
+        model = SurfelModel(gl_context, 640*480*2)
+
+        frame0 = dataset[1]
+        live_frame = dataset[14]
 
         model_surfels = SurfelCloud.from_frame(
-            dataset[0], time=0, confidence_weight=0.8).to(device)
+            frame0, time=0, confidence_weight=0.8).to(device)
+        model_surfels.itransform(frame0.info.rt_cam.cam_to_world.float())
         torch.manual_seed(10)
         # model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
         #model_surfels.radii *= 0.25
 
-        surfel_model.add_surfels(model_surfels, update_gl=True)
+        model.add_surfels(model_surfels, update_gl=True)
 
-        live_frame = dataset[14]
         live_surfels = SurfelCloud.from_frame(
             live_frame, time=1, confidence_weight=0.8).to(device)
         #live_surfels.radii *= 0.25
@@ -43,27 +45,26 @@ class Tests:
             0.01, 500.0)
 
         rt_cam = live_frame.info.rt_cam
-        model_raster = ModelIndexMapRaster(surfel_model)
+        model_raster = ModelIndexMapRaster(model)
         model_raster.raster(
             proj_matrix, rt_cam, width, height)
 
         update = Update(elastic_fusion=elastic_fusion,
                         search_size=2, max_normal_angle=math.radians(30))
-        prev_model = surfel_model.clone()
+        prev_model = model.clone()
 
         with gl_context.current():
             model_indexmap = model_raster.to_indexmap(device)
 
         new_surfels = update(
             model_indexmap, live_surfels, live_frame.info.kcam,
-            rt_cam, 1, surfel_model)
-
-        live_surfels.itransform(rt_cam.matrix)
-        surfel_model.add_surfels(new_surfels.to("cuda:0"), update_gl=True)
+            rt_cam, 1, model)
+        model.add_surfels(new_surfels.to("cuda:0"), update_gl=True)
+        print("Add {} new surfels".format(new_surfels.size))
+        print("Merged {} surfels".format(live_surfels.size - new_surfels.size))
         show_surfels(gl_context,
-                     [prev_model,
-                      SurfelModel.from_surfel_cloud(gl_context, live_surfels),
-                      surfel_model],
+                     [prev_model, live_surfels.transform(rt_cam.cam_to_world.float()),
+                      model],
                      title="Update test")
 
     def vanilla(self):

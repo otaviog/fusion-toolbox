@@ -29,6 +29,8 @@ fiontb.processing-erode_mask:
 	python3 -m fiontb._test.test_processing erode_mask
 
 
+
+
 #########
 # Pose
 #
@@ -150,6 +152,9 @@ fiontb.surfel-adding:
 
 fiontb.surfel-downsample:
 	python3 -m fiontb._test.test_surfel downsample
+
+fiontb.surfel-transform:
+	python3 -m fiontb._test.test_surfel transform
 
 fiontb.viz.surfelrender:
 	python3 -m fiontb.viz.surfelrender

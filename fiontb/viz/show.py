@@ -39,7 +39,8 @@ def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
                 scene[toggle_idx].visible = not scene[toggle_idx].visible
 
 
-def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.geoshow"):
+def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.geoshow",
+            invert_y=False):
 
     if isinstance(geometries, list):
         if not geometries:
@@ -49,6 +50,10 @@ def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.g
         geometries = [geometries]
 
     ctx = tenviz.Context(width, height)
+
+    transform = torch.eye(4, dtype=torch.float)
+    if invert_y:
+        transform[1, 1] = -1
 
     scene = []
     with ctx.current():
@@ -62,11 +67,13 @@ def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.g
                     geom.points.view(-1, 3),
                     geom.colors.view(-1, 3))
                 pcl.style.point_size = int(point_size)
+                pcl.transform = transform
                 scene.append(pcl)
             if isinstance(geom, (SurfelCloud, SurfelModel)):
                 if isinstance(geom, SurfelCloud):
                     geom = SurfelModel.from_surfel_cloud(ctx, geom)
                 node = SurfelRender(geom)
+                node.transform = transform
                 scene.append(node)
 
     viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)

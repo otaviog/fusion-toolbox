@@ -68,31 +68,28 @@ struct FindMergeKernel {
     for (int krow = ystart; krow <= yend; krow++) {
       for (int kcol = xstart; kcol <= xend; kcol++) {
         if (model_indexmap.empty(krow, kcol)) continue;
-
         const int32_t model_target = model_indexmap.index(krow, kcol);
 
+#if 0
         const int64_t feature_size =
             min(model.features.size(0), live_surfels.features.size(0));
-        const int live_height = live_surfels.features.size(1);
+        const int live_height = live_surfels.features.size(1);        
         float dist = 0;
         for (int64_t i = 0; i < feature_size; ++i) {
           const float model_feat_channel = model.features[i][model_target];
           const float live_feat_channel = live_surfels.features[i][live_index];
           dist += model_feat_channel * live_feat_channel;
         }
-
-        if (dist > 89)
-          continue;
-		
+#endif
         const Vector<float, 3> model_pos = model_indexmap.position(krow, kcol);
-        if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
-          continue;
+        // if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
+        // continue;
 
         const float geom_dist = ray.cross(model_pos).norm() / ray.norm();
-
+        // const float geom_dist = (model_pos - live_pos).norm();
         const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
         if (geom_dist < best_dist &&
-            GetVectorsAngle(normal, live_normal) < .5) {
+            GetVectorsAngle(normal, live_normal) < max_normal_angle) {
           best_dist = geom_dist;
           best_row = krow;
           best_col = kcol;
