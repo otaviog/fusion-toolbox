@@ -105,6 +105,18 @@ class SurfelCloud:
                                   time=time,
                                   features=features)
 
+    @classmethod
+    def empty(cls, size, device="cpu:0", feature_size=None):
+        return cls(torch.empty((size, 3), device=device, dtype=torch.float),
+                   torch.empty((size), device=device, dtype=torch.float),
+                   torch.empty((size, 3), device=device, dtype=torch.float),
+                   torch.empty((size), device=device, dtype=torch.float),
+                   torch.empty((size, 3), device=device, dtype=torch.uint8),
+                   torch.empty((size), device=device, dtype=torch.int32),
+                   (torch.empty((feature_size, size), device=device, dtype=torch.float)
+                    if feature_size is not None else None))
+                               
+                               
     @property
     def device(self):
         return self.positions.device
@@ -119,7 +131,8 @@ class SurfelCloud:
 
     @property
     def feature_size(self):
-        return self.features.size(0)
+        if self.features is not None:
+            return self.features.size(0)
 
     def clone(self):
         return SurfelCloud(self.positions.clone(),
@@ -143,6 +156,18 @@ class SurfelCloud:
                            transform.transform_normals(self.normals),
                            self.radii, self.colors, self.times)
 
+    def merge(self, other, k=1, max_merge_distance=0.05):
+        from scipy.spatial.ckdtree import cKDTree
+        tree = cKDTree(self.positions.cpu())
+        distances, index = tree.query(other.positions.cpu(),
+                                      k=k,
+                                      distance_upper_bound=max_merge_distance)
+        index = torch.from_numpy(index).view(-1, k)
+        size = self.size + (index[:, 0] == tree.n).sum()
+        merged = SurfelCloud.empty(size, device=self.device, feature_size=self.feature_size)
+        _SurfelOp.merge(self.to_cpp_(), other.to_cpp_(), merged.to_cpp_())
+        return merged
+                       
     def to(self, device):
         return SurfelCloud(self.positions.to(device),
                            self.confidences.to(device),

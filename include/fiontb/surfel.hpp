@@ -70,6 +70,10 @@ struct SurfelOp {
   static void Downsample(const SurfelCloud &surfel_cloud, float voxel_size,
                          SurfelCloud &out_surfel_cloud);
 
+  static void Merge(const SurfelCloud &self, const SurfelCloud &other,
+                    const torch::Tensor &index,
+                    SurfelCloud merged);
+  
   static void RegisterPybind(pybind11::module &m);
 };
 }  // namespace fiontb

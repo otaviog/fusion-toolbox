@@ -41,7 +41,7 @@ class ILRGBDDataset:
         return min(len(self.rgb_images), len(self.depth_images))
 
 
-_INV_Y_MTX = torch.eye(4)
+_INV_Y_MTX = torch.eye(4, dtype=torch.double)
 _INV_Y_MTX[1, 1] = -1
 
 
