@@ -8,6 +8,7 @@
 
 namespace fiontb {
 
+namespace {
 struct AccumKernel {
   const SurfelCloudAccessor<kCPU> surfels;
   const int64_t feature_size;
@@ -21,7 +22,6 @@ struct AccumKernel {
 
   void operator()(int idx) {
     const Eigen::Vector3f point = surfels.position(idx);
-
     SurfelVolume::Surfel &surfel = volume(point);
 
     surfel.point += point;
@@ -40,12 +40,12 @@ struct AccumKernel {
   }
 };
 
-struct MergeKernel {
+struct AverageKernel {
   HashVolume<SurfelVolume::Surfel> &volume;
   const typename Accessor<kCPU, int32_t, 1>::T voxel_ids;
 
-  MergeKernel(HashVolume<SurfelVolume::Surfel> &volume,
-              const torch::Tensor &voxel_ids)
+  AverageKernel(HashVolume<SurfelVolume::Surfel> &volume,
+                const torch::Tensor &voxel_ids)
       : volume(volume), voxel_ids(Accessor<kCPU, int32_t, 1>::Get(voxel_ids)) {}
 
   void operator()(int idx) {
@@ -61,7 +61,7 @@ struct MergeKernel {
     surfel.time = int(float(surfel.time) * inv_count);
     surfel.count = 1;
 
-    if (surfel.feature_allocated) {
+    if (surfel.has_feature()) {
       auto acc = surfel.feature.accessor<float, 1>();
       for (int64_t i = 0; i < surfel.feature.size(0); ++i) {
         acc[i] *= inv_count;
@@ -69,56 +69,61 @@ struct MergeKernel {
     }
   }
 };
+}  // namespace
 
 void SurfelVolume::Merge(const SurfelCloud &surfels) {
   AccumKernel accum_kernel(surfels, volume_);
   Launch1DKernelCPU(accum_kernel, surfels.get_size(), true);
 
   torch::Tensor voxel_ids = volume_.GetVoxelIDs();
-  MergeKernel merge_kernel(volume_, voxel_ids);
-  Launch1DKernelCPU(merge_kernel, voxel_ids.size(0));
+  AverageKernel merge_kernel(volume_, voxel_ids);
+  Launch1DKernelCPU(merge_kernel, voxel_ids.size(0), true);
 }
 
+namespace {
 struct ToCloudKernel {
   const HashVolume<SurfelVolume::Surfel> &volume;
-  const typename Accessor<kCPU, int32_t, 1>::T accum_voxels;
+  const typename Accessor<kCPU, int32_t, 1>::T voxel_ids;
   SurfelCloudAccessor<kCPU> out_surfels;
-  const int64_t feature_size;
+  const int feature_size;
 
-  ToCloudKernel(const HashVolume<SurfelVolume::Surfels> &volume,
-                const torch::Tensor &accum_voxels, SurfelCloud out_surfels)
+  ToCloudKernel(const HashVolume<SurfelVolume::Surfel> &volume,
+                const torch::Tensor &voxel_ids, SurfelCloud &out_surfels)
       : volume(volume),
-        accum_voxels(Accessor<kCPU, int32_t, 1>::Get(accum_voxels)),
+        voxel_ids(Accessor<kCPU, int32_t, 1>::Get(voxel_ids)),
         out_surfels(out_surfels),
         feature_size(out_surfels.get_feature_size()) {}
 
   void operator()(int idx) {
-    const int voxel_id = accum_voxels[idx];
+    const int voxel_id = voxel_ids[idx];
 
     HashVolume<SurfelVolume::Surfel>::const_iterator found =
         volume.FindId(voxel_id);
-    if (found != volume.end()) {
-      const SurfelVolume::Surfel accum = found->second;
-      out_surfels.set_position(idx, accum.point / accum.count);
-      out_surfels.set_normal(idx, accum.normal / accum.count);
-      out_surfels.set_color(idx, accum.color / accum.count);
-      out_surfels.confidences[idx] = accum.confidence / accum.count;
-      out_surfels.radii[idx] = accum.radius / accum.count;
-      out_surfels.times[idx] = accum.time / accum.count;
+    if (found == volume.end()) {
+      return;
+    }
+    const SurfelVolume::Surfel accum = found->second;
+    const float inv_count = 1.0f / float(accum.count);
+    out_surfels.set_position(idx, accum.point * inv_count);
+    out_surfels.set_normal(idx, accum.normal * inv_count);
+    out_surfels.set_color(idx, accum.color * inv_count);
+    out_surfels.confidences[idx] = accum.confidence * inv_count;
+    out_surfels.radii[idx] = accum.radius * inv_count;
+    out_surfels.times[idx] = int(float(accum.time) * inv_count);
 
-      const auto acc = accum.feature.accessor<float, 1>();
-      for (int64_t i = 0; i < feature_size; ++i) {
-        out_surfels.features[i][idx] = acc[i];
-      }
+    const auto acc = accum.feature.accessor<float, 1>();
+    for (int64_t i = 0; i < feature_size; ++i) {
+      out_surfels.features[i][idx] = acc[i]*inv_count;
     }
   }
 };
-void SurfelVolume::ToCloud(SurfelCloud out) const {
-  torch::Tensor voxel_ids = accum_volume.GetVoxelIDs();
-  out_surfel_cloud.Allocate(voxel_ids.size(0), surfel_cloud.get_feature_size(),
-                            torch::kCPU);
+}  // namespace
 
-  MergeKernel merge_kernel(*this, voxel_ids, out_surfel_cloud);
-  Launch1DKernelCPU(merge_kernel, voxel_ids.size(0));
+void SurfelVolume::ToSurfelCloud(SurfelCloud &out) const {
+  torch::Tensor voxel_ids = volume_.GetVoxelIDs();
+  out.Allocate(voxel_ids.size(0), feature_size_, torch::kCPU);
+
+  ToCloudKernel to_cloud_kernel(volume_, voxel_ids, out);
+  Launch1DKernelCPU(to_cloud_kernel, voxel_ids.size(0));
 }
 }  // namespace fiontb

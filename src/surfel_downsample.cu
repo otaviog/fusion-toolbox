@@ -166,6 +166,8 @@ struct MergeKernel {
 
 void SurfelOp::Downsample(const SurfelCloud &surfel_cloud, float voxel_size,
                           SurfelCloud &out_surfel_cloud) {
+  surfel_cloud.CheckDevice(torch::kCPU);
+  
   const AABB cloud_box(surfel_cloud.positions);
   SurfelAccumVolume<kCPU> accum_volume(cloud_box, voxel_size);
 

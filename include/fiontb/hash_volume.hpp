@@ -16,13 +16,23 @@ class HashVolume {
   typedef typename MapType::iterator iterator;
   typedef typename MapType::const_iterator const_iterator;
 
-  HashVolume(const AABB &aabb, float voxel_size)
-      : min_point(aabb.get_min()), voxel_size(voxel_size) {
-    const Eigen::Vector3f dim_dists = aabb.get_max() - aabb.get_min();
-    dims[0] = dim_dists[2] / voxel_size;
-    dims[1] = dim_dists[1] / voxel_size;
-    dims[2] = dim_dists[0] / voxel_size;
+  HashVolume(const Eigen::Vector3f &min_point, const Eigen::Vector3f &max_point,
+             float voxel_size)
+      : min_point_(min_point), voxel_size_(voxel_size) {
+    const Eigen::Vector3f dim_dists = max_point - min_point;
+    depth = dim_dists[2] / voxel_size_;
+    height = dim_dists[1] / voxel_size_;
+    width = dim_dists[0] / voxel_size_;
   }
+
+  HashVolume(const AABB &aabb, float voxel_size)
+      : min_point_(aabb.get_min()), voxel_size_(voxel_size) {
+    const Eigen::Vector3f dim_dists = aabb.get_max() - aabb.get_min();
+    depth = dim_dists[2] / voxel_size_;
+    height = dim_dists[1] / voxel_size_;
+    width = dim_dists[0] / voxel_size_;
+  }
+
   CellType &operator()(const Eigen::Vector3f &point) {
     return volume_[Hash(point)];
   }
@@ -58,17 +68,17 @@ class HashVolume {
     return Hash(point[0], point[1], point[2]);
   }
   int64_t Hash(float x, float y, float z) {
-    const int col = (x - min_point[0]) / voxel_size;
-    const int row = (y - min_point[1]) / voxel_size;
-    const int depth = (z - min_point[2]) / voxel_size;
+    const int col = (x - min_point_[0]) / voxel_size_;
+    const int row = (y - min_point_[1]) / voxel_size_;
+    const int depth = (z - min_point_[2]) / voxel_size_;
 
-    const int voxel_id = depth * dims[0] * dims[1] + row * dims[2] + col;
+    const int voxel_id = depth * width * height + row * width + col;
     return voxel_id;
   }
 
   MapType volume_;
-  Eigen::Vector3f min_point;
-  float voxel_size;
-  int dims[3];
+  Eigen::Vector3f min_point_;
+  float voxel_size_;
+  int depth, height, width;
 };
 }  // namespace fiontb

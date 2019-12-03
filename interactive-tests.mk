@@ -150,11 +150,14 @@ fiontb.pose.autogradicp.pcl-rgbd-real:
 fiontb.surfel-adding:
 	python3 -m fiontb._test.test_surfel adding
 
+fiontb.surfel-transform:
+	python3 -m fiontb._test.test_surfel transform
+
 fiontb.surfel-downsample:
 	python3 -m fiontb._test.test_surfel downsample
 
-fiontb.surfel-transform:
-	python3 -m fiontb._test.test_surfel transform
+fiontb.surfel-merge:
+	python3 -m fiontb._test.test_surfel merge
 
 fiontb.viz.surfelrender:
 	python3 -m fiontb.viz.surfelrender

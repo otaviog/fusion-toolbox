@@ -22,6 +22,8 @@ cuda_add_library(fiontb
   surfel.cpp
   surfel.cu
   surfel_downsample.cu
+  surfel_volume.cpp
+  surfel_volume.cu
   surfel_allocator.cpp
   surfel_fusion.cpp
   surfel_fusion_update.cu

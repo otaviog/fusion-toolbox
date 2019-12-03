@@ -16,6 +16,7 @@
 #include "so3.hpp"
 #include "surfel.hpp"
 #include "surfel_fusion.hpp"
+#include "surfel_volume.hpp"
 #include "trigoctree.hpp"
 
 using namespace std;
@@ -46,5 +47,6 @@ PYBIND11_MODULE(_cfiontb, m) {
   SurfelCloud::RegisterPybind(m);
   ElasticFusionOp::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
+  SurfelVolume::RegisterPybind(m);
   FSFOp::RegisterPybind(m);
 }

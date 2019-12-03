@@ -8,7 +8,8 @@ from fiontb.camera import RigidTransform, normal_transform_matrix
 from fiontb._cfiontb import (
     SurfelOp as _SurfelOp,
     MappedSurfelModel, SurfelAllocator as _SurfelAllocator,
-    SurfelCloud as CppSurfelCloud)
+    SurfelCloud as CppSurfelCloud,
+    SurfelVolume as _SurfelVolume)
 import fiontb._utils as _utils
 
 
@@ -59,6 +60,24 @@ def compute_confidences(frame_pcl, no_mask=False):
     return confidences
 
 
+class SurfelVolume(_SurfelVolume):
+
+    def __init__(self, aabb, voxel_size, feature_size=None):        
+        super().__init__(aabb[0, :], aabb[1, :],
+                         voxel_size,
+                         (feature_size
+                          if feature_size is not None else -1))
+
+    def merge(self, surfels):
+        super().merge(surfels.to_cpp_())
+
+    def to_surfel_cloud(self):
+        surfel_cloud = CppSurfelCloud()
+        super().to_surfel_cloud(surfel_cloud)
+
+        return SurfelCloud._from_cpp_handle(surfel_cloud)
+
+
 class SurfelCloud:
     def __init__(self, positions, confidences, normals, radii,
                  colors, times, features=None):
@@ -106,6 +125,16 @@ class SurfelCloud:
                                   features=features)
 
     @classmethod
+    def _from_cpp_handle(cls, handle):
+        return cls(handle.positions,
+                   handle.confidences,
+                   handle.normals,
+                   handle.radii,
+                   handle.colors,
+                   handle.times,
+                   handle.features)
+
+    @classmethod
     def empty(cls, size, device="cpu:0", feature_size=None):
         return cls(torch.empty((size, 3), device=device, dtype=torch.float),
                    torch.empty((size), device=device, dtype=torch.float),
@@ -115,8 +144,7 @@ class SurfelCloud:
                    torch.empty((size), device=device, dtype=torch.int32),
                    (torch.empty((feature_size, size), device=device, dtype=torch.float)
                     if feature_size is not None else None))
-                               
-                               
+
     @property
     def device(self):
         return self.positions.device
@@ -156,21 +184,6 @@ class SurfelCloud:
                            transform.transform_normals(self.normals),
                            self.radii, self.colors, self.times)
 
-    def merge(self, other, k=1, max_merge_distance=0.05):
-        from scipy.spatial.ckdtree import cKDTree
-        tree = cKDTree(self.positions.cpu())
-        distances, index = tree.query(other.positions.cpu(),
-                                      k=k,
-                                      distance_upper_bound=max_merge_distance)
-        index = torch.from_numpy(index).view(-1, k)
-        size = self.size + (index[:, 0] == tree.n).sum()
-        merged = SurfelCloud.empty(size, device=self.device, feature_size=self.feature_size)
-
-
-        _SurfelOp.merge(self.to_cpp_(), other.to_cpp_(), torch.from_numpy(index),
-                        merged.to_cpp_())
-        return merged
-                       
     def to(self, device):
         return SurfelCloud(self.positions.to(device),
                            self.confidences.to(device),
@@ -203,16 +216,15 @@ class SurfelCloud:
         return params
 
     def downsample(self, voxel_size):
-        ds_surfels = CppSurfelCloud()
-        _SurfelOp.downsample(self.to_cpp_(), voxel_size, ds_surfels)
-        return SurfelCloud(ds_surfels.positions,
-                           ds_surfels.confidences,
-                           ds_surfels.normals,
-                           ds_surfels.radii,
-                           ds_surfels.colors,
-                           ds_surfels.times,
-                           ds_surfels.features
-                           )
+        min_pos = self.positions.min(0)[0].tolist()
+        max_pos = self.positions.max(0)[0].tolist()
+
+        volume = SurfelVolume(
+            torch.tensor([[min_pos[0], min_pos[1], min_pos[2]],
+                          [max_pos[0], max_pos[1], max_pos[2]]]),
+            voxel_size, self.feature_size)
+        volume.merge(self)
+        return volume.to_surfel_cloud()
 
     def __getitem__(self, *args):
         return SurfelCloud(
