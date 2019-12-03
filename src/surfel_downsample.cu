@@ -148,16 +148,18 @@ struct MergeKernel {
     SurfelAccum accum;
     accum_volume.Find(voxel_id, &accum);
 
-    out_surfels.set_position(idx, accum.point / accum.count);
-    out_surfels.set_normal(idx, accum.normal / accum.count);
-    out_surfels.set_color(idx, accum.color / accum.count);
-    out_surfels.confidences[idx] = accum.confidence / accum.count;
-    out_surfels.radii[idx] = accum.radius / accum.count;
-    out_surfels.times[idx] = accum.time / accum.count;
+	const float inv_accum_count = 1.0f / float(accum.count);
+    out_surfels.set_position(idx, accum.point * inv_accum_count);
+    out_surfels.set_normal(idx, accum.normal * inv_accum_count);
+    out_surfels.set_color(idx, accum.color * inv_accum_count);
+    out_surfels.confidences[idx] = accum.confidence * inv_accum_count;
+    out_surfels.radii[idx] = accum.radius * inv_accum_count;
+    out_surfels.times[idx] = accum.time * inv_accum_count;
 
     const auto acc = accum.feature.accessor<float, 1>();
+	
     for (int64_t i = 0; i < feature_size; ++i) {
-      out_surfels.features[i][idx] = acc[i];
+      out_surfels.features[i][idx] = acc[i] * inv_accum_count;
     }
   }
 };

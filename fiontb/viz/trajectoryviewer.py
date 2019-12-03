@@ -63,13 +63,13 @@ class TrajectoryViewer:
 
             key = chr(key & 0xff)
             if key == '1':
-                viewer.camera_matrix = torch.tensor(
+                viewer.view_matrix = torch.tensor(
                     [[1, 0, 0, 0],
                      [0, 0, 1, 0],
                      [0, 1, 0, -5],
                      [0, 0, 0, 1]], dtype=torch.float)
             elif key == '2':
-                viewer.camera_matrix = torch.tensor(
+                viewer.view_matrix = torch.tensor(
                     [[1, 0, 0, 0],
                      [0, 1, 0, 0],
                      [0, 0, -1, -5],

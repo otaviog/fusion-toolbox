@@ -31,9 +31,11 @@ class TestDatatype:
                            "../../test-data/rgbd/sample2")
 
         live_surfels = SurfelCloud.from_frame(dataset[0])
+        live_surfels.features = torch.rand(16, live_surfels.size)
 
         downsampled = live_surfels.downsample(0.05)
-
+        print(live_surfels.features[:, 100:105])
+        print(downsampled.features[:, 100:105])
         show_surfels(tenviz.Context(), [live_surfels, downsampled])
 
     def transform(self):
@@ -52,7 +54,8 @@ class TestDatatype:
 
         surfels1.itransform(transformation)
 
-        show_surfels(tenviz.Context(), [surfels0, surfels1, surfels0.transform(transformation)])
+        show_surfels(tenviz.Context(), [
+                     surfels0, surfels1, surfels0.transform(transformation)])
 
 
 if __name__ == '__main__':

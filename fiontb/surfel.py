@@ -165,7 +165,10 @@ class SurfelCloud:
         index = torch.from_numpy(index).view(-1, k)
         size = self.size + (index[:, 0] == tree.n).sum()
         merged = SurfelCloud.empty(size, device=self.device, feature_size=self.feature_size)
-        _SurfelOp.merge(self.to_cpp_(), other.to_cpp_(), merged.to_cpp_())
+
+
+        _SurfelOp.merge(self.to_cpp_(), other.to_cpp_(), torch.from_numpy(index),
+                        merged.to_cpp_())
         return merged
                        
     def to(self, device):
@@ -208,7 +211,7 @@ class SurfelCloud:
                            ds_surfels.radii,
                            ds_surfels.colors,
                            ds_surfels.times,
-                           # ds_surfels.features
+                           ds_surfels.features
                            )
 
     def __getitem__(self, *args):
