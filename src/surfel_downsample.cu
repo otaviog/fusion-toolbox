@@ -179,4 +179,6 @@ void SurfelOp::Downsample(const SurfelCloud &surfel_cloud, float voxel_size,
   MergeKernel<kCPU> merge_kernel(accum_volume, voxel_ids, out_surfel_cloud);
   Launch1DKernelCPU(merge_kernel, voxel_ids.size(0));
 }
+
+
 };  // namespace fiontb
