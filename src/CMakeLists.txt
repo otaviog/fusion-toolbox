@@ -21,7 +21,7 @@ cuda_add_library(fiontb
   matching.cpp
   surfel.cpp
   surfel.cu
-  surfel_downsample.cu
+  # surfel_downsample.cu
   surfel_volume.cpp
   surfel_volume.cu
   surfel_allocator.cpp
@@ -33,9 +33,7 @@ cuda_add_library(fiontb
   surfel_fusion_copy_features.cu
   elastic_fusion.cpp
   elastic_fusion_update.cu
-  elastic_fusion_clean.cu
-  fsf.cpp
-  fsf_merge_surfels.cu)
+  elastic_fusion_clean.cu)
 
 target_include_directories(fiontb
   PUBLIC

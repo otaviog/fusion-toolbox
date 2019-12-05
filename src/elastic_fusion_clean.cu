@@ -54,7 +54,7 @@ struct CleanKernel {
       return;
     }
 
-    const Eigen::Vector3f model_xyz = model.position(model_idx);
+    const Eigen::Vector3f model_xyz = model.point(model_idx);
 
     const Eigen::Vector3f model_local_xyz = inverse_rt.Transform(model_xyz);
 
@@ -86,7 +86,7 @@ struct CleanKernel {
         if (model_indexmap.confidence(krow, kcol) < stable_conf_thresh)
           continue;
 
-        const Eigen::Vector3f im_xyz = model_indexmap.position(krow, kcol);
+        const Eigen::Vector3f im_xyz = model_indexmap.point(krow, kcol);
         const float im_conf = model_indexmap.confidence(krow, kcol);
 
         if (im_conf > stable_conf_thresh && im_xyz[2] > model_local_xyz[2] &&

@@ -12,23 +12,23 @@ class module;
 
 namespace fiontb {
 struct IndexMap {
-  torch::Tensor position_confidence, normal_radius, color, indexmap;
+  torch::Tensor point_confidence, normal_radius, color, indexmap;
 
   static void RegisterPybind(pybind11::module &m);
 
-  int get_width() const { return position_confidence.size(1); }
+  int get_width() const { return point_confidence.size(1); }
 
-  int get_height() const { return position_confidence.size(0); }
+  int get_height() const { return point_confidence.size(0); }
 
   void Synchronize();
 
   const torch::Device get_device() const {
-    return position_confidence.device();
+    return point_confidence.device();
   }
 
   IndexMap To(const std::string &dev) const {
     IndexMap result;
-    result.position_confidence = position_confidence.to(dev);
+    result.point_confidence = point_confidence.to(dev);
     result.normal_radius = normal_radius.to(dev);
     result.color = color.to(dev);
     result.indexmap = indexmap.to(dev);
@@ -36,7 +36,7 @@ struct IndexMap {
   }
 
   void CheckDevice(const torch::Device &dev) const {
-    FTB_CHECK_DEVICE(dev, position_confidence);
+    FTB_CHECK_DEVICE(dev, point_confidence);
     FTB_CHECK_DEVICE(dev, normal_radius);
     FTB_CHECK_DEVICE(dev, color);
     FTB_CHECK_DEVICE(dev, indexmap);
@@ -44,12 +44,12 @@ struct IndexMap {
 };
 
 struct MappedSurfelModel {
-  torch::Tensor positions, confidences, normals, radii, colors, times, features;
+  torch::Tensor points, confidences, normals, radii, colors, times, features;
 
   static void RegisterPybind(pybind11::module &m);
 
   void CheckDevice(const torch::Device &dev) const {
-    FTB_CHECK_DEVICE(dev, positions);
+    FTB_CHECK_DEVICE(dev, points);
     FTB_CHECK_DEVICE(dev, confidences);
     FTB_CHECK_DEVICE(dev, normals);
     FTB_CHECK_DEVICE(dev, radii);

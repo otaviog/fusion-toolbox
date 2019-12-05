@@ -7,7 +7,6 @@
 
 #include "camera.hpp"
 #include "elastic_fusion.hpp"
-#include "fsf.hpp"
 #include "icpodometry.hpp"
 #include "matching.hpp"
 #include "mesh.hpp"
@@ -48,5 +47,4 @@ PYBIND11_MODULE(_cfiontb, m) {
   ElasticFusionOp::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
   SurfelVolume::RegisterPybind(m);
-  FSFOp::RegisterPybind(m);
 }

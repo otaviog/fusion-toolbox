@@ -79,9 +79,9 @@ class SurfelVolume(_SurfelVolume):
 
 
 class SurfelCloud:
-    def __init__(self, positions, confidences, normals, radii,
+    def __init__(self, points, confidences, normals, radii,
                  colors, times, features=None):
-        self.positions = positions
+        self.points = points
         self.confidences = confidences
         self.normals = normals
         self.radii = radii
@@ -126,7 +126,7 @@ class SurfelCloud:
 
     @classmethod
     def _from_cpp_handle(cls, handle):
-        return cls(handle.positions,
+        return cls(handle.points,
                    handle.confidences,
                    handle.normals,
                    handle.radii,
@@ -147,11 +147,11 @@ class SurfelCloud:
 
     @property
     def device(self):
-        return self.positions.device
+        return self.points.device
 
     @property
     def size(self):
-        return self.positions.size(0)
+        return self.points.size(0)
 
     @property
     def has_features(self):
@@ -163,7 +163,7 @@ class SurfelCloud:
             return self.features.size(0)
 
     def clone(self):
-        return SurfelCloud(self.positions.clone(),
+        return SurfelCloud(self.points.clone(),
                            self.confidences.clone(),
                            self.normals.clone(),
                            self.radii.clone(),
@@ -173,19 +173,19 @@ class SurfelCloud:
 
     def itransform(self, matrix):
         transform = RigidTransform(matrix.float().to(self.device))
-        transform.inplace(self.positions)
+        transform.inplace(self.points)
         transform.inplace_normals(self.normals)
 
     def transform(self, matrix):
         transform = RigidTransform(matrix.float().to(self.device))
 
-        return SurfelCloud(transform @ self.positions,
+        return SurfelCloud(transform @ self.points,
                            self.confidences,
                            transform.transform_normals(self.normals),
                            self.radii, self.colors, self.times)
 
     def to(self, device):
-        return SurfelCloud(self.positions.to(device),
+        return SurfelCloud(self.points.to(device),
                            self.confidences.to(device),
                            self.normals.to(device),
                            self.radii.to(device),
@@ -197,11 +197,11 @@ class SurfelCloud:
     def as_point_cloud(self):
         from fiontb.pointcloud import PointCloud
 
-        return PointCloud(self.positions, self.colors, self.normals)
+        return PointCloud(self.points, self.colors, self.normals)
 
     def to_cpp_(self):
         params = CppSurfelCloud()
-        params.positions = self.positions
+        params.points = self.points
         params.confidences = self.confidences
         params.normals = self.normals
         params.radii = self.radii
@@ -216,8 +216,8 @@ class SurfelCloud:
         return params
 
     def downsample(self, voxel_size):
-        min_pos = self.positions.min(0)[0].tolist()
-        max_pos = self.positions.max(0)[0].tolist()
+        min_pos = self.points.min(0)[0].tolist()
+        max_pos = self.points.max(0)[0].tolist()
 
         volume = SurfelVolume(
             torch.tensor([[min_pos[0], min_pos[1], min_pos[2]],
@@ -228,7 +228,7 @@ class SurfelCloud:
 
     def __getitem__(self, *args):
         return SurfelCloud(
-            self.positions[args],
+            self.points[args],
             self.confidences[args],
             self.normals[args],
             self.radii[args],
@@ -239,13 +239,13 @@ class SurfelCloud:
 
 
 class _MappedSurfelModelContext:
-    def __init__(self, positions_map,
+    def __init__(self, points_map,
                  confidences_map,
                  normals_map,
                  radii_map,
                  colors_map,
                  times_map, features):
-        self.positions_map = positions_map
+        self.points_map = points_map
         self.confidences_map = confidences_map
         self.normals_map = normals_map
         self.radii_map = radii_map
@@ -255,7 +255,7 @@ class _MappedSurfelModelContext:
 
     def __enter__(self):
         params = MappedSurfelModel()
-        params.positions = self.positions_map.tensor
+        params.points = self.points_map.tensor
         params.confidences = self.confidences_map.tensor.squeeze()
         params.normals = self.normals_map.tensor
         params.radii = self.radii_map.tensor.squeeze()
@@ -267,13 +267,13 @@ class _MappedSurfelModelContext:
         else:
             params.features = torch.empty(
                 (0, 0),
-                device=params.positions.device,
+                device=params.points.device,
                 dtype=torch.float)
 
         return params
 
     def __exit__(self, *args):
-        self.positions_map.unmap()
+        self.points_map.unmap()
         self.confidences_map.unmap()
         self.normals_map.unmap()
         self.radii_map.unmap()
@@ -282,13 +282,13 @@ class _MappedSurfelModelContext:
 
 
 class _CPUCopySurfelModelContext:
-    def __init__(self, positions_buff,
+    def __init__(self, points_buff,
                  confidences_buff,
                  normals_buff,
                  radii_buff,
                  colors_buff,
                  times_buff, features):
-        self.positions_buff = positions_buff
+        self.points_buff = points_buff
         self.confidences_buff = confidences_buff
         self.normals_buff = normals_buff
         self.radii_buff = radii_buff
@@ -299,7 +299,7 @@ class _CPUCopySurfelModelContext:
 
     def __enter__(self):
         params = MappedSurfelModel()
-        params.positions = self.positions_buff.to_tensor(False)
+        params.points = self.points_buff.to_tensor(False)
         params.confidences = self.confidences_buff.to_tensor(False).squeeze()
         params.normals = self.normals_buff.to_tensor(False)
         params.radii = self.radii_buff.to_tensor(False).squeeze()
@@ -317,7 +317,7 @@ class _CPUCopySurfelModelContext:
 
     def __exit__(self, *args):
         params = self._params
-        self.positions_buff.from_tensor(params.positions)
+        self.points_buff.from_tensor(params.points)
         self.confidences_buff.from_tensor(params.confidences)
         self.normals_buff.from_tensor(params.normals)
         self.radii_buff.from_tensor(params.radii)
@@ -362,7 +362,7 @@ class SurfelModel:
         self.allocator = SurfelAllocator(max_surfels)
 
         with self.gl_context.current():
-            self.positions = tenviz.buffer_empty(
+            self.points = tenviz.buffer_empty(
                 max_surfels, 3, tenviz.DType.Float)
             self.normals = tenviz.buffer_empty(
                 max_surfels, 3, tenviz.DType.Float)
@@ -402,7 +402,7 @@ class SurfelModel:
     def map_as_tensors(self, device=None):
         if device is None or torch.device(device).type != 'cpu':
             return _MappedSurfelModelContext(
-                self.positions.as_tensor_(),
+                self.points.as_tensor_(),
                 self.confidences.as_tensor_(),
                 self.normals.as_tensor_(),
                 self.radii.as_tensor_(),
@@ -410,7 +410,7 @@ class SurfelModel:
                 self.times.as_tensor_(), self.features)
 
         return _CPUCopySurfelModelContext(
-            self.positions,
+            self.points,
             self.confidences,
             self.normals,
             self.radii,
@@ -422,7 +422,7 @@ class SurfelModel:
         active_indices = active_mask.nonzero().to(self.device).squeeze()
         with self.gl_context.current():
             with self.map_as_tensors() as mapped:
-                cloud = SurfelCloud(mapped.positions[active_indices].clone(),
+                cloud = SurfelCloud(mapped.points[active_indices].clone(),
                                     mapped.confidences[active_indices].clone(),
                                     mapped.normals[active_indices].clone(),
                                     mapped.radii[active_indices].clone(),
@@ -445,7 +445,7 @@ class SurfelModel:
         new_surfels = new_surfels.to(self.device)
         with self.gl_context.current():
             with self.map_as_tensors() as mapped:
-                mapped.positions[new_indices] = new_surfels.positions
+                mapped.points[new_indices] = new_surfels.points
                 mapped.colors[new_indices] = new_surfels.colors
                 mapped.normals[new_indices] = new_surfels.normals
                 mapped.radii[new_indices] = new_surfels.radii
@@ -465,7 +465,7 @@ class SurfelModel:
         clone = SurfelModel(self.gl_context, self.max_surfels)
 
         with self.gl_context.current():
-            clone.positions.from_tensor(self.positions.to_tensor())
+            clone.points.from_tensor(self.points.to_tensor())
             clone.normals.from_tensor(self.normals.to_tensor())
             clone.colors.from_tensor(self.colors.to_tensor())
             clone.radii.from_tensor(self.radii.to_tensor())

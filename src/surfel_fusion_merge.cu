@@ -38,7 +38,7 @@ struct FindMergesKernel {
     if (model.empty(row, col)) return;
     if (model.confidence(row, col) < stable_conf_thresh) return;
 
-    const Eigen::Vector3f pos = model.position(row, col);
+    const Eigen::Vector3f pos = model.point(row, col);
     const Eigen::Vector3f normal = model.normal(row, col);
     const float radius = model.radius(row, col);
 
@@ -58,7 +58,7 @@ struct FindMergesKernel {
         if (model.empty(krow, kcol)) continue;
         if (model.confidence(krow, kcol) < stable_conf_thresh) continue;
 
-        const Eigen::Vector3f neighbor_pos = model.position(krow, kcol);
+        const Eigen::Vector3f neighbor_pos = model.point(krow, kcol);
 
         const Eigen::Vector3f neighbor_normal = model.normal(krow, kcol);
         const float neighbor_radius = model.radius(krow, kcol);
@@ -135,8 +135,8 @@ struct MergeKernel {
     const float src_conf = model.confidences[source_idx];
     const float conf_total = tgt_conf + src_conf;
 
-    model.set_position(target_idx, (model.position(target_idx) * tgt_conf +
-                                    model.position(source_idx) * src_conf) /
+    model.set_point(target_idx, (model.point(target_idx) * tgt_conf +
+                                    model.point(source_idx) * src_conf) /
                                        conf_total);
     model.set_normal(target_idx, (model.normal(target_idx) * tgt_conf +
                                   model.normal(source_idx) * src_conf) /

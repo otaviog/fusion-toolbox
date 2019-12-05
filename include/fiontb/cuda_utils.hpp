@@ -51,17 +51,4 @@ CudaKernelDims Get1DKernelDims(int size);
 
 CudaKernelDims Get2DKernelDims(int width, int height);
 
-#ifdef __CUDACC__
-template <typename scalar_t, unsigned long dims>
-using PackedAccessor =
-    torch::PackedTensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
-                                size_t>;
-template <typename scalar_t, unsigned long dims>
-inline PackedAccessor<scalar_t, dims> GetPackedAccessor(torch::Tensor tensor) {
-  return tensor
-      .packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
-}
-
-#endif
-
 }  // namespace fiontb

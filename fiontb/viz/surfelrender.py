@@ -33,7 +33,7 @@ class SurfelRender(tenviz.DrawProgram):
 
             self['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-            self['in_pos'] = surfel_model.positions
+            self['in_pos'] = surfel_model.points
             self['in_normal'] = surfel_model.normals
             self['in_color'] = surfel_model.colors
             self['in_radius'] = surfel_model.radii

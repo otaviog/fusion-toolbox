@@ -26,24 +26,23 @@ using CPUAccessor = Accessor<kCPU, scalar_t, dims>;
 #ifdef __CUDACC__
 template <typename scalar_t, unsigned long dims>
 struct Accessor<kCUDA, scalar_t, dims> {
-  typedef torch::PackedTensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
-                                      size_t>
+  typedef torch::PackedTensorAccessor32<scalar_t, dims,
+                                        torch::RestrictPtrTraits>
       T;
 
   typedef torch::TensorAccessor<scalar_t, dims, torch::RestrictPtrTraits,
-                                      size_t>
-  Ts;
+                                int32_t>
+      Ts;
 
   static T Get(torch::Tensor &tensor) {
-    return tensor
-        .packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
+    return tensor.packed_accessor32<scalar_t, dims, torch::RestrictPtrTraits>();
   }
 
   static T Get(const torch::Tensor &tensor) {
-    return tensor
-        .packed_accessor<scalar_t, dims, torch::RestrictPtrTraits, size_t>();
+    return tensor.packed_accessor32<scalar_t, dims, torch::RestrictPtrTraits>();
   }
 };
+
 template <typename scalar_t, unsigned long dims>
 using CUDAAccessor = Accessor<kCUDA, scalar_t, dims>;
 #endif

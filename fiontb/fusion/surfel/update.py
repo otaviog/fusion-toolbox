@@ -18,7 +18,7 @@ class Update:
 
     def __call__(self, model_indexmap, live_surfels, kcam,
                  rt_cam, time, surfel_model):
-        ref_device = model_indexmap.position_confidence.device
+        ref_device = model_indexmap.point_confidence.device
 
         self._new_surfels_map = empty_ensured_size(
             self._new_surfels_map,

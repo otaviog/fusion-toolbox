@@ -63,18 +63,23 @@ def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.g
                     geom = geom.unordered_point_cloud(
                         world_space=False, compute_normals=False)
 
-                pcl = tenviz.nodes.create_point_cloud(
+                node = tenviz.nodes.create_point_cloud(
                     geom.points.view(-1, 3),
                     geom.colors.view(-1, 3))
-                pcl.style.point_size = int(point_size)
-                pcl.transform = transform
-                scene.append(pcl)
-            if isinstance(geom, (SurfelCloud, SurfelModel)):
+                node.style.point_size = int(point_size)
+            elif isinstance(geom, (SurfelCloud, SurfelModel)):
                 if isinstance(geom, SurfelCloud):
                     geom = SurfelModel.from_surfel_cloud(ctx, geom)
                 node = SurfelRender(geom)
-                node.transform = transform
-                scene.append(node)
+
+            elif isinstance(geom, tenviz.geometry.Geometry):
+                node = tenviz.nodes.create_mesh_from_geo(geom)
+            else:
+                print("Unknown geometry type:", type(geom))
+                continue
+
+            node.transform = transform
+            scene.append(node)
 
     viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
     viewer.title = title

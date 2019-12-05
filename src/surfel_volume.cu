@@ -21,7 +21,7 @@ struct AccumKernel {
         volume(volume) {}
 
   void operator()(int idx) {
-    const Eigen::Vector3f point = surfels.position(idx);
+    const Eigen::Vector3f point = surfels.point(idx);
     SurfelVolume::Surfel &surfel = volume(point);
 
     surfel.point += point;
@@ -104,7 +104,7 @@ struct ToCloudKernel {
     }
     const SurfelVolume::Surfel accum = found->second;
     const float inv_count = 1.0f / float(accum.count);
-    out_surfels.set_position(idx, accum.point * inv_count);
+    out_surfels.set_point(idx, accum.point * inv_count);
     out_surfels.set_normal(idx, accum.normal * inv_count);
     out_surfels.set_color(idx, accum.color * inv_count);
     out_surfels.confidences[idx] = accum.confidence * inv_count;

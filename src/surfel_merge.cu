@@ -22,7 +22,7 @@ struct MergeKernel {
         merged(merged) {}
 
   FTB_DEVICE_HOST void operator()(int idx) {
-    Eigen::Vector3f pos = other.position(idx);
+    Eigen::Vector3f pos = other.point(idx);
     Eigen::Vector3f normal = other.normal(idx);
     Eigen::Vector3f color = other.color(idx);
     float conf = other.confidences[idx];
@@ -34,7 +34,7 @@ struct MergeKernel {
       const int32_t self_index = index[idx][k];
       if (self_index == N) break;
 
-      pos += self.position(self_index);
+      pos += self.point(self_index);
       normal += self.normal(self_index);
       color += self.color(self_index);
       conf += self.confidences[self_index];
@@ -43,7 +43,7 @@ struct MergeKernel {
       ++count;
     }
 
-    merged.set_position(idx, pos / count);
+    merged.set_point(idx, pos / count);
     merged.set_normal(idx, normal / count);
     merged.set_color(idx, color / count);
     merged.confidences[idx] = conf / count;
@@ -54,7 +54,7 @@ struct MergeKernel {
 
 void SurfelOp::Merge(const SurfelCloud &self, const SurfelCloud &other,
                      const torch::Tensor &index, SurfelCloud merged) {
-  auto reference_dev = self.positions.device();
+  auto reference_dev = self.points.device();
   other.CheckDevice(reference_dev);
   FTB_CHECK_DEVICE(reference_dev, index);
   merged.CheckDevice(reference_dev);

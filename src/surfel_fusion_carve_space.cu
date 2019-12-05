@@ -53,7 +53,7 @@ struct CarveKernel {
     if (time - model.times[current_idx] >= stable_time_thresh) return;
 
     const Eigen::Vector3f curr_xyz =
-        inverse_rt.Transform(model.position(current_idx));
+        inverse_rt.Transform(model.point(current_idx));
     const float curr_z = curr_xyz[2];
 
     if (curr_z <= 0) return;
@@ -87,7 +87,7 @@ struct CarveKernel {
           continue;
 
         const float neighbor_z =
-            model_indexmap.position_confidence[krow][kcol][2];
+            model_indexmap.point_confidence[krow][kcol][2];
         const int neighbor_time = model_indexmap.time(krow, kcol);
 
         if (neighbor_time == time && neighbor_conf > stable_conf_thresh &&

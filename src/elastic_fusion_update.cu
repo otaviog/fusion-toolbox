@@ -39,7 +39,7 @@ struct FindMergeKernel {
   FTB_DEVICE_HOST void operator()(int live_index) {
     new_surfel_map[live_index] = false;
 
-    const Eigen::Vector3f live_pos(live_surfels.position(live_index));
+    const Eigen::Vector3f live_pos(live_surfels.point(live_index));
     int col, row;
     kcam.Projecti(live_pos, col, row);
 
@@ -68,7 +68,7 @@ struct FindMergeKernel {
       for (int kcol = xstart; kcol <= xend; kcol++) {
         if (model_indexmap.empty(krow, kcol)) continue;
 
-        const Vector<float, 3> model_pos = model_indexmap.position(krow, kcol);
+        const Vector<float, 3> model_pos = model_indexmap.point(krow, kcol);
         if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
           continue;
 
@@ -129,10 +129,10 @@ struct UpdateKernel {
     const float model_radius = model.radii[model_target];
 
     if (live_radius < (1.0 + 0.5) * model_radius) {
-      const Vector<float, 3> live_pos(live_surfels.position(live_index));
+      const Vector<float, 3> live_pos(live_surfels.point(live_index));
       const Vector<float, 3> live_world_pos = rt_cam.Transform(live_pos);
-      model.set_position(model_target,
-                         (model.position(model_target) * model_conf +
+      model.set_point(model_target,
+                         (model.point(model_target) * model_conf +
                           live_world_pos * live_conf) /
                              conf_total);
       const Vector<float, 3> live_normal(live_surfels.normal(live_index));

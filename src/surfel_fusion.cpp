@@ -20,7 +20,7 @@ void IndexMap::RegisterPybind(py::module &m) {
       .def(py::init())
       .def("to", &IndexMap::To)
       .def("synchronize", &IndexMap::Synchronize)
-      .def_readwrite("position_confidence", &IndexMap::position_confidence)
+      .def_readwrite("point_confidence", &IndexMap::point_confidence)
       .def_readwrite("normal_radius", &IndexMap::normal_radius)
       .def_readwrite("color", &IndexMap::color)
       .def_readwrite("indexmap", &IndexMap::indexmap)
@@ -32,7 +32,7 @@ void IndexMap::RegisterPybind(py::module &m) {
 void MappedSurfelModel::RegisterPybind(py::module &m) {
   py::class_<MappedSurfelModel>(m, "MappedSurfelModel")
       .def(py::init())
-      .def_readwrite("positions", &MappedSurfelModel::positions)
+      .def_readwrite("points", &MappedSurfelModel::points)
       .def_readwrite("confidences", &MappedSurfelModel::confidences)
       .def_readwrite("normals", &MappedSurfelModel::normals)
       .def_readwrite("radii", &MappedSurfelModel::radii)

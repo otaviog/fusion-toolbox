@@ -3,7 +3,6 @@
 
 from enum import Enum
 
-
 import torch
 import torch.nn.functional
 import cv2
@@ -124,6 +123,7 @@ def downsample(image, scale, method=DownsampleMethod.Nearest):
 ################################
 # Erode
 ################################
+
 
 def erode_mask(in_mask):
     out_mask = torch.empty(in_mask.size(), dtype=torch.bool,

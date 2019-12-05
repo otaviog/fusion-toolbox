@@ -29,7 +29,7 @@ class _BaseIndexMapRaster:
     def to_indexmap(self, device=None, non_blocking=False):
         with self.gl_context.current():
             indexmap = IndexMap()
-            indexmap.position_confidence = self.framebuffer[0].to_tensor(
+            indexmap.point_confidence = self.framebuffer[0].to_tensor(
                 non_blocking=non_blocking)
             indexmap.normal_radius = self.framebuffer[1].to_tensor(
                 non_blocking=non_blocking)
@@ -46,7 +46,7 @@ class _BaseIndexMapRaster:
     def to_frame(self, frame_info):
         indexmap = self.to_indexmap()
 
-        depth = indexmap.position_confidence[:, :, 2]
+        depth = indexmap.point_confidence[:, :, 2]
         color = indexmap.color.to_tensor()
 
         depth = (depth*(1.0 / frame_info.depth_scale)
@@ -58,7 +58,7 @@ class _BaseIndexMapRaster:
 
 class ModelIndexMapRaster(_BaseIndexMapRaster):
     """Rasterizer of :obj:`fiontb.fusion.surfel.model.SurfelModel` that
-    writes position, normal and the the surfels' index to
+    writes point, normal and the the surfels' index to
     framebuffers.
     """
 
@@ -78,7 +78,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
                 # ignore_missing=True
             )
 
-            self.program['in_point'] = surfel_model.positions
+            self.program['in_point'] = surfel_model.points
             self.program['in_normal'] = surfel_model.normals
             self.program['in_color'] = surfel_model.colors
             self.program['in_conf'] = surfel_model.confidences
@@ -132,7 +132,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
 
 class SurfelIndexMapRaster(_BaseIndexMapRaster):
     """Rasterizer of :obj:`fiontb.fusion.surfel.model.SurfelModel` that
-    writes position, normal and the the surfels' index to
+    writes point, normal and the the surfels' index to
     framebuffers.
     """
 
@@ -153,7 +153,7 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
                 ignore_missing=True
             )
 
-            self.program['in_point'] = surfel_model.positions
+            self.program['in_point'] = surfel_model.points
             self.program['in_normal'] = surfel_model.normals
             self.program['in_color'] = surfel_model.colors
             self.program['in_conf'] = surfel_model.confidences
@@ -221,13 +221,13 @@ def show_indexmap(indexmap, title='', debug=True, show=True):
         return
 
     plt.figure()
-    plt.title("{} - Positions".format(title))
+    plt.title("{} - Points".format(title))
     plt.subplot(2, 3, 1)
-    plt.imshow(indexmap.position_confidence[:, :, 0].cpu())
+    plt.imshow(indexmap.point_confidence[:, :, 0].cpu())
     plt.subplot(2, 3, 2)
-    plt.imshow(indexmap.position_confidence[:, :, 1].cpu())
+    plt.imshow(indexmap.point_confidence[:, :, 1].cpu())
     plt.subplot(2, 3, 3)
-    plt.imshow(indexmap.position_confidence[:, :, 2].cpu())
+    plt.imshow(indexmap.point_confidence[:, :, 2].cpu())
 
     plt.subplot(2, 3, 4)
     plt.imshow(indexmap.normal_radius.cpu())

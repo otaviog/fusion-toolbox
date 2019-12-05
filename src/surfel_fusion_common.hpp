@@ -8,7 +8,7 @@
 namespace fiontb {
 template <Device dev>
 struct SurfelModelAccessor {
-  typename Accessor<dev, float, 2>::T positions;
+  typename Accessor<dev, float, 2>::T points;
   typename Accessor<dev, float, 1>::T confidences;
   typename Accessor<dev, float, 2>::T normals;
   typename Accessor<dev, float, 1>::T radii;
@@ -17,7 +17,7 @@ struct SurfelModelAccessor {
   typename Accessor<dev, float, 2>::T features;
 
   SurfelModelAccessor(MappedSurfelModel params)
-      : positions(Accessor<dev, float, 2>::Get(params.positions)),
+      : points(Accessor<dev, float, 2>::Get(params.points)),
         confidences(Accessor<dev, float, 1>::Get(params.confidences)),
         normals(Accessor<dev, float, 2>::Get(params.normals)),
         radii(Accessor<dev, float, 1>::Get(params.radii)),
@@ -26,7 +26,7 @@ struct SurfelModelAccessor {
         features(Accessor<dev, float, 2>::Get(params.features)) {}
 
   SurfelModelAccessor(SurfelCloud params)
-      : positions(Accessor<dev, float, 2>::Get(params.positions)),
+      : points(Accessor<dev, float, 2>::Get(params.points)),
         confidences(Accessor<dev, float, 1>::Get(params.confidences)),
         normals(Accessor<dev, float, 2>::Get(params.normals)),
         radii(Accessor<dev, float, 1>::Get(params.radii)),
@@ -34,14 +34,14 @@ struct SurfelModelAccessor {
         times(Accessor<dev, int32_t, 1>::Get(params.times)),
         features(Accessor<dev, float, 2>::Get(params.features)) {}
 
-  FTB_DEVICE_HOST inline Vector<float, 3> position(int idx) const {
-    return to_vec3<float>(positions[idx]);
+  FTB_DEVICE_HOST inline Vector<float, 3> point(int idx) const {
+    return to_vec3<float>(points[idx]);
   }
 
-  FTB_DEVICE_HOST inline void set_position(int idx, Vector<float, 3> value) {
-    positions[idx][0] = value[0];
-    positions[idx][1] = value[1];
-    positions[idx][2] = value[2];
+  FTB_DEVICE_HOST inline void set_point(int idx, Vector<float, 3> value) {
+    points[idx][0] = value[0];
+    points[idx][1] = value[1];
+    points[idx][2] = value[2];
   }
 
   FTB_DEVICE_HOST inline Vector<float, 3> normal(int idx) const {
@@ -70,15 +70,14 @@ using SurfelCloudAccessor = SurfelModelAccessor<dev>;
 
 template <Device dev>
 struct IndexMapAccessor {
-  typename Accessor<dev, float, 3>::T position_confidence;
+  typename Accessor<dev, float, 3>::T point_confidence;
   typename Accessor<dev, float, 3>::T normal_radius;
   typename Accessor<dev, uint8_t, 3>::T color_;
   typename Accessor<dev, int32_t, 3>::T indexmap;
   typename Accessor<dev, int32_t, 2>::T linear_indexmap;
 
   IndexMapAccessor(const IndexMap &params)
-      : position_confidence(
-            Accessor<dev, float, 3>::Get(params.position_confidence)),
+      : point_confidence(Accessor<dev, float, 3>::Get(params.point_confidence)),
         normal_radius(Accessor<dev, float, 3>::Get(params.normal_radius)),
         color_(Accessor<dev, uint8_t, 3>::Get(params.color)),
         indexmap(Accessor<dev, int32_t, 3>::Get(params.indexmap)),
@@ -114,12 +113,12 @@ struct IndexMapAccessor {
     return indexmap[row][col][2];
   }
 
-  FTB_DEVICE_HOST inline Vector<float, 3> position(int row, int col) const {
-    return to_vec3<float>(position_confidence[row][col]);
+  FTB_DEVICE_HOST inline Vector<float, 3> point(int row, int col) const {
+    return to_vec3<float>(point_confidence[row][col]);
   }
 
   FTB_DEVICE_HOST inline float confidence(int row, int col) const {
-    return position_confidence[row][col][3];
+    return point_confidence[row][col][3];
   }
 
   FTB_DEVICE_HOST inline Vector<float, 3> normal(int row, int col) const {
@@ -134,13 +133,9 @@ struct IndexMapAccessor {
     return normal_radius[row][col][3];
   }
 
-  FTB_DEVICE_HOST inline int width() const {
-    return position_confidence.size(1);
-  }
+  FTB_DEVICE_HOST inline int width() const { return point_confidence.size(1); }
 
-  FTB_DEVICE_HOST inline int height() const {
-    return position_confidence.size(0);
-  }
+  FTB_DEVICE_HOST inline int height() const { return point_confidence.size(0); }
 };
 
 template <Device dev>
@@ -168,10 +163,12 @@ struct MergeMap<kCPU> {
 #ifdef __CUDACC__
 template <>
 struct MergeMap<kCUDA> {
-  PackedAccessor<int32_t, 3> merge_map;
+  torch::PackedTensorAccessor32<int32_t, 3, torch::RestrictPtrTraits> merge_map;
 
   MergeMap(torch::Tensor merge_map)
-      : merge_map(GetPackedAccessor<int32_t, 3>(merge_map)) {}
+      : merge_map(
+            merge_map
+                .packed_accessor32<int32_t, 3, torch::RestrictPtrTraits>()) {}
 
   __device__ inline void Set(int row, int col, int32_t dist, int32_t index) {
     int32_t *dist_addr = &merge_map[row][col][0];
