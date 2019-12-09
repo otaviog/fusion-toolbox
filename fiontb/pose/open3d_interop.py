@@ -135,6 +135,9 @@ class ColorICP:
             transform = result.transformation
 
         transform = torch.from_numpy(result.transformation)
-        return ICPResult(transform, torch.eye(6, dtype=transform.dtype),
-                         result.inlier_rmse,
+
+        hessian = open3d.registration.get_information_matrix_from_point_clouds(
+            source_pcl, target_pcl, radius, result.transformation)
+        hessian = torch.from_numpy(hessian)
+        return ICPResult(transform, hessian, result.inlier_rmse,
                          1.0)

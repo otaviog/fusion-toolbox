@@ -19,8 +19,9 @@ class DatasetViewer:
     cloud and accumulated world points.
     """
 
-    def __init__(self, dataset, title="Dataset", max_pcls=50, invert=False,
-                 camera_view=True):
+    def __init__(self, dataset, title="Dataset", max_pcls=50,
+                 width=640, height=480, invert=False,
+                 camera_view=True, trajectory_cmap="Blues", show_grid=True):
         self.dataset = dataset
         self.title = title
         self.show_mask = False
@@ -29,23 +30,25 @@ class DatasetViewer:
 
         self.cam_context = None
         if camera_view:
-            self.cam_context = tenviz.Context(640, 480)
+            self.cam_context = tenviz.Context(width, height)
 
             with self.cam_context.current():
                 # TODO: fix tensorviz creating viewer without `current()`
                 pass
             self.cam_viewer = self.cam_context.viewer(
-                [], tenviz.CameraManipulator.TrackBall)
-            self.cam_viewer.title = "{}: camera space".format(title)
+                [], tenviz.CameraManipulator.WASD)
+            self.cam_viewer.title = "{}: camera's point cloud".format(title)
             self.tv_camera_pcl = None
 
-        self.wcontext = tenviz.Context(640, 480)
+        self.wcontext = tenviz.Context(width, height)
+        scene = []
         with self.wcontext.current():
-            axis = tenviz.nodes.create_axis_grid(-1, 1, 10)
+            if show_grid:
+                scene = [tenviz.nodes.create_axis_grid(-1, 1, 10)]
 
         self.world_viewer = self.wcontext.viewer(
-            [axis], tenviz.CameraManipulator.WASD)
-        self.world_viewer.title = "{}: world space".format(title)
+            scene, tenviz.CameraManipulator.WASD)
+        self.world_viewer.title = "{}: accumulated point clouds".format(title)
         self.pcl_deque = deque()
 
         self.visited_idxs = set()
@@ -53,6 +56,8 @@ class DatasetViewer:
         self._show_cams = True
         self.max_pcls = max_pcls
 
+        self._trajectory_cmap = get_cmap(trajectory_cmap, len(dataset))
+        
     def _set_model(self, frame, idx):
         finfo = frame.info
         cmap = get_cmap('viridis', finfo.depth_max)
@@ -84,7 +89,7 @@ class DatasetViewer:
                 self.tv_camera_pcl = tenviz.nodes.create_point_cloud(
                     cam_space, pcl.colors)
             self.cam_viewer.get_scene().add(self.tv_camera_pcl)
-            self.cam_viewer.reset_view()
+            # self.cam_viewer.reset_view()
             self.cam_context.collect_garbage()
 
         cam_proj = tenviz.Projection.from_intrinsics(
@@ -114,10 +119,14 @@ class DatasetViewer:
         with self.wcontext.current():
             pcl = tenviz.nodes.create_point_cloud(world_space, colors)
             self.world_viewer.get_scene().add(pcl)
+
+            vcam_color = self._trajectory_cmap(idx)[:3]
             vcam = tenviz.nodes.create_virtual_camera(
                 cam_proj,
-                np.linalg.inv(rt_cam.opengl_view_cam))
+                np.linalg.inv(rt_cam.opengl_view_cam),
+                color=vcam_color, line_width=1, show_axis=False)
             vcam.visible = self._show_cams
+            
             self.world_viewer.get_scene().add(vcam)
 
             self.pcl_deque.append((pcl, vcam))

@@ -99,7 +99,7 @@ class SurfelReconstructionUI:
         good_confs = cloud.confidences > self.stable_conf_thresh
         cloud = cloud[good_confs]
         tenviz.io.write_3dobject(
-            output_filename, cloud.positions.cpu().numpy(),
+            output_filename, cloud.points.cpu().numpy(),
             normals=cloud.normals,
             colors=cloud.colors)
 

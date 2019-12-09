@@ -33,7 +33,7 @@ class InitialAlign(rflow.Interface):
 
         transform = initial_matrix
 
-        mov_pcl = mov_pcl.transform(transform)
+        mov_pcl = mov_pcl.transform(transform.float())
 
         return mov_pcl
 
@@ -134,12 +134,14 @@ class ChamferMetric(rflow.Interface):
 class NearestPoints(rflow.Interface):
     def evaluate(self, resource, rec_pcl, gt_mesh):
         import torch
+        import tenviz
 
         from fiontb.metrics.mesh import mesh_accuracy
         from fiontb.spatial.trigoctree import TrigOctree
 
+        faces = tenviz.geometry.to_triangles(gt_mesh.faces)
         tree = TrigOctree(gt_mesh.verts,
-                          gt_mesh.faces.long(), 1024)
+                          faces.long(), 1024)
         gt_points, _ = tree.query_closest_points(rec_pcl.points)
 
         torch.save(gt_points, resource.filepath)

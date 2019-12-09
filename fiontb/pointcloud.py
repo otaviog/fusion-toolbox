@@ -22,7 +22,7 @@ class PointCloud:
         Cloud.
         """
         return cls(torch.from_numpy(np.array(pcl.points, dtype=np.float32)),
-                   torch.from_numpy(np.array(pcl.colors, dtype=np.uint8)),
+                   torch.from_numpy((np.array(pcl.colors)*255.0)).byte(),
                    torch.from_numpy(np.array(pcl.normals, dtype=np.float32)))
 
     @staticmethod
