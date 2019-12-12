@@ -26,14 +26,18 @@ class TrajectoryViewer:
             colormaps = [None]*len(trajectories)
 
         xs = []
+        zs = []
         for traj, color in zip(trajectories, colormaps):
             self.add_trajectory(traj, color)
 
             xs.extend([rt_cam.center[0].item() for rt_cam in traj.values()])
+            zs.extend([rt_cam.center[2].item() for rt_cam in traj.values()])
 
         with self.gl_context.current():
-            axis = tenviz.nodes.create_axis_grid(min(xs), max(xs), 10)
-            self._scene.append(axis)
+            axis = tenviz.nodes.create_axis_grid(
+                min(min(xs), min(zs)),
+                max(max(xs), max(zs)), 10)
+            # self._scene.append(axis)
 
     def add_trajectory(self, trajectory, colormap=None):
         if colormap is None:

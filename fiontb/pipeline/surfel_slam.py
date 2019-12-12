@@ -7,6 +7,7 @@ from fiontb.frame import FramePointCloud
 from fiontb.processing import BilateralDepthFilter, bilateral_depth_filter
 from fiontb.camera import RTCamera
 from fiontb.pose.icp import MultiscaleICPOdometry, ICPOption, ICPVerifier
+from fiontb.pose.autogradicp import AutogradICP
 from fiontb.surfel import SurfelModel
 from fiontb.fusion.surfel.effusion import EFFusion, FusionStats
 from fiontb.fusion.surfel.indexmap import (ModelIndexMapRaster,
@@ -39,12 +40,15 @@ class SurfelSLAM:
 
         self.rt_camera = RTCamera(torch.eye(4, dtype=torch.float32))
 
-        self.icp = MultiscaleICPOdometry([
-            ICPOption(1.0, 10, geom_weight=10, feat_weight=1),
-            ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-            ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-            # ICPOption(1.0, 10, feat_weight=1, so3=True),
-        ])
+        if False:
+            self.icp = MultiscaleICPOdometry([
+                ICPOption(1.0, 10, geom_weight=10, feat_weight=1),
+                ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
+                ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
+                # ICPOption(1.0, 10, feat_weight=1, so3=True),
+            ])
+        else:
+            self.icp = AutogradICP(50, 0.01, 1.0, 1.0)
 
         self.icp_verifier = ICPVerifier()
 
@@ -95,8 +99,8 @@ class SurfelSLAM:
                     previous_features = model_features
 
             for _ in range(2 if self._pose_raster is not None else 1):
-                previous_fpcl.points[:, :, 2] = self._depth_filter(
-                    previous_fpcl.points[:, :, 2], previous_fpcl.mask)
+                # previous_fpcl.points[:, :, 2] = self._depth_filter(
+                #    previous_fpcl.points[:, :, 2], previous_fpcl.mask)
 
                 if _DEBUG:
                     import cv2
@@ -122,7 +126,7 @@ class SurfelSLAM:
                 previous_fpcl = self._previous_fpcl
                 previous_features = self._previous_features
 
-            rt_camera = self.rt_camera.integrate(relative_cam.cpu())
+            rt_camera = self.rt_camera.transform(relative_cam.cpu())
             confidence_weight = _estimate_confidence_weight(
                 self.rt_camera, rt_camera)
             self.rt_camera = rt_camera
@@ -132,7 +136,8 @@ class SurfelSLAM:
         stats = self.fusion.fuse(live_fpcl, self.rt_camera, features,
                                  confidence_weight=confidence_weight)
 
-        self._previous_fpcl = live_fpcl
+        # self._previous_fpcl = live_fpcl
+        self._previous_fpcl = filtered_live_fpcl
         self._previous_features = features
 
         return stats
@@ -172,11 +177,11 @@ class SurfelSLAM:
                 indexmap.indexmap, self.model.features, features, flip)
 
         if flip:
-            points = indexmap.position_confidence[:, :, :3].clone().flip([0])
+            points = indexmap.point_confidence[:, :, :3].clone().flip([0])
             normals = indexmap.normal_radius[:, :, :3].clone().flip([0])
             colors = indexmap.color.clone().flip([0])
         else:
-            points = indexmap.position_confidence[:, :, :3].clone()
+            points = indexmap.point_confidence[:, :, :3].clone()
             normals = indexmap.normal_radius[:, :, :3].clone()
             colors = indexmap.color.clone()
 
