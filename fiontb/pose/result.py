@@ -34,12 +34,10 @@ class ICPVerifier:
         if icp_result.residual < 1e-4:
             return True
 
-        if icp_result.hessian is None:
-            return False
-
-        covariance = icp_result.hessian.lu()[0].inverse()
-        if torch.any(covariance > self.covariance_max_threshold):
-            return False
+        if icp_result.hessian is not None:
+            covariance = icp_result.hessian.lu()[0].inverse()
+            if torch.any(covariance > self.covariance_max_threshold):
+                return False
 
         if icp_result.match_ratio < self.match_ratio_threshold:
             return False

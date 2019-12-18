@@ -96,6 +96,10 @@ class AutogradICP:
             tpoints, tnormals, tfeatures, smask = target_matcher.find_correspondences(
                 transform_source_points)
 
+            snormals = source_normals[smask]
+            f1 = torch.bmm(tnormals.view(-1, 1, 3),
+                           snormals.view(-1, 3, 1)).squeeze() > 0.5
+
             if has_geom:
                 diff = tpoints - transform_source_points[smask]
 
@@ -133,7 +137,7 @@ class AutogradICP:
                  target_points=None, target_mask=None, target_normals=None,
                  target_feats=None, source_feats=None, transform=None):
         source_points = source_points[source_mask].view(-1, 3)
-        # source_normals = source_normals[source_mask].view(-1, 3)
+        source_normals = source_normals[source_mask].view(-1, 3)
 
         if source_feats is not None:
             source_feats = source_feats[:, source_mask].view(
@@ -148,7 +152,8 @@ class AutogradICP:
     def estimate_pcl(self, source_pcl, target_pcl, transform=None, source_feats=None,
                      target_feats=None):
         matcher = PointCloudMatcher(
-            target_pcl.points, target_pcl.normals, target_feats)
+            target_pcl.points, target_pcl.normals, target_feats,
+            num_neighbors=8, distance_upper_bound=0.5)
         return self._estimate(source_pcl.points, source_pcl.normals,
                               source_feats, matcher, transform)
 
@@ -158,7 +163,7 @@ class AutogradICP:
         source_frame = FramePointCloud.from_frame(source_frame).to(device)
         target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
-        return self.estimate(source_frame.kcam, source_frame.points, None,
+        return self.estimate(source_frame.kcam, source_frame.points, source_frame.normals,
                              source_frame.mask,
                              source_feats=source_feats,
                              target_points=target_frame.points,

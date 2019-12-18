@@ -62,7 +62,7 @@ def compute_confidences(frame_pcl, no_mask=False):
 
 class SurfelVolume(_SurfelVolume):
 
-    def __init__(self, aabb, voxel_size, feature_size=None):        
+    def __init__(self, aabb, voxel_size, feature_size=None):
         super().__init__(aabb[0, :], aabb[1, :],
                          voxel_size,
                          (feature_size
@@ -198,6 +198,9 @@ class SurfelCloud:
         from fiontb.pointcloud import PointCloud
 
         return PointCloud(self.points, self.colors, self.normals)
+
+    def to_open3d(self):
+        return self.as_point_cloud().to_open3d()
 
     def to_cpp_(self):
         params = CppSurfelCloud()

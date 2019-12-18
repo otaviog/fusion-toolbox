@@ -47,7 +47,6 @@ class Update:
                         self.max_normal_angle, self.search_size, time, scale,
                         model_merge_map, self._new_surfels_map)
 
-        # import ipdb; ipdb.set_trace()
         new_surfels = live_surfels[self._new_surfels_map]
         new_surfels.itransform(rt_cam.cam_to_world)
         return new_surfels
