@@ -106,6 +106,8 @@ class AutogradICP:
             if has_feat:
                 res = torch.norm(
                     tfeatures - source_feats[:, smask], 2, dim=0)
+                # import ipdb; ipdb.set_trace()
+                res = res[res < 0.5]
                 feat_loss = res.mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
