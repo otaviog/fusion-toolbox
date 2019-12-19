@@ -97,22 +97,27 @@ class AutogradICP:
                 transform_source_points)
 
             snormals = source_normals[smask]
-            f1 = torch.bmm(tnormals.view(-1, 1, 3),
-                           snormals.view(-1, 3, 1)).squeeze() > 0.5
+            normal_mask = torch.bmm(tnormals.view(-1, 1, 3),
+                                    snormals.view(-1, 3, 1)).squeeze() > 0.5
+
+            feat_diff = torch.norm(
+                tfeatures - source_feats[:, smask], 2, dim=0)
+
+            spoints = transform_source_points[smask]
+
+            mmask = normal_mask & (feat_diff < 0.2)
+            mmask = feat_diff < 0.3
+            # mmask = torch.ones_like(mmask)
 
             if has_geom:
-                diff = tpoints - transform_source_points[smask]
+                diff = tpoints[mmask] - spoints[mmask]
 
-                cost = torch.bmm(tnormals.view(
+                cost = torch.bmm(tnormals[mmask].view(
                     -1, 1, 3), diff.view(-1, 3, 1))
                 geom_loss = torch.pow(cost, 2).mean()
 
             if has_feat:
-                res = torch.norm(
-                    tfeatures - source_feats[:, smask], 2, dim=0)
-                # import ipdb; ipdb.set_trace()
-                res = res[res < 0.5]
-                feat_loss = res.mean()
+                feat_loss = feat_diff[mmask].mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
 
