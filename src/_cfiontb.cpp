@@ -17,6 +17,7 @@
 #include "surfel_fusion.hpp"
 #include "surfel_volume.hpp"
 #include "trigoctree.hpp"
+#include "slamfeat.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -47,4 +48,8 @@ PYBIND11_MODULE(_cfiontb, m) {
   ElasticFusionOp::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
   SurfelVolume::RegisterPybind(m);
+
+  // etc
+  SlamFeatOp::RegisterPybind(m);
+  
 }

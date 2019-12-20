@@ -33,7 +33,9 @@ cuda_add_library(fiontb
   surfel_fusion_copy_features.cu
   elastic_fusion.cpp
   elastic_fusion_update.cu
-  elastic_fusion_clean.cu)
+  elastic_fusion_clean.cu
+  slamfeat.cpp
+  )
 
 target_include_directories(fiontb
   PUBLIC
