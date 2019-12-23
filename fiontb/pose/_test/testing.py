@@ -3,6 +3,7 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 import quaternion
+from tenviz.pose import Pose
 
 from fiontb.metrics import (absolute_translational_error,
                             rotational_error)
@@ -14,7 +15,7 @@ from fiontb.testing import prepare_frame, ColorMode
 from fiontb._utils import profile as _profile
 from fiontb.data.ftb import load_ftb
 
-from tenviz.pose import Pose
+
 
 
 def evaluate(gt_cam0, gt_cam1, relative_rt):

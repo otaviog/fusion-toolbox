@@ -1,25 +1,9 @@
+import quaternion
 import torch
-import numpy
-import tenviz.pose
 
-import fiontb.thirdparty.tumrgbd as _tumrgbd
+from tenviz.pose import Pose
 
-
-def align_trajectories(trajectory_true, trajectory_pred, scale=1):
-    xyz_true = numpy.matrix([rt_cam.center.cpu().numpy()
-                             for rt_cam in trajectory_true.values()]).transpose()
-    xyz_pred = numpy.matrix([rt_cam.center.cpu().numpy()*scale
-                             for rt_cam in trajectory_pred.values()]).transpose()
-    rot, trans, _ = _tumrgbd.align(xyz_true, xyz_pred)
-
-    trans = torch.from_numpy(trans).double().squeeze()
-    rot = torch.from_numpy(rot).double()
-
-    align = tenviz.pose.Pose.from_rotation_matrix_translation(
-        rot, trans).to_matrix().inverse()
-
-    return {time: rt_cam.transform(align)
-            for time, rt_cam in trajectory_pred.items()}
+from fiontb.camera import RTCamera, RigidTransform
 
 
 def set_start_at_identity(trajectory):
@@ -29,55 +13,87 @@ def set_start_at_identity(trajectory):
             for time, rt_cam in trajectory.items()}
 
 
-def absolute_translational_error(trajectory_true, trajectory_pred, scale=1):
-    """Computes translational error. Code is a wrapper around TUM-RGBD source.
-    """
+def translational_difference(matrix_true, matrix_pred):
+    if isinstance(matrix_true, RTCamera):
+        matrix_true = matrix_true.matrix
 
-    xyz_true = numpy.matrix([rt_cam.center.cpu().numpy()
-                             for rt_cam in trajectory_true.values()]).transpose()
-    xyz_pred = numpy.matrix([rt_cam.center.cpu().numpy()*scale
-                             for rt_cam in trajectory_pred.values()]).transpose()
+    if isinstance(matrix_pred, RTCamera):
+        matrix_pred = matrix_pred.matrix
 
-    _, _, trans_error = _tumrgbd.align(xyz_true, xyz_pred)
+    rt_true = RigidTransform(matrix_true)
+    rt_pred = RigidTransform(matrix_pred)
 
-    return torch.from_numpy(trans_error)
+    return (rt_true.translation() - rt_pred.translation()).norm(2)
 
 
-def rotational_error(trajectory_true, trajectory_pred, max_pairs=10000,
-                     fixed_delta=False, delta=1.0, delta_unit='s',
-                     offset=0.0, scale=1.0):
-    """Computes rotational error. Code is a wrapper around TUM-RGBD source.
+def rotational_difference(matrix_true, matrix_pred):
+    if isinstance(matrix_true, RTCamera):
+        matrix_true = matrix_true.matrix
 
-    Args:
+    if isinstance(matrix_pred, RTCamera):
+        matrix_pred = matrix_pred.matrix
 
-         max_pairs (int): maximum number of pose comparisons (default:
-          10000, set to zero to disable downsampling).
+    pose_true = Pose.from_matrix(matrix_true)
+    pose_pred = Pose.from_matrix(matrix_pred)
 
-         fixed_delta (bool): only consider pose pairs that have a
-          distance of delta delta_unit (e.g., for evaluating the drift
-          per second/meter/radian).
+    gt_rot = quaternion.from_float_array(pose_true.get_quaternion())
+    pred_rot = quaternion.from_float_array(pose_pred.get_quaternion())
 
-         delta (float): delta for evaluation (default: 1.0).
+    return (gt_rot - pred_rot).norm()
 
-         delta_unit (str): unit of delta. Options: \'s\' for seconds,
-          \'m\' for meters, \'rad\' for radians, \'f\' for frames;
-          default: \'s\')'. Default is 's'.
 
-         offset (float): time offset between ground-truth and
-          estimated trajectory (default: 0.0).
+def _get_relative_matrices(trajectory_true, trajectory_pred):
+    keys = list(trajectory_true.keys())
+    rel_trues = []
+    rel_preds = []
 
-         scale (float): scaling factor for the estimated trajectory
-          (default: 1.0).
+    for k in range(0, len(keys) - 1):
+        i = keys[k]
+        j = keys[k + 1]
 
-    """
+        cam_true_i = trajectory_true[i]
+        cam_pred_i = trajectory_pred[i]
 
-    result = _tumrgbd.evaluate_trajectory(
-        {time: rt_cam.matrix.cpu().numpy()
-         for time, rt_cam in trajectory_true.items()},
-        {time: rt_cam.matrix.cpu().numpy()
-         for time, rt_cam in trajectory_pred.items()},
-        max_pairs, fixed_delta, delta, delta_unit, offset, scale)
+        cam_true_j = trajectory_true[j]
+        cam_pred_j = trajectory_pred[j]
 
-    rot_error = numpy.array(result)[:, 5]
+        rel_trues.append(cam_true_i.matrix.inverse() @ cam_true_j.matrix)
+        rel_preds.append(cam_pred_i.matrix.inverse() @ cam_pred_j.matrix)
 
-    return torch.from_numpy(rot_error)
+    return rel_trues, rel_preds
+
+
+def relative_translational_error(trajectory_true, trajectory_pred):
+    rel_trues, rel_preds = _get_relative_matrices(
+        trajectory_true, trajectory_pred)
+
+    return torch.tensor([translational_difference(rel_true, rel_pred)
+                         for rel_true, rel_pred in zip(rel_trues, rel_preds)])
+
+
+def relative_rotational_error(trajectory_true, trajectory_pred):
+    rel_trues, rel_preds = _get_relative_matrices(
+        trajectory_true, trajectory_pred)
+
+    return torch.tensor([rotational_difference(rel_true, rel_pred)
+                         for rel_true, rel_pred in zip(rel_trues, rel_preds)])
+
+
+def absolute_translational_error(trajectory_true, trajectory_pred):
+    traj_errors = []
+    for k, cam_true in trajectory_true.items():
+        cam_pred = trajectory_pred[k]
+        diff = translational_difference(cam_true, cam_pred)
+        traj_errors.append(diff)
+
+    return torch.tensor(traj_errors)
+
+
+def absolute_rotational_error(trajectory_true, trajectory_pred):
+    traj_errors = []
+    for k, cam_true in trajectory_true.items():
+        cam_pred = trajectory_pred[k]
+        diff = rotational_difference(cam_true, cam_pred)
+        traj_errors.append(diff)
+
+    return torch.tensor(traj_errors)
