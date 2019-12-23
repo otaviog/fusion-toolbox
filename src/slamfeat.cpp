@@ -74,7 +74,7 @@ void SlamFeatOp::ExtractPatch(
       }
       mask[row][col] = true;
 
-      if (dice(0.25)) {
+      if (dice(0.5)) {
         const int neg_u = rand_int_except(
             std::max(u - 5, 0), std::min(u + 5, int(pos_colors.size(1))), u);
         const int neg_v = rand_int_except(

@@ -120,6 +120,12 @@ class PointCloud:
     def device(self):
         return self.points.device
 
+    def __getitem__(self, *args):
+        return PointCloud(
+            self.points[args],
+            self.colors[args] if self.colors is not None else None,
+            self.normals[args] if self.normals is not None else None)
+
 
 def stack_pcl(pcl_list):
     pcl_list = [pcl for pcl in pcl_list
