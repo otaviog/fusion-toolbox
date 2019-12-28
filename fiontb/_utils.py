@@ -4,6 +4,7 @@ import cProfile
 import numpy as np
 import torch
 
+
 def depth_image_to_uvz(depth_image, finfo):
     """Converts an depth image to a meshgrid of u (columns), v (rows) an z
      coordinates.
@@ -31,6 +32,7 @@ def depth_image_to_uvz(depth_image, finfo):
 
     return image_points
 
+
 def ensure_torch(x, dtype=None):
     if isinstance(x, (np.ndarray, list, tuple)):
         x = torch.from_numpy(x)
@@ -50,16 +52,16 @@ def empty_ensured_size(tensor, *sizes, dtype=torch.float, device=None):
 
     return tensor
 
+
 @contextlib.contextmanager
 def profile(output_file, really=True):
     if really:
         prof = cProfile.Profile()
-        prof.enable()
-        yield
-        prof.disable()
-
-        prof.dump_stats(str(output_file))
+        try:
+            prof.enable()
+            yield
+        finally:
+            prof.disable()
+            prof.dump_stats(str(output_file))
     else:
         yield
-
-        
