@@ -330,7 +330,7 @@ class FramePointCloud:
         return FramePointCloud(self.image_points[slices],
                                self.mask[slices], self.kcam, rt_cam=self.rt_cam,
                                points=self.points[slices],
-                               normals=self.normals[slices],
+                               normals=self.normals[slices] if self._normals is not None else None,
                                colors=self.colors[slices])
 
     @property
