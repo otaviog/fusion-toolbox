@@ -1,4 +1,4 @@
-"""Data types from frames.
+"""Frame related data types.
 """
 
 import torch
@@ -14,11 +14,12 @@ from .pointcloud import PointCloud
 
 
 class FrameInfo:
-    """Basic header kind information of frame.
+    """A frame description. Holds information about camera parameters,
+    depth scaling, and time.
 
     Attributes:
 
-        kcam (:obj:`fiontb.camera.KCamera`): The intrinsic camera parameters.
+        kcam (:obj:`fiontb.camera.KCamera`): The intrinsic camera.
 
         depth_scale (float): Specifies the amount that depth values should be multiplied.
 
@@ -29,6 +30,7 @@ class FrameInfo:
         rt_cam (:obj:`fiontb.camera.RTCamera`): The extrinsic camera parameters.
 
         timestamp (float or int): The frame timestamp.
+
     """
 
     def __init__(self, kcam=None, depth_scale=1.0, depth_bias=0.0, depth_max=4500.0,
@@ -44,7 +46,7 @@ class FrameInfo:
 
     @classmethod
     def from_json(cls, json):
-        """Creates a frame info from its json dict representation
+        """Creates a frame info from FTB json dict representation
         """
 
         kcam = json.get('kcam', None)
@@ -81,29 +83,29 @@ class FrameInfo:
 
         return json
 
-    def __str__(self):
-        return str(vars(self))
-
-    def __repr__(self):
-        return str(self)
-
     def clone(self):
+        """Creates a copy of this frame info.
+        """
+
         return FrameInfo(
             self.kcam.clone(), self.depth_scale, self.depth_bias,
             self.depth_max, self.timestamp,
             None if self.rgb_kcam is None else self.rgb_kcam.clone(),
             None if self.rt_cam is None else self.rt_cam.clone())
 
+    def __str__(self):
+        return str(vars(self))
+
+    def __repr__(self):
+        return str(self)
+
 
 class Frame:
-    """A sensor frame.
-
-    Contains the frame data used all along the project. Device and
-     datasets output should be converted to this class instance.
+    """A RGBD frame, either outputed by a sensor or dataset.
 
     Attributes:
 
-        info (:obj:`FrameInfo`): Frame information.
+        info (:obj:`FrameInfo`): The information.
 
         depth_image (:obj:`numpy.ndarray`): Depth image [WxH] float or
          int32.
@@ -264,7 +266,8 @@ class FramePointCloud:
                          normals)
 
         if world_space and self.rt_cam is not None:
-            pcl = pcl.transform(self.rt_cam.cam_to_world.to(self.device).float())
+            pcl = pcl.transform(
+                self.rt_cam.cam_to_world.to(self.device).float())
 
         return pcl
 
