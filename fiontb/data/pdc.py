@@ -5,6 +5,7 @@ import cv2
 import quaternion
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from fiontb.frame import Frame, FrameInfo
 from fiontb.camera import KCamera, RTCamera
@@ -67,7 +68,87 @@ def load_pdc(base_dir):
     return PDCDataset(base_dir, kcam, 1.0/1000.0, pose_dict)
 
 
-def write_pdc(base_dir, dataset):
-
+def write_pdc(base_dir, dataset, max_frames=None):
+    base_dir = Path(base_dir)
     pose_dict = {}
-    kcam_dict = {}
+
+    info = None
+    if max_frames is None:
+        max_frames = len(dataset)
+    else:
+        max_frames = min(len(dataset), max_frames)
+
+    for idx in tqdm(range(max_frames)):
+        frame = dataset[idx]
+
+        if info is None:
+            info = frame.info
+
+        pos = frame.info.rt_cam.matrix[0:3, 3]
+        quat = quaternion.from_rotation_matrix(
+            frame.info.rt_cam.matrix[0:3, 0:3])
+
+        depth_fname = base_dir / "rendered_images" / \
+            "{:06d}_depth.png".format(idx)
+        rgb_fname = base_dir / "images" / "{:06d}_rgb.png".format(idx)
+
+        depth_fname.parent.mkdir(parents=True, exist_ok=True)
+        rgb_fname.parent.mkdir(parents=True, exist_ok=True)
+
+        cv2.imwrite(str(depth_fname), frame.depth_image.astype(np.uint16))
+        cv2.imwrite(str(rgb_fname), cv2.cvtColor(
+            frame.rgb_image, cv2.COLOR_RGB2BGR))
+
+        if frame.fg_mask is not None:
+            mask_img = frame.fg_mask
+        else:
+            mask_img = np.ones(frame.depth_image.shape, dtype=np.uint8)
+
+        mask_fname = base_dir / "image_masks" / \
+            "image_masks" / "{:06d}_mask.png".format(idx)
+        mask_fname.parent.mkdir(parents=True, exist_ok=True)
+
+        cv2.imwrite(str(mask_fname), mask_img)
+
+        pose_dict[idx] = {
+            "camera_to_world": {
+                "quaternion": {"w": quat.w, "x": quat.x, "y": quat.y, "z": quat.z},
+                "translation": {"x": pos[0], "y": pos[1], "z": pos[2]},
+            },
+            "depth_image_filename": depth_fname,
+            "rgb_image_filename": rgb_fname,
+            "timestamp": frame.info.timestamp
+        }
+
+    with open(str(base_dir / "images" / "pose_data.yaml"), 'w') as pose_file:
+        yaml.dump(pose_dict, pose_file)
+
+    proj_matrix = torch.eye(4, dtype=info.kcam.matrix.dtype)
+    proj_matrix[:3, :3] = info.kcam.matrix
+    camera_dict = {
+        "camera_matrix": {
+            "cols": 3,
+            "rows": 3,
+            "data": info.kcam.matrix.flatten().tolist()
+        },
+        "distortion_coefficients": {
+            "cols": 5,
+            "rows": 1,
+            "data": [0.0]*5
+        },
+        "distortion_model": "plumb_bob",
+        "image_height": info.kcam.image_size[0],
+        "image_width": info.kcam.image_size[1],
+        "projection_matrix": {
+            "cols": 4,
+            "rows": 4,
+            "data": proj_matrix.flatten().tolist()
+        },
+        "rectification_matrix": {
+            "cols": 3,
+            "rows": 3,
+            "data": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        }
+    }
+    with open(str(base_dir / "images" / "camera_info.yaml"), 'w') as camera_file:
+        yaml.dump(camera_dict, camera_file)
