@@ -84,19 +84,19 @@ def write_pdc(base_dir, dataset, max_frames=None):
         if info is None:
             info = frame.info
 
-        pos = frame.info.rt_cam.matrix[0:3, 3]
+        pos = frame.info.rt_cam.matrix[0:3, 3].tolist()
         quat = quaternion.from_rotation_matrix(
             frame.info.rt_cam.matrix[0:3, 0:3])
 
-        depth_fname = base_dir / "rendered_images" / \
+        depth_path = base_dir / "rendered_images" / \
             "{:06d}_depth.png".format(idx)
-        rgb_fname = base_dir / "images" / "{:06d}_rgb.png".format(idx)
+        rgb_path = base_dir / "images" / "{:06d}_rgb.png".format(idx)
 
-        depth_fname.parent.mkdir(parents=True, exist_ok=True)
-        rgb_fname.parent.mkdir(parents=True, exist_ok=True)
+        depth_path.parent.mkdir(parents=True, exist_ok=True)
+        rgb_path.parent.mkdir(parents=True, exist_ok=True)
 
-        cv2.imwrite(str(depth_fname), frame.depth_image.astype(np.uint16))
-        cv2.imwrite(str(rgb_fname), cv2.cvtColor(
+        cv2.imwrite(str(depth_path), frame.depth_image.astype(np.uint16))
+        cv2.imwrite(str(rgb_path), cv2.cvtColor(
             frame.rgb_image, cv2.COLOR_RGB2BGR))
 
         if frame.fg_mask is not None:
@@ -104,19 +104,20 @@ def write_pdc(base_dir, dataset, max_frames=None):
         else:
             mask_img = np.ones(frame.depth_image.shape, dtype=np.uint8)
 
-        mask_fname = base_dir / "image_masks" / \
+        mask_path = base_dir / "image_masks" / \
             "image_masks" / "{:06d}_mask.png".format(idx)
-        mask_fname.parent.mkdir(parents=True, exist_ok=True)
+        mask_path.parent.mkdir(parents=True, exist_ok=True)
 
-        cv2.imwrite(str(mask_fname), mask_img)
+        cv2.imwrite(str(mask_path), mask_img)
+
 
         pose_dict[idx] = {
             "camera_to_world": {
                 "quaternion": {"w": quat.w, "x": quat.x, "y": quat.y, "z": quat.z},
                 "translation": {"x": pos[0], "y": pos[1], "z": pos[2]},
             },
-            "depth_image_filename": depth_fname,
-            "rgb_image_filename": rgb_fname,
+            "depth_image_filename": str(depth_path.name),
+            "rgb_image_filename": str(rgb_path.name),
             "timestamp": frame.info.timestamp
         }
 
