@@ -104,12 +104,10 @@ def write_pdc(base_dir, dataset, max_frames=None):
         else:
             mask_img = np.ones(frame.depth_image.shape, dtype=np.uint8)
 
-        mask_path = base_dir / "image_masks" / \
-            "image_masks" / "{:06d}_mask.png".format(idx)
+        mask_path = base_dir / "image_masks" / "{:06d}_mask.png".format(idx)
         mask_path.parent.mkdir(parents=True, exist_ok=True)
 
         cv2.imwrite(str(mask_path), mask_img)
-
 
         pose_dict[idx] = {
             "camera_to_world": {
