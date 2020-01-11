@@ -68,7 +68,7 @@ def load_pdc(base_dir):
     return PDCDataset(base_dir, kcam, 1.0/1000.0, pose_dict)
 
 
-def write_pdc(base_dir, dataset, max_frames=None):
+def write_pdc(base_dir, dataset, max_frames=None, visible_masks=True):
     base_dir = Path(base_dir)
     pose_dict = {}
 
@@ -103,12 +103,17 @@ def write_pdc(base_dir, dataset, max_frames=None):
             mask_img = frame.fg_mask
         else:
             mask_img = np.ones(frame.depth_image.shape, dtype=np.uint8)
+            mask_img[:, int(frame.depth_image.shape[1]/2):] = 0
 
         mask_path = base_dir / "image_masks" / "{:06d}_mask.png".format(idx)
         mask_path.parent.mkdir(parents=True, exist_ok=True)
 
         cv2.imwrite(str(mask_path), mask_img)
 
+        if visible_masks:
+            visible_mask_path = base_dir / "image_masks" / "{:06d}_visible_mask.png".format(idx)
+            cv2.imwrite(str(visible_mask_path), mask_img*255)
+                        
         pose_dict[idx] = {
             "camera_to_world": {
                 "quaternion": {"w": quat.w, "x": quat.x, "y": quat.y, "z": quat.z},
