@@ -24,7 +24,7 @@ class DatasetViewer:
                  camera_view=True, trajectory_cmap="Blues", show_grid=True):
         self.dataset = dataset
         self.title = title
-        self.show_mask = False
+        self.show_segmentation = False
         self.last_proc_data = {'idx': -1}
         self.invert = invert
 
@@ -57,7 +57,7 @@ class DatasetViewer:
         self.max_pcls = max_pcls
 
         self._trajectory_cmap = get_cmap(trajectory_cmap, len(dataset))
-        
+
     def _set_model(self, frame, idx):
         finfo = frame.info
         cmap = get_cmap('viridis', finfo.depth_max)
@@ -74,7 +74,7 @@ class DatasetViewer:
             'idx': idx,
             'depth_img': depth_img,
             'rgb_img': rgb_img,
-            'fg_mask': frame.fg_mask
+            'seg_img': frame.seg_image
         }
 
         pcl = FramePointCloud.from_frame(
@@ -126,7 +126,7 @@ class DatasetViewer:
                 np.linalg.inv(rt_cam.opengl_view_cam),
                 color=vcam_color, line_width=1, show_axis=False)
             vcam.visible = self._show_cams
-            
+
             self.world_viewer.get_scene().add(vcam)
 
             self.pcl_deque.append((pcl, vcam))
@@ -151,15 +151,27 @@ class DatasetViewer:
             self._set_model(frame, idx)
 
         proc_data = self.last_proc_data
+
+        seg_image = proc_data['seg_img']
+        if self.show_segmentation and seg_image is not None:
+            cmap = get_cmap("rainbow", 255)
+            rgb_img = (cmap(seg_image)[:, :, :3]*255).astype(np.uint8)
+        else:
+            rgb_img = proc_data['rgb_img']
+
         alpha = cv2.getTrackbarPos("oppacity", self.title) / 100.0
         canvas = cv2.addWeighted(proc_data['depth_img'], alpha,
-                                 proc_data['rgb_img'], 1.0 - alpha, 0.0)
-
-        fg_mask = proc_data['fg_mask']
-        if self.show_mask and fg_mask is not None:
-            canvas[~fg_mask] = (0, 0, 0)
+                                 rgb_img, 1.0 - alpha, 0.0)
 
         cv2.imshow(self.title, canvas)
+
+    def _mouse_click(self, event, x, y, *args):
+        if event != cv2.EVENT_LBUTTONUP:
+            return
+        seg_image = self.last_proc_data['seg_img']
+        if seg_image is not None:
+            print("Segmentation value at x {} y {}: {}".format(
+                x, y, seg_image[y, x]))
 
     def run(self):
         """Show the viewer and block until user exit. Keys:
@@ -172,7 +184,7 @@ class DatasetViewer:
             self.dataset) - 1, self._update_canvas)
         cv2.createTrackbar("oppacity", self.title, 50, 100,
                            self._update_canvas)
-
+        cv2.setMouseCallback(self.title, self._mouse_click)
         while True:
             self._update_canvas(None)
             cv_key = cv2.waitKey(1)
@@ -197,7 +209,7 @@ class DatasetViewer:
                 if key == 'q':
                     quit_loop = True
                 elif key == 'm':
-                    self.show_mask = not self.show_mask
+                    self.show_segmentation = not self.show_segmentation
                 elif key == 'c':
                     self._show_cams = not self._show_cams
                     for _, vcam in self.pcl_deque:

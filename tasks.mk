@@ -2,8 +2,8 @@ about:
 	@echo "Project maintaining tasks."
 
 doc-create:
-	rm -f doc/source/rflow.*.rst
-	sphinx-apidoc -o doc/source rflow
+	rm -f doc/source/fiontb.*.rst
+	sphinx-apidoc -o doc/source fiontb
 	make -C doc/ html
 
 doc-open:

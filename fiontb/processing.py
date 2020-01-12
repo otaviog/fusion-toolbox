@@ -1,4 +1,4 @@
-"""Common filtering of 3d reconstruction for frames.
+"""Common filtering functions used by 3d reconstruction on frames.
 """
 
 from enum import Enum
@@ -16,6 +16,27 @@ def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,
                            sigma_color=29.9999880000072,
                            sigma_space=4.50000000225,
                            depth_scale=1.0):
+    """Apply bilateral filter on depth image.
+
+    Default argument values are the same ones used by ElasticFusion.
+
+    Args:
+
+        depth (torch.Tensor or numpy.ndarray): Input depth image. May
+         have any dtype.
+
+        out_tensor (torch.Tensor, optional): Optional output tensor.
+
+        filter_width (int): Bilateral filter size. Default is 6.
+
+        sigma_color (float): 
+
+        sigma_space (float):
+
+        depth_scale (float). Scaling factor for depth values before
+         filtering. Default is no scaling.
+
+    """
     depth = ensure_torch(depth)
     mask = ensure_torch(mask, dtype=torch.bool)
     out_tensor = empty_ensured_size(out_tensor, depth.size(0), depth.size(1),

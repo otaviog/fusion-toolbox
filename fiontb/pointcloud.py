@@ -1,19 +1,26 @@
-import numpy as np
+"""Point cloud structure.
+"""
+
 import torch
+import numpy as np
 
 from .camera import RigidTransform, normal_transform_matrix
 
 
 class PointCloud:
-    """Basic point cloud data
+    """Point cloud data structure.
+
+    Point, color and normals are stored as torch tensor. Slicing
+     operator is avaliable for capturing a new point cloud.
 
     Attributes:
 
-        points (:obj:`numpy.ndarray`): Points [Nx3] of floats.
+        points (:obj:`torch.Tensor`): 3D points (N x 3) of float.
 
-        colors (:obj:`numpy.ndarray`): Colors [Nx3] of uints8.
+        colors (:obj:`torch.Tensor`): Point colors (N x 3) of uint8.
 
-        normals (:obj:`numpy.ndarray`): Normals [Nx3] of floats.
+        normals (:obj:`torch.Tensor`): Point normal vectors (N x 3) of float.
+
     """
 
     @classmethod
@@ -27,6 +34,21 @@ class PointCloud:
 
     @staticmethod
     def from_frame(frame, world_space=True, compute_normals=True):
+        """Creates a point cloud from a frame.
+
+        Args:
+
+            world_space (bool, optional): `True` to set the points on
+             world space, according to frame's extrinsic
+             parameters. Default is `True`.
+
+            compute_normals (bool, optional): Use normals. Default is `True`.
+
+        Returns: ((PointCloud, torch.Tensor)): Point cloud and a (H x
+         W) bool tensor mask of the frame pixels included in the point
+         cloud.
+
+        """
         from .frame import FramePointCloud
 
         fpcl = FramePointCloud.from_frame(frame)
@@ -46,6 +68,15 @@ class PointCloud:
             self.normals.clone() if self.normals is not None else None)
 
     def transform(self, matrix):
+        """Transform the points and normals and return and new point cloud.
+
+        Args:
+
+            matrix (torch.Tensor): A (4 x 4) or (3 x 4) transformation matrix.
+
+        Returns: (PointCloud): New transformed point cloud.
+        """
+
         if self.points.size == 0:
             return PointCloud(self.points)
 
@@ -59,6 +90,13 @@ class PointCloud:
         return PointCloud(points, self.colors, normals)
 
     def itransform(self, matrix):
+        """Transform the points and normals inplace.
+
+        Args:
+
+            matrix (torch.Tensor): A (4 x 4) or (3 x 4) transformation matrix.
+        """
+
         transform = RigidTransform(matrix.float().to(self.device))
         transform.inplace(self.points)
         if self.normals is not None:
@@ -108,26 +146,62 @@ class PointCloud:
         return self.points.size == 0
 
     def to(self, dst):
+        r"""Change the point cloud device or dtype. Dtype are applied only to
+        points and normals.
+
+        Args:
+
+            dst (torch.dtype, torch.device, str): Dtype or torch device.
+
+        Returns: (PointCloud): converted point cloud.
+        """
         return PointCloud(self.points.to(dst),
                           (self.colors.to(dst) if self.colors is not None else None),
                           (self.normals.to(dst) if self.normals is not None else None))
 
     @property
     def size(self):
+        r"""Returns the point cloud size
+
+        """
         return self.points.shape[0]
 
     @property
     def device(self):
+        r"""Returns the point cloud torch device.
+
+        """
         return self.points.device
 
     def __getitem__(self, *args):
+        """Slicing operator for all instance properties.
+
+        Returns: (PointCloud): Sliced point cloud.
+        """
         return PointCloud(
             self.points[args],
             self.colors[args] if self.colors is not None else None,
             self.normals[args] if self.normals is not None else None)
 
+    def __len__(self):
+        return self.size
+
 
 def stack_pcl(pcl_list):
+    """Concatenate point clouds into one.
+
+    All point cloud need to have the same set of attributes, that is,
+    it will raise a error when join point cloud that have normals with
+    ones that don't.
+
+    Args:
+
+        pcl_list (List[PointCloud]): Point cloud list.
+
+    Returns: (PointCloud): Joined point cloud.
+
+    """
+
     pcl_list = [pcl for pcl in pcl_list
                 if not pcl.is_empty()]
     if not pcl_list:

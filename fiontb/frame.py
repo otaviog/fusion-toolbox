@@ -1,4 +1,4 @@
-"""Frame related data types.
+"""Frame related data structures.
 """
 
 import torch
@@ -14,23 +14,22 @@ from .pointcloud import PointCloud
 
 
 class FrameInfo:
-    """A frame description. Holds information about camera parameters,
+    r"""A common description for frames. Holds information about camera parameters,
     depth scaling, and time.
 
     Attributes:
 
         kcam (:obj:`fiontb.camera.KCamera`): The intrinsic camera.
 
-        depth_scale (float): Specifies the amount that depth values should be multiplied.
+        depth_scale (float): Scaling for file raw depth values.
 
-        depth_bias (float): Constant added to depth values.
+        depth_bias (float): Constant added to the raw depth values.
 
-        depth_max (float): Sensor's maximum depth value.
+        depth_max (float): Sensor maximum depth value.
 
-        rt_cam (:obj:`fiontb.camera.RTCamera`): The extrinsic camera parameters.
+        rt_cam (:obj:`fiontb.camera.RTCamera`): The extrinsic camera.
 
         timestamp (float or int): The frame timestamp.
-
     """
 
     def __init__(self, kcam=None, depth_scale=1.0, depth_bias=0.0, depth_max=4500.0,
@@ -46,7 +45,11 @@ class FrameInfo:
 
     @classmethod
     def from_json(cls, json):
-        """Creates a frame info from FTB json dict representation
+        """Creates a frame info from its FTB json representation.
+
+        Args:
+
+            json (dict): JSON dict.
         """
 
         kcam = json.get('kcam', None)
@@ -68,9 +71,9 @@ class FrameInfo:
                    rgb_kcam, rt_cam)
 
     def to_json(self):
-        """Converts the frame info to its json dictionary representation.
+        """Converts the frame info to its FTB JSON dictionary representation.
 
-        Returns: (dict): Dictionary ready for json dump.
+        Returns: (dict): JSON dictionary.
         """
         json = {}
         for name, value in vars(self).items():
@@ -84,7 +87,9 @@ class FrameInfo:
         return json
 
     def clone(self):
-        """Creates a copy of this frame info.
+        """Creates a copy of the instance.
+
+        Returns (FrameInfo): Copy.
         """
 
         return FrameInfo(
@@ -101,42 +106,56 @@ class FrameInfo:
 
 
 class Frame:
-    """A RGBD frame, either outputed by a sensor or dataset.
+    r"""A RGB-D frame, either outputed from a sensor or dataset.
 
     Attributes:
 
-        info (:obj:`FrameInfo`): The information.
+        info (:obj:`FrameInfo`): Information about depth and camera parameters.
 
-        depth_image (:obj:`numpy.ndarray`): Depth image [WxH] float or
-         int32.
+        depth_image (:obj:`numpy.ndarray`): Depth image of size (H x
+         W) and int32 type.
 
-        rgb_image (:obj:`numpy.ndarray`, optional): RGB image [WxHx3]
-         uint8.
+        rgb_image (:obj:`numpy.ndarray`, optional): RGB image of size (H x W x
+         3) and uint8 type.
 
-        fg_mask (:obj:`ndarray.ndarray`, optional): Foreground mask image [WxH]
-         bool or uint8.
+        seg_image (:obj:`numpy.ndarray`, optional): Segmentation image
+         of size (H x W) and int16 type. Value 0 means background.
+
+        normal_image (:obj:`numpy.ndarray`, optional): Image containing
+         per point normal vectors. Size is (H x W x 3) with float type.
 
     """
 
     def __init__(self, info: FrameInfo, depth_image, rgb_image=None,
-                 fg_mask=None, normal_image=None):
+                 seg_image=None, normal_image=None):
         self.info = info
         self.info.kcam.image_size = (depth_image.shape[1],
                                      depth_image.shape[0])
         self.depth_image = depth_image
         self.rgb_image = rgb_image
-        self.fg_mask = fg_mask
+        self.seg_image = seg_image
         self.normal_image = normal_image
 
-    def clone(self):
-        return Frame(self.info.clone(), self.depth_image.copy(),
-                     None if self.rgb_image is None else self.rgb_image.copy(),
-                     None if self.fg_mask is None else self.fg_mask.copy(),
-                     None if self.normal_image is None else self.normal_image.copy())
+    def clone(self, shallow=False):
+        r"""Copy a frame.
 
-    def clone_shallow(self):
+        Args:
+
+            shallow (bool, optional): If `False`, then the images are
+             also cloned. Otherwise, it'll just create another
+             instance of the frame.
+
+        Returns: (Frame): Frame copy.
+        """
+
+        if not shallow:
+            return Frame(self.info.clone(), self.depth_image.copy(),
+                         None if self.rgb_image is None else self.rgb_image.copy(),
+                         None if self.seg_mask is None else self.seg_mask.copy(),
+                         None if self.normal_image is None else self.normal_image.copy())
+
         return Frame(self.info, self.depth_image,
-                     self.rgb_image, self.fg_mask, self.normal_image)
+                     self.rgb_image, self.seg_mask, self.normal_image)
 
 
 class _DepthImagePointCloud:
@@ -175,16 +194,34 @@ class _DepthImagePointCloud:
 
 
 class FramePointCloud:
-    """A framed point cloud: point, normal or color can be retrivied by
-     pixel coordinates.
+    """A point cloud still embedded on its frame. This representation is
+    usuful for retriving point cloud data by pixel coordinates.
 
     Attributes:
 
+        image_points (torch.Tensor): Image of U, V and depth values (H
+         x W x 3). Float 32 type.
+
+        mask (torch.Tensor): Valid mask (bool) of uv coordinates (H x W).
+
+        kcam (fiontb.KCamera): Camera intrinsic parameters.
+
+        rt_cam (fiontb.RTCamera): Camera extrinsic parameters.
+
+        points (torch.Tensor): Image of 3D points (H x W x 3) located
+         on the camera space. Float32 type.
+
+        colors (torch.Tensor): Image of point colors (H x W x
+         3). Uint8 type.
+
+        normals (torch.Tensor): Image of normal vectors (H x W x
+         3). Float32 type.
 
     """
 
     def __init__(self, image_points, mask, kcam, rt_cam=None, points=None,
                  normals=None, colors=None):
+
         self.image_points = image_points
         self.mask = mask
         self.kcam = kcam
@@ -194,16 +231,28 @@ class FramePointCloud:
         self.colors = colors
 
     @classmethod
-    def from_frame(cls, frame: Frame):
+    def from_frame(cls, frame: Frame, ignore_seg_background=False):
+        """Create the frame point cloud from a frame.
+
+        Args:
+
+            frame (Frame): Frame.
+
+            ignore_seg_background (bool, optional). If `True` and
+             frame has segmentation, then it'll dicard region that are
+             background (seg_image == 0). Default is `False`.
+
+        """
+
         depth_image = ensure_torch(frame.depth_image)
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
         mask = depth_image > 0
         mask = erode_mask(mask)
-        if frame.fg_mask is not None:
+        if frame.seg_image is not None and ignore_seg_background:
             mask = torch.logical_and(
-                torch.from_numpy(frame.fg_mask), mask)
+                torch.from_numpy(frame.seg_image > 0), mask)
 
         colors = None
         if frame.rgb_image is not None:
@@ -218,9 +267,10 @@ class FramePointCloud:
 
     @property
     def points(self):
-        """Points in the camera space.
+        """Image of 3D points on the camera space.
 
-        Returns: (:obj:`numpy.ndarray`): [WxHx3] array of points in the camera space.
+
+        Returns: (:obj:`torch.Tensor`): (H x W x 3) 3D points.
         """
 
         if self._points is None:
@@ -233,9 +283,11 @@ class FramePointCloud:
 
     @property
     def normals(self):
-        """Normals.
+        """Image of 3D normal vectors. It'll compute normals by the central
+        differences method if not computed before.
 
-        Returns: (:obj:`numpy.ndarray`): [WxHx3] array of normals in the camera space.
+        Returns: (:obj:`torch.Tensor`): (H x W x 3) per point normal vectors.
+
         """
 
         if self._normals is None:
@@ -250,9 +302,30 @@ class FramePointCloud:
 
     @normals.setter
     def normals(self, normals):
+        """Overwrites the normals vectors.
+
+        Args:
+
+            normals (:obj:`torch.Tensor`): A normal vector image (H x
+             W x 3).
+
+        """
+
         self._normals = normals
 
     def unordered_point_cloud(self, world_space=True, compute_normals=True):
+        r"""Converts into a point cloud not layouted as frame.
+
+        Args:
+
+            world_space (bool, optional): If `True`, then the 3d point
+             are transformed into world space. Default is `True`.
+
+            compute_normals (bool, optional): If `True` the normals
+             are included on the returned point cloud.
+
+        """
+
         mask = self.mask.flatten()
         if compute_normals:
             normals = self.normals.view(-1, 3)
@@ -272,6 +345,18 @@ class FramePointCloud:
         return pcl
 
     def downsample(self, scale, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+        r"""Downsample the point cloud.
+
+        Args:
+
+            scale (float): Scaling.
+
+            downsample_xyz_method (DownsampleXYZMethod): Which
+             sampling method for interpolating points and normals.
+
+        Returns: (FramePointCloud): Downsampled point cloud.
+        """
+
         points = downsample_xyz(self.points, self.mask, scale,
                                 method=downsample_xyz_method)
         mask = downsample_mask(self.mask, scale)
@@ -293,18 +378,46 @@ class FramePointCloud:
                                points=points, normals=normals,
                                colors=colors)
 
-    def pyramid(self, scales):
+    def pyramid(self, scales, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+        r"""Create a multiple scale pyramid for this point cloud.
+
+        Args:
+
+            scales (List[float]): Decreasing scale factors. No scaling
+             is applied for values greater than one, repeating the
+             current point cloud.
+
+            downsample_xyz_method (DownsampleXYZMethod): Which
+             sampling method for interpolating points and normals.
+
+        Returns: (List[FramePointCloud]): Downsampled pyramid of point
+         clouds. In increasing order of scales.
+
+        """
+
         pyramid = []
         curr = self
         for scale in scales:
             if scale < 1.0:
-                curr = curr.downsample(scale)
+                curr = curr.downsample(
+                    scale, downsample_xyz_method=downsample_xyz_method)
             pyramid.append(curr)
 
         pyramid.reverse()
         return pyramid
 
+    # pylint: disable=invalid-name
     def to(self, dst):
+        r"""Change the point cloud device or dtype. Dtype are applied only to
+        points and normals.
+
+        Args:
+
+            dst (torch.dtype, torch.device, str): Dtype or torch device.
+
+        Returns: (FramePointCloud): converted point cloud.
+
+        """
         if isinstance(dst, torch.dtype):
             return FramePointCloud(
                 (self.image_points.to(dst) if self.image_points is not None else None),
@@ -314,16 +427,16 @@ class FramePointCloud:
                 self._points.to(dst) if self._points is not None else None,
                 self._normals.to(dst) if self._normals is not None else None,
                 self.colors if self.colors is not None else None)
-        else:
-            return FramePointCloud(
-                (self.image_points.to(dst)
-                 if self.image_points is not None else None),
-                self.mask.to(dst),
-                self.kcam.to(dst),
-                self.rt_cam,
-                self._points.to(dst) if self._points is not None else None,
-                self._normals.to(dst) if self._normals is not None else None,
-                self.colors.to(dst) if self.colors is not None else None)
+
+        return FramePointCloud(
+            (self.image_points.to(dst)
+             if self.image_points is not None else None),
+            self.mask.to(dst),
+            self.kcam.to(dst),
+            self.rt_cam,
+            self._points.to(dst) if self._points is not None else None,
+            self._normals.to(dst) if self._normals is not None else None,
+            self.colors.to(dst) if self.colors is not None else None)
 
     def __getitem__(self, *slices):
         slices = slices[0]
@@ -335,17 +448,26 @@ class FramePointCloud:
 
     @property
     def width(self):
+        """Frame width (int).
+        """
         return self.mask.size(1)
 
     @property
     def height(self):
+        """Frame height (int).
+        """
         return self.mask.size(0)
 
     @property
     def device(self):
+        """Torch device.
+        """
         return self.mask.device
 
     def plot_debug(self, show=True):
+        """Debug ploting.
+        """
+        # pylint: disable=import-outside-toplevel
         import matplotlib.pyplot as plt
 
         plt.figure()

@@ -30,7 +30,11 @@ def _read_frame_pointers(stream, num_frames):
 
 
 class KLG:
-    """
+    r"""Dataset for reading .klg files from ElasticFusion.
+
+    Args:
+
+        filepath (str): KLG file path.
     """
 
     def __init__(self, filepath):
@@ -119,19 +123,17 @@ class KLGWriter:
 
 
 def write_klg(dataset, stream, format_depth_scale=None, max_frames=None):
-    """Writes a :obj:`fiontb.Snapshot` dataset to .klg file format.
+    """Write a dataset into the .klg file format.
 
     Args:
 
-        dataset (list[:obj:`fiontb.Snapshot`]): A dataset of RGB-D
-         snapshots.
+        dataset (list[:obj:`fiontb.Frame`]): Any frame dataset.
 
         stream (file): binary output stream.
 
-        format_depth_scale (float):
+        format_depth_scale (float, optional): Scaling for the depth values.
 
-        max_frames (int, optional): maximum number of frames to write,
-         default is to use dataset length.
+        max_frames (int, optional): maximum number of frames to write.
     """
 
     if max_frames is not None:

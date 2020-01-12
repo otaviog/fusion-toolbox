@@ -13,14 +13,19 @@ from fiontb.processing import (estimate_normals,
 
 
 class ColorMode(Enum):
-    RGB = 0,
+    """Specify color spaces for preprocessing functions.
+    """
+    RGB = 0
     GRAY = 1
     LAB = 2
     HSV = 3
 
 
-def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB,
-                  blur=False, compute_normals=False):
+def preprocess_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB,
+                     blur=False, compute_normals=False):
+    """Preprocess a frame and extract color features.
+    """
+
     height, width = frame.depth_image.shape
     height, width = int(height*scale), int(width*scale)
 
@@ -55,6 +60,8 @@ def prepare_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB,
 
 
 def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.LAB):
+    """Preprocess and reshape a rgb image into a feature format.
+    """
     features = rgb_image
 
     if blur:
