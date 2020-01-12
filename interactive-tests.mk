@@ -29,119 +29,96 @@ fiontb.processing-erode_mask:
 	python3 -m fiontb._test.test_processing erode_mask
 
 
-
-
 #########
-# Pose
+# Registration
 #
 
-fiontb.pose.open3d.rgbd-real:
-	python3 -m fiontb.pose._test.test_open3dicp rgbd-real
+fiontb.registration.icp.depth-real:
+	python3 -m fiontb.registration._test.test_icp depth-real
 
-fiontb.pose.open3d.rgbd-synthetic:
-	python3 -m fiontb.pose._test.test_open3dicp rgbd-synthetic
+fiontb.registration.icp.depth-synthetic:
+	python3 -m fiontb.registration._test.test_icp depth-synthetic
 
-fiontb.pose.open3d.rgb-real:
-	python3 -m fiontb.pose._test.test_open3dicp rgb-real
+fiontb.registration.icp.rgb-real:
+	python3 -m fiontb.registration._test.test_icp rgb-real
 
-fiontb.pose.open3d.rgb-synthetic:
-	python3 -m fiontb.pose._test.test_open3dicp rgb-synthetic
+fiontb.registration.icp.rgb-synthetic:
+	python3 -m fiontb.registration._test.test_icp rgb-synthetic
 
-fiontb.pose.open3d.coloricp-real:
-	python3 -m fiontb.pose._test.test_open3dicp coloricp-real
+fiontb.registration.icp.rgbd-real:
+	python3 -m fiontb.registration._test.test_icp rgbd-real
 
-fiontb.pose.open3d.coloricp-synthetic:
-	python3 -m fiontb.pose._test.test_open3dicp coloricp-synthetic
+fiontb.registration.icp.rgbd-synthetic:
+	python3 -m fiontb.registration._test.test_icp rgbd-synthetic
 
-fiontb.pose.open3d.rgbd-trajectory:
-	python3 -m fiontb.pose._test.test_open3dicp rgbd-trajectory
+fiontb.registration.icp.ms-depth-real:
+	python3 -m fiontb.registration._test.test_icp ms-depth-real
 
-fiontb.pose.icp.depth-real:
-	python3 -m fiontb.pose._test.test_icp depth-real
+fiontb.registration.icp.ms-depth-synthetic:
+	python3 -m fiontb.registration._test.test_icp ms-depth-synthetic
 
-fiontb.pose.icp.depth-synthetic:
-	python3 -m fiontb.pose._test.test_icp depth-synthetic
+fiontb.registration.icp.ms-rgb-real:
+	python3 -m fiontb.registration._test.test_icp ms-rgb-real
 
-fiontb.pose.icp.rgb-real:
-	python3 -m fiontb.pose._test.test_icp rgb-real
+fiontb.registration.icp.ms-rgb-synthetic:
+	python3 -m fiontb.registration._test.test_icp ms-rgb-synthetic
 
-fiontb.pose.icp.rgb-synthetic:
-	python3 -m fiontb.pose._test.test_icp rgb-synthetic
+fiontb.registration.icp.ms-rgbd-real:
+	python3 -m fiontb.registration._test.test_icp ms-rgbd-real
 
-fiontb.pose.icp.rgbd-real:
-	python3 -m fiontb.pose._test.test_icp rgbd-real
+fiontb.registration.icp.ms-rgbd-synthetic:
+	python3 -m fiontb.registration._test.test_icp ms-rgbd-synthetic
 
-fiontb.pose.icp.rgbd-synthetic:
-	python3 -m fiontb.pose._test.test_icp rgbd-synthetic
+fiontb.registration.icp.so3:
+	python3 -m fiontb.registration._test.test_icp so3
 
-fiontb.pose.icp.ms-depth-real:
-	python3 -m fiontb.pose._test.test_icp ms-depth-real
+fiontb.registration.icp.fail:
+	python3 -m fiontb.registration._test.test_icp fail
 
-fiontb.pose.icp.ms-depth-synthetic:
-	python3 -m fiontb.pose._test.test_icp ms-depth-synthetic
+fiontb.registration.icp.trajectory:
+	python3 -m fiontb.registration._test.test_icp trajectory
 
-fiontb.pose.icp.ms-rgb-real:
-	python3 -m fiontb.pose._test.test_icp ms-rgb-real
+fiontb.registration.autogradicp.depth-real:
+	python3 -m fiontb.registration._test.test_autogradicp depth-real
 
-fiontb.pose.icp.ms-rgb-synthetic:
-	python3 -m fiontb.pose._test.test_icp ms-rgb-synthetic
+fiontb.registration.autogradicp.depth-synthetic:
+	python3 -m fiontb.registration._test.test_autogradicp depth-synthetic
 
-fiontb.pose.icp.ms-rgbd-real:
-	python3 -m fiontb.pose._test.test_icp ms-rgbd-real
+fiontb.registration.autogradicp.rgb-real:
+	python3 -m fiontb.registration._test.test_autogradicp rgb-real
 
-fiontb.pose.icp.ms-rgbd-synthetic:
-	python3 -m fiontb.pose._test.test_icp ms-rgbd-synthetic
+fiontb.registration.autogradicp.rgb-synthetic:
+	python3 -m fiontb.registration._test.test_autogradicp rgb-synthetic
 
-fiontb.pose.icp.so3:
-	python3 -m fiontb.pose._test.test_icp so3
+fiontb.registration.autogradicp.rgbd-real:
+	python3 -m fiontb.registration._test.test_autogradicp rgbd-real
 
-fiontb.pose.icp.fail:
-	python3 -m fiontb.pose._test.test_icp fail
+fiontb.registration.autogradicp.rgbd-synthetic:
+	python3 -m fiontb.registration._test.test_autogradicp rgbd-synthetic
 
-fiontb.pose.icp.trajectory:
-	python3 -m fiontb.pose._test.test_icp trajectory
+fiontb.registration.autogradicp.ms-depth-real:
+	python3 -m fiontb.registration._test.test_autogradicp ms-depth-real
 
-fiontb.pose.autogradicp.depth-real:
-	python3 -m fiontb.pose._test.test_autogradicp depth-real
+fiontb.registration.autogradicp.ms-depth-synthetic:
+	python3 -m fiontb.registration._test.test_autogradicp ms-depth-synthetic
 
-fiontb.pose.autogradicp.depth-synthetic:
-	python3 -m fiontb.pose._test.test_autogradicp depth-synthetic
+fiontb.registration.autogradicp.ms-rgb-real:
+	python3 -m fiontb.registration._test.test_autogradicp ms-rgb-real
 
-fiontb.pose.autogradicp.rgb-real:
-	python3 -m fiontb.pose._test.test_autogradicp rgb-real
+fiontb.registration.autogradicp.ms-rgb-synthetic:
+	python3 -m fiontb.registration._test.test_autogradicp ms-rgb-synthetic
 
-fiontb.pose.autogradicp.rgb-synthetic:
-	python3 -m fiontb.pose._test.test_autogradicp rgb-synthetic
+fiontb.registration.autogradicp.ms-rgbd-real:
+	python3 -m fiontb.registration._test.test_autogradicp ms-rgbd-real
 
-fiontb.pose.autogradicp.rgbd-real:
-	python3 -m fiontb.pose._test.test_autogradicp rgbd-real
+fiontb.registration.autogradicp.ms-rgbd-synthetic:
+	python3 -m fiontb.registration._test.test_autogradicp ms-rgbd-synthetic
 
-fiontb.pose.autogradicp.rgbd-synthetic:
-	python3 -m fiontb.pose._test.test_autogradicp rgbd-synthetic
+fiontb.registration.autogradicp.trajectory:
+	python3 -m fiontb.registration._test.test_autogradicp trajectory
 
-fiontb.pose.autogradicp.ms-depth-real:
-	python3 -m fiontb.pose._test.test_autogradicp ms-depth-real
-
-fiontb.pose.autogradicp.ms-depth-synthetic:
-	python3 -m fiontb.pose._test.test_autogradicp ms-depth-synthetic
-
-fiontb.pose.autogradicp.ms-rgb-real:
-	python3 -m fiontb.pose._test.test_autogradicp ms-rgb-real
-
-fiontb.pose.autogradicp.ms-rgb-synthetic:
-	python3 -m fiontb.pose._test.test_autogradicp ms-rgb-synthetic
-
-fiontb.pose.autogradicp.ms-rgbd-real:
-	python3 -m fiontb.pose._test.test_autogradicp ms-rgbd-real
-
-fiontb.pose.autogradicp.ms-rgbd-synthetic:
-	python3 -m fiontb.pose._test.test_autogradicp ms-rgbd-synthetic
-
-fiontb.pose.autogradicp.trajectory:
-	python3 -m fiontb.pose._test.test_autogradicp trajectory
-
-fiontb.pose.autogradicp.pcl-rgbd-real:
-	python3 -m fiontb.pose._test.test_autogradicp pcl-rgbd-real
+fiontb.registration.autogradicp.pcl-rgbd-real:
+	python3 -m fiontb.registration._test.test_autogradicp pcl-rgbd-real
 
 #########
 # Surfel
@@ -197,20 +174,3 @@ fiontb.pipeline.surfel_slam.real-scene:
 
 fiontb.pipeline.surfel_slam.synthetic-scene:
 	python3 -m fiontb.pipeline._test.test_surfel_slam synthetic_scene
-
-# FSF
-
-fiontb.fusion.fsf.registration:	
-	python3 -m fiontb.fusion.fsf._test.test_registration
-
-fiontb.fusion.fsf.fusion:	
-	python3 -m fiontb.fusion.fsf._test.test_fusion
-
-fiontb.fusion.fsf.merge:
-	python3 -m fiontb.fusion.fsf._test.test_merge
-
-fiontb.pipeline.fsf-real-scene:
-	python3 -m fiontb.pipeline._test.test_fsf_slam real_scene
-
-fiontb.pipeline.fsf-synthetic-scene:
-	python3 -m fiontb.pipeline._test.test_fsf_slam synthetic_scene

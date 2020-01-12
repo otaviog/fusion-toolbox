@@ -384,7 +384,7 @@ class FramePointCloud:
                              align_corners=False)
         colors = colors.squeeze().transpose(0, 1).transpose(2, 1).byte()
         kcam = self.kcam.scaled(scale)
-
+        
         return FramePointCloud(None, mask, kcam, rt_cam=self.rt_cam,
                                points=points, normals=normals,
                                colors=colors)
@@ -435,8 +435,8 @@ class FramePointCloud:
             return FramePointCloud(
                 (self.image_points.to(dst) if self.image_points is not None else None),
                 self.mask,
-                self.kcam.to(dst),
-                self.rt_cam.to(dst),
+                self.kcam,
+                self.rt_cam,
                 self._points.to(dst) if self._points is not None else None,
                 self._normals.to(dst) if self._normals is not None else None,
                 self.colors if self.colors is not None else None)
@@ -445,8 +445,8 @@ class FramePointCloud:
             (self.image_points.to(dst)
              if self.image_points is not None else None),
             self.mask.to(dst),
-            self.kcam.to(dst),
-            self.rt_cam,
+            self.kcam.clone(),
+            self.rt_cam.clone(),
             self._points.to(dst) if self._points is not None else None,
             self._normals.to(dst) if self._normals is not None else None,
             self.colors.to(dst) if self.colors is not None else None)

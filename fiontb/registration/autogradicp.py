@@ -1,9 +1,11 @@
+"""Pose estimation using PyTorch's Autograd functionalities.
+"""
 import math
 
 import torch
 import scipy.optimize
 
-from fiontb.frame import FramePointCloud
+from fiontb.frame import Frame, FramePointCloud
 from fiontb.camera import RigidTransform
 from fiontb.spatial.matching import (FramePointCloudMatcher,
                                      PointCloudMatcher)
@@ -30,6 +32,12 @@ class _ClosureBox:
         self.x = x
 
     def func(self, x):
+        """Evaluates at x (6D).
+
+        Returns:
+
+            (float, List[float]): The cost value and 6D gradient.
+        """
         with torch.no_grad():
             self.x[0][0] = float(x[0])
             self.x[0][1] = float(x[1])
@@ -50,6 +58,29 @@ class _ClosureBox:
 
 
 class AutogradICP:
+    """ICP using PyTorch's autograd function for estimating 6D
+    gradient. The pose is optimized by the BFGS algorithm.
+
+    Attributes:
+
+        num_iters (int): Number of iterations for the BFGS
+         optimization algorithm.
+
+        learning_rate (float): Scaling factor for the cost
+         function. Not rarely, BFGS will try high value parameter
+         values when estimating the Hessian matrix. If they're high
+         enough, it'll cause lookups too far outside the target search
+         bounds, causing errors. On our tests good values are 0.01
+         between and 0.1.
+
+        geom_weight (float): Geometry term weighting, 0.0 to disable
+         use of depth data.
+
+        feat_weight (float): Feature term weighting, 0.0 to ignore
+         point features.
+
+    """
+
     def __init__(self, num_iters, learning_rate=0.01,
                  geom_weight=0.5, feat_weight=0.5):
         self.num_iters = num_iters
@@ -141,6 +172,43 @@ class AutogradICP:
     def estimate(self, kcam, source_points, source_normals, source_mask,
                  target_points=None, target_mask=None, target_normals=None,
                  target_feats=None, source_feats=None, transform=None):
+        """Estimate the odometry between a target points and normals in a
+        grid against source points using the point-to-plane geometric
+        error.
+
+        Args:
+
+            kcam (:obj:`fiontb.camera.KCamera`): Intrinsics camera
+             transformer.
+
+            source_points (:obj:`torch.Tensor`): A float (N x 3) tensor of
+             source points.
+
+            source_normals (:obj:`torch.Tensor`): A float (N x 3) tensor of
+             source normals.
+
+            source_mask (:obj:`torch.Tensor`): A bool (N) mask
+             tensor of valid source points.
+
+            target_points (:obj:`torch.Tensor`): A float (H x W x 3) tensor
+             of rasterized 3d points that the source points should be
+             aligned with.
+
+            target_normals (:obj:`torch.Tensor`): A float (H x W x 3) tensor
+             of rasterized 3d **normals** that the source points should be
+             aligned with.
+
+            target_mask (:obj:`torch.Tensor`): A bool (H x W) mask
+              tensor of valid target points.
+
+            transform (:obj:`torch.Tensor`): A float (4 x 4) initial
+             transformation matrix.
+
+        Returns:
+
+            (:obj:`ICPResult`): Resulting transformation and information.
+        """
+
         source_points = source_points[source_mask].view(-1, 3)
         source_normals = source_normals[source_mask].view(-1, 3)
 
@@ -156,6 +224,31 @@ class AutogradICP:
 
     def estimate_pcl(self, source_pcl, target_pcl, transform=None, source_feats=None,
                      target_feats=None):
+        """Estimate the alignment between two point clouds.
+
+        Args:
+
+            source_pcl (:obj:`fiontb.pointcloud.PointCloud` or
+             :obj:`fiontb.surfel.SurfelCloud`): Source point cloud.
+
+            target_pcl (:obj:`fiontb.pointcloud.PointCloud` or
+             :obj:`fiontb.surfel.SurfelCloud`): Target pcl.
+
+            source_feats (:obj:`torch.Tensor`, optional): Source
+             feature map (C x N).
+
+            target_feats (:obj:`torch.Tensor`, optional): Target
+             feature map (C x N).
+
+            transform (:obj:`torch.Tensor`, optional): Initial
+             transformation, (4 x 4) matrix.
+
+        Returns:
+
+            (:obj:`ICPResult`): Resulting transformation and
+             information.
+        """
+
         matcher = PointCloudMatcher(
             target_pcl.points, target_pcl.normals, target_feats,
             num_neighbors=8, distance_upper_bound=0.5)
@@ -164,9 +257,38 @@ class AutogradICP:
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,
                        target_feats=None, transform=None, device="cpu"):
+        """Estimate the odometry between two frames.
 
-        source_frame = FramePointCloud.from_frame(source_frame).to(device)
-        target_frame = FramePointCloud.from_frame(target_frame).to(device)
+        Args:
+
+            source_frame (:obj:`fiontb.frame.Frame` or
+             :obj:`fiontb.frame.FramePointCloud`): Source frame.
+
+            target_frame (:obj:`fiontb.frame.Frame` or
+             :obj:`fiontb.frame.FramePointCloud`): Target frame.
+
+            source_feats (:obj:`torch.Tensor`, optional): Source
+             feature map (C x H x W).
+
+            target_feats (:obj:`torch.Tensor`, optional): Target
+             feature map (C x H x W).
+
+            transform (:obj:`torch.Tensor`, optional): Initial
+             transformation, (4 x 4) matrix.
+
+            device (str): Torch device to execute the algorithm.
+
+        Returns:
+
+            (:obj:`ICPResult`): Resulting transformation and
+             information.
+
+        """
+        if isinstance(source_frame, Frame):
+            source_frame = FramePointCloud.from_frame(source_frame).to(device)
+
+        if isinstance(target_frame, Frame):
+            target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
         return self.estimate(source_frame.kcam, source_frame.points, source_frame.normals,
                              source_frame.mask,
@@ -179,6 +301,29 @@ class AutogradICP:
 
 
 class AGICPOption:
+    """Options for the AutogradICP algorithm.
+
+    Attributes:
+
+        scale (float): Resizing scale for inputs.
+
+        iters (int): Number of optimizer iterations.
+
+        geom_weight (float): Geometry term weighting, 0.0 to disable
+         use of depth data.
+
+        feat_weight (float): Feature term weighting, 0.0 to ignore
+         point features.
+
+        learning_rate (float): Scaling factor for the cost
+         function. Not rarely, BFGS will try high value parameter
+         values when estimating the Hessian matrix. If they're high
+         enough, it'll cause lookups too far outside the target search
+         bounds, causing errors. On our tests good values are 0.01
+         between and 0.1.
+
+    """
+
     def __init__(self, scale, iters=30, learning_rate=5e-2,
                  geom_weight=1.0, feat_weight=1.0, so3=False):
         self.scale = scale
@@ -190,6 +335,11 @@ class AGICPOption:
 
 
 class MultiscaleAutogradICP(_MultiscaleOptimization):
+    """Refines point-to-plane AutogradICP by leveraing from lower
+    resolution results.
+
+    """
+
     def __init__(self, options, downsample_xyz_method=DownsampleXYZMethod.Nearest):
         super().__init__(
             [(opt.scale, AutogradICP(
@@ -197,3 +347,19 @@ class MultiscaleAutogradICP(_MultiscaleOptimization):
                 opt.feat_weight))
              for opt in options],
             downsample_xyz_method)
+
+    def estimate_pcl(self, source_pcl, target_pcl, transform=None,
+                     device="cpu"):
+        """Multiscale AutogradICP for point clouds.
+        """
+
+        for scale, estimator in self.estimators:
+            src = source_pcl.to("cpu").downsample(scale).to(device)
+            tgt = target_pcl.to("cpu").downsample(scale).to(device)
+
+            result = estimator.estimate_pcl(src, tgt, transform=transform.to(device),
+                                            source_feats=src.features,
+                                            target_feats=tgt.features)
+            transform = result.transform
+
+        return result

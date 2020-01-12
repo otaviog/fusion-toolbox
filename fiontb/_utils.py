@@ -1,3 +1,6 @@
+"""
+Intern utilities.
+"""
 import contextlib
 import cProfile
 
@@ -6,7 +9,7 @@ import torch
 
 
 def depth_image_to_uvz(depth_image, finfo):
-    """Converts an depth image to a meshgrid of u (columns), v (rows) an z
+    """Converts an depth image to a mesh grid of u (columns), v (rows) an z
      coordinates.
 
     Args:
@@ -15,8 +18,9 @@ def depth_image_to_uvz(depth_image, finfo):
 
         finfo (:obj:`FrameInfo`): The source frame description.
 
-    Returns: (:obj:`torch.Tensor`): [WxHx3] the depth image with the u
-     and v pixel coordinates.
+    Returns:
+        (:obj:`torch.Tensor`): [WxHx3] the depth image with the u
+         and v pixel coordinates.
 
     """
 
@@ -34,6 +38,16 @@ def depth_image_to_uvz(depth_image, finfo):
 
 
 def ensure_torch(x, dtype=None):
+    """Ensure that x is torch tensor. If x is a torch tensor, it's returned as it is.
+
+    Args:
+        x (:obj:`numpy.ndarray`, list, :obj:`torch.Tensor`): Any array object or torch's tensor.
+
+        dtype (:obj:`torch.dtype`, optional): Target type.
+
+    Returns:
+
+    """
     if isinstance(x, (np.ndarray, list, tuple)):
         x = torch.from_numpy(x)
     if dtype is not None:

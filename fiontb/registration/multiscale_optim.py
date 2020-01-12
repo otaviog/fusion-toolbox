@@ -1,7 +1,8 @@
 import torch
 
+from fiontb.frame import Frame
 from fiontb.processing import (
-    downsample_xyz, downsample_mask, DownsampleXYZMethod)
+    downsample_xyz, downsample_mask, DownsampleXYZMethod, feature_pyramid)
 from .result import ICPResult
 
 
@@ -115,14 +116,43 @@ class MultiscaleOptimization:
                        target_feats=None, transform=None, device="cpu"):
         from fiontb.frame import FramePointCloud
 
-        source_frame = FramePointCloud.from_frame(source_frame).to(device)
-        target_frame = FramePointCloud.from_frame(target_frame).to(device)
+        if isinstance(source_frame, Frame):
+            source_frame = FramePointCloud.from_frame(source_frame).to(device)
 
-        return self.estimate(source_frame.kcam, source_frame.points, source_frame.normals,
-                             source_frame.mask,
-                             source_feats=source_feats,
-                             target_points=target_frame.points,
-                             target_mask=target_frame.mask,
-                             target_normals=target_frame.normals,
-                             target_feats=target_feats,
-                             transform=transform)
+        if isinstance(target_frame, Frame):
+            target_frame = FramePointCloud.from_frame(target_frame).to(device)
+
+        scales = [scale for scale, _ in self.estimators]
+
+        source_feat_pyr = target_feat_pyr = [None]*len(scales)
+
+        source_pyr = source_frame.pyramid(scales)
+        if source_feats is not None:
+            source_feat_pyr = feature_pyramid(source_feats, scales)
+
+        target_pyr = target_frame.pyramid(scales)
+        if target_feats is not None:
+            target_feat_pyr = feature_pyramid(target_feats, scales)
+
+        for ((_, estimator), source, src_feats,
+             target, tgt_feats) in zip(self.estimators[::-1],
+                                       source_pyr, source_feat_pyr,
+                                       target_pyr, target_feat_pyr):
+
+            curr_result = estimator.estimate(
+                source.kcam,
+                source.points,
+                source.normals,
+                source.mask,
+                source_feats=src_feats,
+                target_points=target.points,
+                target_normals=target.normals,
+                target_mask=target.mask,
+                target_feats=tgt_feats,
+                transform=transform)
+
+            if curr_result:
+                transform = curr_result.transform
+                result = curr_result
+
+        return result

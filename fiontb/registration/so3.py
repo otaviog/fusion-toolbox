@@ -1,4 +1,4 @@
-"""Lie algebra operators for SO3 group.
+"""Lie algebra utilites SO3 group.
 """
 
 import torch
@@ -9,6 +9,12 @@ from fiontb._cfiontb import (SO3tExpOp as _SO3tExpOp)
 
 
 class SO3tExp(torch.autograd.Function):
+    """Hack operator for differentiable SO3 rotation and a
+    translation. Obsivly this should be a SE3 operator, but we're
+    unable to correct implement the SE3 grad.
+
+    """
+
     @staticmethod
     def forward(ctx, upsilon_omega):
         upsilon_omega = upsilon_omega.cpu()

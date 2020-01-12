@@ -141,6 +141,21 @@ def downsample(image, scale, method=DownsampleMethod.Nearest):
             image.unsqueeze(0), scale_factor=scale,
             mode=method_to_torch[method]).squeeze()
 
+
+def feature_pyramid(feature_map, scales):
+    pyramid = []
+    feature_map = feature_map.unsqueeze(0)
+
+    for scale in scales:
+        if scale < 1.0:
+            feature_map = torch.nn.functional.interpolate(
+                feature_map, scale_factor=scale, mode='bilinear',
+                align_corners=False).squeeze(0)
+            pyramid.append(feature_map.squeeze(0))
+
+    pyramid.reverse()
+    return pyramid
+
 ################################
 # Erode
 ################################

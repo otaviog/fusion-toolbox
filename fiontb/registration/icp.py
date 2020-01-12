@@ -1,11 +1,10 @@
 """Pose estimation via iterative closest points algorithm.
 """
-import math
-
 import torch
 from tenviz.pose import SE3, SO3
 
 from fiontb.processing import DownsampleXYZMethod
+from fiontb.frame import FramePointCloud, Frame
 from fiontb._cfiontb import ICPJacobian as _ICPJacobian
 from fiontb._utils import empty_ensured_size
 
@@ -77,6 +76,14 @@ class ICPOdometry:
         num_iters (int): Number of iterations for the Gauss-Newton
          optimization algorithm.
 
+        geom_weight (float): Geometry term weighting, 0.0 to disable
+         use of depth data.
+
+        feat_weight (float): Feature term weighting, 0.0 to ignore
+         point features.
+
+        so3 (bool): SO3 optimization, i.e., rotation only.
+
     """
 
     def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False):
@@ -93,42 +100,44 @@ class ICPOdometry:
                  source_mask, source_feats=None,
                  target_points=None, target_mask=None, target_normals=None,
                  target_feats=None, transform=None):
-        """Estimate the ICP odometry between a target points and normals in a
+        """Estimate the odometry between a target points and normals in a
         grid against source points using the point-to-plane geometric
         error.
 
         Args:
 
-            target_points (:obj:`torch.Tensor`): A float [WxHx3] tensor
-             of rasterized 3d points that the source points should be
-             aligned.
-
-            target_normals (:obj:`torch.Tensor`): A float [WxHx3] tensor
-             of rasterized 3d **normals** that the source points should be
-             aligned.
-
-            target_mask (:obj:`torch.Tensor`): A uint8 [WxH] mask
-              tensor of valid target points.
-
-            source_points (:obj:`torch.Tensor`): A float [Nx3] tensor of
-             source points.
-
-            source_mask (:obj:`torch.Tensor`): A uint8 [N] mask
-             tensor of valid source points.
-
             kcam (:obj:`fiontb.camera.KCamera`): Intrinsics camera
              transformer.
 
-            transform (:obj:`torch.Tensor`): A float [4x4] initial
+            source_points (:obj:`torch.Tensor`): A float (N x 3) tensor of
+             source points.
+
+            source_normals (:obj:`torch.Tensor`): A float (N x 3) tensor of
+             source normals.
+
+            source_mask (:obj:`torch.Tensor`): A bool (N) mask
+             tensor of valid source points.
+
+            target_points (:obj:`torch.Tensor`): A float (H x W x 3) tensor
+             of rasterized 3d points that the source points should be
+             aligned with.
+
+            target_normals (:obj:`torch.Tensor`): A float (H x W x 3) tensor
+             of rasterized 3d **normals** that the source points should be
+             aligned with.
+
+            target_mask (:obj:`torch.Tensor`): A bool (H x W) mask
+              tensor of valid target points.
+
+            transform (:obj:`torch.Tensor`): A float (4 x 4) initial
              transformation matrix.
 
-        Returns: (:obj:`torch.Tensor`): A [4x4] rigid motion matrix
-            that aligns source points to target points.
+        Returns:
 
+            (:obj:`ICPResult`): Resulting transformation and information.
         """
 
         device = target_points.device
-        dtype = source_points.dtype
         kcam = kcam.matrix.to(device)
         if transform is None:
             transform = torch.eye(4, device=device, dtype=torch.double)
@@ -201,17 +210,42 @@ class ICPOdometry:
             best_result = ICPResult(
                 transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 
-            # Uncomment the next line(s) for debug
-            # print(_, residual)
-
         return best_result
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,
                        target_feats=None, transform=None, device="cpu"):
-        from fiontb.frame import FramePointCloud
+        """Estimate the odometry between two frames.
 
-        source_frame = FramePointCloud.from_frame(source_frame).to(device)
-        target_frame = FramePointCloud.from_frame(target_frame).to(device)
+        Args:
+
+            source_frame (:obj:`fiontb.frame.Frame` or
+             :obj:`fiontb.frame.FramePointCloud`): Source frame.
+
+            target_frame (:obj:`fiontb.frame.Frame` or
+             :obj:`fiontb.frame.FramePointCloud`): Target frame.
+
+            source_feats (:obj:`torch.Tensor`, optional): Source
+             feature map (C x H x W).
+
+            target_feats (:obj:`torch.Tensor`, optional): Target
+             feature map (C x H x W).
+
+            transform (:obj:`torch.Tensor`, optional): Initial
+             transformation, (4 x 4) matrix.
+
+            device (str): Torch device to execute the algorithm.
+
+        Returns:
+
+            (:obj:`ICPResult`): Resulting transformation and
+             information.
+        """
+
+        if isinstance(source_frame, Frame):
+            source_frame = FramePointCloud.from_frame(source_frame).to(device)
+
+        if isinstance(target_frame, Frame):
+            target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
         return self.estimate(source_frame.kcam, source_frame.points,
                              source_frame.normals,
@@ -225,6 +259,23 @@ class ICPOdometry:
 
 
 class ICPOption:
+    """Options for the ICP algorithm.
+
+    Attributes:
+
+        scale (float): Resizing scale for inputs.
+
+        iters (int): Number of optimizer iterations.
+
+        geom_weight (float): Geometry term weighting, 0.0 to disable
+         use of depth data.
+
+        feat_weight (float): Feature term weighting, 0.0 to ignore
+         point features.
+
+        so3 (bool): SO3 optimization, i.e., rotation only.
+    """
+
     def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, so3=False):
         self.scale = scale
         self.iters = iters
@@ -234,8 +285,7 @@ class ICPOption:
 
 
 class MultiscaleICPOdometry(_MultiscaleOptimization):
-    """Pyramidal point-to-plane iterative closest points
-    algorithm.
+    """Refines point-to-plane ICP by leveraing from lower resolution results.
     """
 
     def __init__(self, options, downsample_xyz_method=DownsampleXYZMethod.Nearest):
@@ -243,12 +293,15 @@ class MultiscaleICPOdometry(_MultiscaleOptimization):
 
         Args:
 
-            scale_iters (List[(float, int, bool)]): Scale levels, its
-             number of iterations, and whatever should use features. Scales must be <= 1.0
+            options (List[:obj:`ICPOption`]): Each element contains a
+             scale specific ICP options. Options should be specified
+             with their scales from higher to lower. And they're applied
+             from lower to higher.
 
             downsample_xyz_method
              (:obj:`fiontb.downsample.DownsampleXYZMethod`): Which
-             method to interpolate the xyz target and source points.
+             method to interpolate the XYZ points and normals.
+
         """
 
         super().__init__(

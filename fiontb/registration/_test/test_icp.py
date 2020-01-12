@@ -1,4 +1,4 @@
-"""Test the ICP algorithm variants.
+"""Interactive testing of ICPOdometry.
 """
 from pathlib import Path
 
@@ -9,25 +9,29 @@ from fiontb.data import set_start_at_eye
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
 from fiontb.viz.show import show_pcls
-from fiontb.pose.icp import (
+from fiontb.registration.icp import (
     ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOption)
-from fiontb.testing import prepare_frame, ColorMode
+from fiontb.testing import preprocess_frame, ColorMode
 
 from .testing import (evaluate, run_trajectory_test, run_pair_test)
 
-# pylint: disable=no-self-use
-
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame0_idx=50 + 42, frame1_idx=50+43, color_mode=ColorMode.GRAY,
+SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=14, color_mode=ColorMode.GRAY,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=28, color_mode=ColorMode.LAB,
+REAL_FRAME_ARGS = dict(frame1_idx=14, color_mode=ColorMode.LAB,
                        blur=True, filter_depth=True)
 
 
-class Tests:
+class _Tests:
+    """Tests ICPOdometry class.
+    """
+    # pylint: disable=no-self-use
+
     def depth_real(self):
+        """Use only depth information of a real scene.
+        """
         run_pair_test(
             ICPOdometry(15, geom_weight=1, feat_weight=0),
             set_start_at_eye(load_ftb(_TEST_DATA / "sample1")),
@@ -35,30 +39,40 @@ class Tests:
             device="cuda:0")
 
     def depth_synthetic(self):
+        """Use only depth information of a synthetic scene.
+        """
         run_pair_test(
             ICPOdometry(15, geom_weight=1, feat_weight=0),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
     def rgb_real(self):
+        """Use only RGB information of a real scene.
+        """
         run_pair_test(
             ICPOdometry(300, geom_weight=0, feat_weight=1),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
     def rgb_synthetic(self):
+        """Use only RGB information of a synthetic scene.
+        """
         run_pair_test(
             ICPOdometry(300, geom_weight=0, feat_weight=1),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
     def rgbd_real(self):
+        """Use RGB+depth information of a real scene.
+        """
         run_pair_test(
             ICPOdometry(40, geom_weight=.5, feat_weight=.5),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
     def rgbd_synthetic(self):
+        """Use RGB+depth information of a synthetic scene.
+        """
         run_pair_test(
             ICPOdometry(40, geom_weight=1, feat_weight=1),
             load_ftb(
@@ -67,6 +81,8 @@ class Tests:
             **SYNTHETIC_FRAME_ARGS)
 
     def ms_depth_real(self):
+        """Use multiscale depth information of a real scene.
+        """
         run_pair_test(
             MultiscaleICPOdometry([
                 ICPOption(1.0, 15, geom_weight=1, feat_weight=0),
@@ -76,6 +92,8 @@ class Tests:
             **REAL_FRAME_ARGS)
 
     def ms_depth_synthetic(self):
+        """Use multiscale depth information of a synthetic scene.
+        """
         run_pair_test(
             MultiscaleICPOdometry([
                 ICPOption(1.0, 15, geom_weight=1, feat_weight=0),
@@ -89,6 +107,8 @@ class Tests:
             **SYNTHETIC_FRAME_ARGS)
 
     def ms_rgb_real(self):
+        """Use multiscale RGB information of a real scene.
+        """
         run_pair_test(
             MultiscaleICPOdometry([
                 ICPOption(1.0, 20, geom_weight=0, feat_weight=1),
@@ -98,6 +118,8 @@ class Tests:
             **REAL_FRAME_ARGS)
 
     def ms_rgb_synthetic(self):
+        """Use multiscale RGB information of a synthetic scene.
+        """
         run_pair_test(
             MultiscaleICPOdometry([
                 ICPOption(1.0, 20, geom_weight=0, feat_weight=1),
@@ -107,6 +129,8 @@ class Tests:
             **SYNTHETIC_FRAME_ARGS)
 
     def ms_rgbd_real(self):
+        """Use multiscale RGB+depth information of a real scene.
+        """
         run_pair_test(
             MultiscaleICPOdometry([
                 ICPOption(1.0, 20, geom_weight=10, feat_weight=1),
@@ -118,6 +142,8 @@ class Tests:
             **REAL_FRAME_ARGS)
 
     def ms_rgbd_synthetic(self):
+        """Use multiscale RGB+depth information of a synthetic scene.
+        """
         geom_weight = 10
         feat_weight = 0
         run_pair_test(
@@ -135,9 +161,13 @@ class Tests:
             **SYNTHETIC_FRAME_ARGS)
 
     def fail(self):
+        """Test for fail alignment.
+        """
         run_pair_test(ICPOdometry(10), load_ftb(_TEST_DATA / "sample1"))
 
     def so3(self):
+        """Test rotation only alignment.
+        """
         dataset = load_ftb(_TEST_DATA / "sample1")
         dataset = set_start_at_eye(dataset)
         device = "cuda:0"
@@ -174,22 +204,26 @@ class Tests:
         pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
         pcl2 = pcl1.transform(relative_rt.to(device))
         pcl1 = pcl1.transform(init_transform)
+
         show_pcls([pcl0, pcl1.transform(init_transform), pcl2])
 
     def trajectory(self):
-        dataset = load_ftb(
-            Path(__file__).parent / "../../../test-data/rgbd/sample2")
-        # "/home/otaviog/3drec/slam-feature/data/scenenn/SceneNN-ftb/045")
+        """Test mulstiscale RGB and depth alignment on a a synthetic trajectory.
+        """
 
+        dataset = load_ftb(_TEST_DATA / "sample2")
         icp = MultiscaleICPOdometry([
             ICPOption(1.0, 10, geom_weight=10, feat_weight=1),
             ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
             ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-            # ICPOption(1.0, 10, feat_weight=1, so3=True),
+            #ICPOption(1.0, 10, feat_weight=1, so3=True),
         ])
-        icp = ICPOdometry(15, geom_weight=0, feat_weight=1)
-        run_trajectory_test(icp, dataset)
+        icp = ICPOdometry(25, geom_weight=1, feat_weight=0)
+        run_trajectory_test(icp, dataset,
+                            filter_depth=SYNTHETIC_FRAME_ARGS['filter_depth'],
+                            blur=SYNTHETIC_FRAME_ARGS['blur'],
+                            color_mode=SYNTHETIC_FRAME_ARGS['color_mode'])
 
 
 if __name__ == '__main__':
-    fire.Fire(Tests)
+    fire.Fire(_Tests)

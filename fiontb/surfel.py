@@ -1,3 +1,6 @@
+"""
+Surfel data structures.
+"""
 import math
 
 import torch
