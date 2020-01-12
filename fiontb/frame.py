@@ -14,22 +14,24 @@ from .pointcloud import PointCloud
 
 
 class FrameInfo:
-    r"""A common description for frames. Holds information about camera parameters,
-    depth scaling, and time.
+    """A common description for frames. Holds information about camera
+    parameters, depth scaling, and time.
 
     Attributes:
 
         kcam (:obj:`fiontb.camera.KCamera`): The intrinsic camera.
 
-        depth_scale (float): Scaling for file raw depth values.
+        depth_scale (float): Scaling for raw depth values directly
+         from files.
 
-        depth_bias (float): Constant added to the raw depth values.
+        depth_bias (float): Constant add to the raw depth values.
 
         depth_max (float): Sensor maximum depth value.
 
         rt_cam (:obj:`fiontb.camera.RTCamera`): The extrinsic camera.
 
         timestamp (float or int): The frame timestamp.
+
     """
 
     def __init__(self, kcam=None, depth_scale=1.0, depth_bias=0.0, depth_max=4500.0,
@@ -45,7 +47,7 @@ class FrameInfo:
 
     @classmethod
     def from_json(cls, json):
-        """Creates a frame info from its FTB json representation.
+        """Creates a from FTB's JSON representation.
 
         Args:
 
@@ -73,7 +75,9 @@ class FrameInfo:
     def to_json(self):
         """Converts the frame info to its FTB JSON dictionary representation.
 
-        Returns: (dict): JSON dictionary.
+        Returns:
+            (dict): JSON dictionary.
+
         """
         json = {}
         for name, value in vars(self).items():
@@ -89,7 +93,8 @@ class FrameInfo:
     def clone(self):
         """Creates a copy of the instance.
 
-        Returns (FrameInfo): Copy.
+        Returns:
+            (:obj:`FrameInfo`): Copy.
         """
 
         return FrameInfo(
@@ -106,7 +111,7 @@ class FrameInfo:
 
 
 class Frame:
-    r"""A RGB-D frame, either outputed from a sensor or dataset.
+    r"""A RGB-D frame, either outputted from a sensor or dataset.
 
     Attributes:
 
@@ -137,7 +142,7 @@ class Frame:
         self.normal_image = normal_image
 
     def clone(self, shallow=False):
-        r"""Copy a frame.
+        r"""Copy the instance.
 
         Args:
 
@@ -145,17 +150,18 @@ class Frame:
              also cloned. Otherwise, it'll just create another
              instance of the frame.
 
-        Returns: (Frame): Frame copy.
+        Returns:
+            (:obj:`Frame`): Frame copy.
         """
 
         if not shallow:
             return Frame(self.info.clone(), self.depth_image.copy(),
                          None if self.rgb_image is None else self.rgb_image.copy(),
-                         None if self.seg_mask is None else self.seg_mask.copy(),
+                         None if self.seg_image is None else self.seg_image.copy(),
                          None if self.normal_image is None else self.normal_image.copy())
 
         return Frame(self.info, self.depth_image,
-                     self.rgb_image, self.seg_mask, self.normal_image)
+                     self.rgb_image, self.seg_image, self.normal_image)
 
 
 class _DepthImagePointCloud:
@@ -179,9 +185,12 @@ class _DepthImagePointCloud:
 
     @property
     def points(self):
-        """Points in the camera space property.
+        """Points in the camera space.
 
-        Returns: (:obj:`numpy.ndarray`): [WxHx3] array of points in the camera space.
+        Returns:
+            (:obj:`numpy.ndarray`): (H x W x 3] array of points in the
+             camera space.
+
         """
 
         if self._points is None:
@@ -195,26 +204,26 @@ class _DepthImagePointCloud:
 
 class FramePointCloud:
     """A point cloud still embedded on its frame. This representation is
-    usuful for retriving point cloud data by pixel coordinates.
+    useful for retrieving point cloud data by pixel coordinates.
 
     Attributes:
 
-        image_points (torch.Tensor): Image of U, V and depth values (H
+        image_points (:obj:`torch.Tensor`): Image of U, V and depth values (H
          x W x 3). Float 32 type.
 
-        mask (torch.Tensor): Valid mask (bool) of uv coordinates (H x W).
+        mask (:obj:`torch.Tensor`): Valid mask (bool) of uv coordinates (H x W).
 
-        kcam (fiontb.KCamera): Camera intrinsic parameters.
+        kcam (:obj:`fiontb.camera.KCamera`): Camera intrinsic parameters.
 
-        rt_cam (fiontb.RTCamera): Camera extrinsic parameters.
+        rt_cam (:obj:`fiontb.camera.RTCamera`): Camera extrinsic parameters.
 
-        points (torch.Tensor): Image of 3D points (H x W x 3) located
+        points (:obj:`torch.Tensor`): Image of 3D points (H x W x 3) located
          on the camera space. Float32 type.
 
-        colors (torch.Tensor): Image of point colors (H x W x
+        colors (:obj:`torch.Tensor`): Image of point colors (H x W x
          3). Uint8 type.
 
-        normals (torch.Tensor): Image of normal vectors (H x W x
+        normals (:obj:`torch.Tensor`): Image of normal vectors (H x W x
          3). Float32 type.
 
     """
@@ -236,10 +245,10 @@ class FramePointCloud:
 
         Args:
 
-            frame (Frame): Frame.
+            frame (:obj:`Frame`): Frame.
 
             ignore_seg_background (bool, optional). If `True` and
-             frame has segmentation, then it'll dicard region that are
+             frame has segmentation, then it'll discard region that are
              background (seg_image == 0). Default is `False`.
 
         """
@@ -286,7 +295,8 @@ class FramePointCloud:
         """Image of 3D normal vectors. It'll compute normals by the central
         differences method if not computed before.
 
-        Returns: (:obj:`torch.Tensor`): (H x W x 3) per point normal vectors.
+        Returns:
+            (:obj:`torch.Tensor`): (H x W x 3) per point normal vectors.
 
         """
 
@@ -314,7 +324,7 @@ class FramePointCloud:
         self._normals = normals
 
     def unordered_point_cloud(self, world_space=True, compute_normals=True):
-        r"""Converts into a point cloud not layouted as frame.
+        """Converts into a sparse point cloud.
 
         Args:
 
@@ -345,7 +355,7 @@ class FramePointCloud:
         return pcl
 
     def downsample(self, scale, downsample_xyz_method=DownsampleXYZMethod.Nearest):
-        r"""Downsample the point cloud.
+        """Downsample the point cloud.
 
         Args:
 
@@ -354,7 +364,8 @@ class FramePointCloud:
             downsample_xyz_method (DownsampleXYZMethod): Which
              sampling method for interpolating points and normals.
 
-        Returns: (FramePointCloud): Downsampled point cloud.
+        Returns:
+            (:obj:`FramePointCloud`): Down-sampled point cloud.
         """
 
         points = downsample_xyz(self.points, self.mask, scale,
@@ -379,7 +390,7 @@ class FramePointCloud:
                                colors=colors)
 
     def pyramid(self, scales, downsample_xyz_method=DownsampleXYZMethod.Nearest):
-        r"""Create a multiple scale pyramid for this point cloud.
+        """Create a multiple scale pyramid for this point cloud.
 
         Args:
 
@@ -390,8 +401,9 @@ class FramePointCloud:
             downsample_xyz_method (DownsampleXYZMethod): Which
              sampling method for interpolating points and normals.
 
-        Returns: (List[FramePointCloud]): Downsampled pyramid of point
-         clouds. In increasing order of scales.
+        Returns:
+            (List[:obj:`FramePointCloud`]): Downsampled pyramid of point
+             clouds. In increasing order of scales.
 
         """
 
@@ -415,7 +427,8 @@ class FramePointCloud:
 
             dst (torch.dtype, torch.device, str): Dtype or torch device.
 
-        Returns: (FramePointCloud): converted point cloud.
+        Returns:
+            (:obj:`FramePointCloud`): converted point cloud.
 
         """
         if isinstance(dst, torch.dtype):
@@ -460,7 +473,7 @@ class FramePointCloud:
 
     @property
     def device(self):
-        """Torch device.
+        """Torch device (str).
         """
         return self.mask.device
 

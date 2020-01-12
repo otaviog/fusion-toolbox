@@ -1,4 +1,4 @@
-"""Intrinsic and extrinsic camera handling.
+"""Camera's intrinsic and extrinsic handling.
 """
 import math
 import copy
@@ -21,15 +21,14 @@ class KCamera:
 
     Attributes:
 
-        matrix (:obj:`torch.Tensor`): A 3x3 intrinsic camera
-         transformation. Converts from image's column and row
-         (0..img.width and 0..img.height) to u and v in camera space.
+        matrix (:obj:`torch.Tensor`): A (3 x 3) intrinsic camera
+         matrix. Should convert 3D points in camera space into uv image space.
 
         undist_coeff (List[float], optional): Radial distortion
-         coefficients. Default is `[]`.
+         coefficients.
 
-        image_size ((int, int), optional): Width and height of the
-         produced image. Default is `None`.
+        image_size ((int, int), optional): Pixel width and height of the
+         target image.
 
     """
 
@@ -45,7 +44,7 @@ class KCamera:
 
     @classmethod
     def from_json(cls, json):
-        r"""Loads from the FTB JSON representation.
+        r"""Constructs from the FTB JSON representation.
 
         """
         return cls(torch.tensor(json['matrix'], dtype=torch.float).view(-1, 3),
@@ -74,7 +73,7 @@ class KCamera:
     def from_params(cls, flen_x, flen_y, center_point,
                     undist_coeff=None, image_size=None):
         """Computes the intrinsic matrix from given focal lengths and center
-        point information.
+        point.
 
         Args:
 
@@ -82,14 +81,14 @@ class KCamera:
 
             flen_y (float): Y-axis focal length.
 
-            center_point (float, float): Camera's central point on
-            image space.
+            center_point (float, float): Camera's central point in
+             image space.
 
             undist_coeff (List[float], optional): Radial distortion
-             coefficients. Default is `[]`.
+             coefficients.
 
             image_size ((int, int), optional): Width and height of the
-             produced image. Default is `None`.
+             target image.
 
         """
         center_x, center_y = center_point
@@ -147,10 +146,10 @@ class KCamera:
         xyz_coords[:, 0] = (xyz_coords[:, 0] - cx) * z / fx
         xyz_coords[:, 1] = (xyz_coords[:, 1] - cy) * z / fy
 
-        return xyz_coords[:, :2]
+        return xyz_coords
 
     def project(self, points):
-        """Project 3D points in camera space to image space.
+        """Project 3D points from camera space to image space.
 
         Applies division by z.
 
@@ -176,7 +175,7 @@ class KCamera:
 
         Args:
             xscale (float):  Horizontal scaling factor. Global scale if yscale is not specified.
-            yscale (float, optional): Vertical scaling factor, if not specified, then the same scale for x is used.
+            yscale (float, optional): Vertical scaling factor, if not specified, then the same scale of `xscale` is used.
 
         Returns:
             (:obj:`KCamera`): Scaled intrinsic parameters.
@@ -193,12 +192,13 @@ class KCamera:
             self.matrix[0, 0]*xscale, self.matrix[1, 1]*yscale,
             (self.matrix[0, 2]*xscale, self.matrix[1, 2]*yscale),
             self.undist_coeff,
-            image_size).to(self.matrix.device)
+            image_size)
 
     def clone(self):
         """Create a copy of this instance.
 
-        Returns: (:obj:`KCamera`): Copy.
+        Returns:
+            (:obj:`KCamera`): Copy.
         """
         return KCamera(self.matrix.clone(),
                        copy.deepcopy(self.undist_coeff),
@@ -226,10 +226,6 @@ class KCamera:
         return torch.from_numpy(
             self.get_projection_params(near, far).to_matrix()).to(dtype)
 
-    def to(self, dst):
-        return KCamera(self.matrix.to(dst), self.undist_coeff,
-                       self.image_size)
-
     @property
     def image_width(self):
         """
@@ -251,20 +247,11 @@ class KCamera:
         return self.image_size[1]
 
     @property
-    def device(self):
-        """
-
-        Returns:
-            (str): matrix's torch device
-
-        """
-        return self.matrix.device
-
-    @property
     def pixel_center(self):
         """Center pixel. 
 
-        Returns: (float, float): X and Y coordinates.
+        Returns:
+            (float, float): X and Y coordinates.
         """
         return (self.matrix[0, 2].item(), self.matrix[1, 2].item())
 
@@ -317,7 +304,7 @@ class Project(torch.autograd.Function):
 
 class RigidTransform:
     """Helper object for multiplying (4 x 4) or (3 x 4) matrices and (N x
-    3) points. Use its matmul operator for applying the transform.
+    3) points. Has the matmul operator for applying the transform.
 
     Example:
 
