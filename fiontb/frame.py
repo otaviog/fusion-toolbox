@@ -111,7 +111,7 @@ class FrameInfo:
 
 
 class Frame:
-    r"""A RGB-D frame, either outputted from a sensor or dataset.
+    """A RGB-D frame, either outputted from a sensor or dataset.
 
     Attributes:
 
@@ -142,7 +142,7 @@ class Frame:
         self.normal_image = normal_image
 
     def clone(self, shallow=False):
-        r"""Copy the instance.
+        """Copy the instance.
 
         Args:
 
@@ -420,7 +420,7 @@ class FramePointCloud:
 
     # pylint: disable=invalid-name
     def to(self, dst):
-        r"""Change the point cloud device or dtype. Dtype are applied only to
+        """Change the point cloud device or dtype. Dtype are applied only to
         points and normals.
 
         Args:
