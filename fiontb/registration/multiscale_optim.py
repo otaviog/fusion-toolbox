@@ -1,3 +1,7 @@
+"""
+Multiscale optimzation shared functions.
+"""
+
 import torch
 
 from fiontb.frame import Frame
@@ -21,32 +25,33 @@ class MultiscaleOptimization:
 
         Args:
 
-            target_points (:obj:`torch.Tensor`): A float [WxHx3] tensor
+            target_points (:obj:`torch.Tensor`): A float (H x W x 3) tensor
              of rasterized 3d points that the source points should be
              aligned.
 
-            target_normals (:obj:`torch.Tensor`): A float [WxHx3] tensor
+            target_normals (:obj:`torch.Tensor`): A float (H x W x 3) tensor
              of rasterized 3d normals that the source points should be
              aligned.
 
-            target_mask (:obj:`torch.Tensor`): A uint8 [WxH] mask tensor
+            target_mask (:obj:`torch.Tensor`): A bool (H x W) mask tensor
              of valid target points.
 
-            source_points (:obj:`torch.Tensor`): A float [WxHx3] tensor of
+            source_points (:obj:`torch.Tensor`): A float (H x W x 3) tensor of
              source points.
 
-            source_mask (:obj:`torch.Tensor`): Uint8 [WxH] mask tensor
+            source_mask (:obj:`torch.Tensor`): A bool (H x W) mask tensor
              of valid source points.
 
             kcam (:obj:`fiontb.camera.KCamera`): Intrinsics camera
              transformer.
 
-            transform (:obj:`torch.Tensor`): A float [4x4] initial
+            transform (:obj:`torch.Tensor`): A (4 x 4) initial
              transformation matrix.
 
-        Returns: (:obj:`torch.Tensor`): A [3x4] rigid motion matrix
-            that aligns source points to target points.
+        Returns:
 
+             (:obj:`ICPResult`): Resulting transformation and
+              information.
         """
 
         has_feats = target_feats is not None and source_feats is not None

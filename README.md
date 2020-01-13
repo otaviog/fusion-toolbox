@@ -48,22 +48,43 @@ Processing:
 from fiontb.processing
 ```
 
-ICP-based odometry:
+## ICP Registration
+
+ICP odometry
 
 ```python
 
-from fiontb.registration import MultiScaleICP
+from fiontb.metrics import absolute
+from fiontb.registration.icp import MultiscaleICP
+
+from fiontb.data.ftb import load_ftb
+
+icp = MultiscaleICP([ICPOption(20), ICPOption(30)]
+
+
+result = icp.estimate_frame(dataset[0], dataset[1])
+
+geoshow(result)
+
 
 ```
 
 ICP-based point cloud alignment:
 
 ```python
+pcl0 = PointCloud.from_frame(dataset[0])
+pcl1 = PointCloud.from_frame(dataset[19])
+
+icp.estimate_pcl(pcl0)
+icp.estimate_pcl(pcl1)
+
 ```
 
 Surfel fusion:
 
 ```python
+
+SurfelModel
 ```
 
 Evaluation:

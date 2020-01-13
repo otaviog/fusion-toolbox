@@ -9,7 +9,7 @@ from fiontb.camera import RTCamera, RigidTransform
 def set_start_at_identity(trajectory):
     base = trajectory[next(iter(trajectory))].matrix.inverse()
 
-    return {time: rt_cam.integrate(base)
+    return {time: rt_cam.right_transform(base)
             for time, rt_cam in trajectory.items()}
 
 

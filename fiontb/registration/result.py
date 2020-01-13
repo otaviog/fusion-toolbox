@@ -1,4 +1,4 @@
-"""ICP-style result structures and utility.
+"""Registration result structures and utility functions.
 """
 
 import math

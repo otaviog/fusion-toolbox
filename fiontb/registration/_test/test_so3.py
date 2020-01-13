@@ -11,6 +11,7 @@ class TestSO3(unittest.TestCase):
     """Test SO3 class.
     """
 
+    # pylint: disable=no-self-use, redefined-builtin
     def test_exp_op(self):
         """Gradcheck the SO3t EXP operator.
 

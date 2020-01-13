@@ -2,7 +2,7 @@ about:
 	@echo "Project maintaining tasks."
 
 doc-create:
-	rm -f doc/source/fiontb.*.rst
+	rm -f doc/source/fiontb.*
 	sphinx-apidoc -o doc/source fiontb
 	make -C doc/ html
 

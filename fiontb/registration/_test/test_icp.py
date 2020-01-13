@@ -27,9 +27,9 @@ REAL_FRAME_ARGS = dict(frame1_idx=14, color_mode=ColorMode.LAB,
 class _Tests:
     """Tests ICPOdometry class.
     """
-    # pylint: disable=no-self-use
 
-    def depth_real(self):
+    @staticmethod
+    def depth_real():
         """Use only depth information of a real scene.
         """
         run_pair_test(
@@ -38,7 +38,8 @@ class _Tests:
             **REAL_FRAME_ARGS,
             device="cuda:0")
 
-    def depth_synthetic(self):
+    @staticmethod
+    def depth_synthetic():
         """Use only depth information of a synthetic scene.
         """
         run_pair_test(
@@ -46,7 +47,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def rgb_real(self):
+    @staticmethod
+    def rgb_real():
         """Use only RGB information of a real scene.
         """
         run_pair_test(
@@ -54,7 +56,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def rgb_synthetic(self):
+    @staticmethod
+    def rgb_synthetic():
         """Use only RGB information of a synthetic scene.
         """
         run_pair_test(
@@ -62,7 +65,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def rgbd_real(self):
+    @staticmethod
+    def rgbd_real():
         """Use RGB+depth information of a real scene.
         """
         run_pair_test(
@@ -70,7 +74,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def rgbd_synthetic(self):
+    @staticmethod
+    def rgbd_synthetic():
         """Use RGB+depth information of a synthetic scene.
         """
         run_pair_test(
@@ -80,7 +85,8 @@ class _Tests:
             ),
             **SYNTHETIC_FRAME_ARGS)
 
-    def ms_depth_real(self):
+    @staticmethod
+    def ms_depth_real():
         """Use multiscale depth information of a real scene.
         """
         run_pair_test(
@@ -91,7 +97,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def ms_depth_synthetic(self):
+    @staticmethod
+    def ms_depth_synthetic():
         """Use multiscale depth information of a synthetic scene.
         """
         run_pair_test(
@@ -106,7 +113,8 @@ class _Tests:
                 "/home/otaviog/3drec/slam-feature/data/replica/replica-ftb/hotel_0"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def ms_rgb_real(self):
+    @staticmethod
+    def ms_rgb_real():
         """Use multiscale RGB information of a real scene.
         """
         run_pair_test(
@@ -117,7 +125,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def ms_rgb_synthetic(self):
+    @staticmethod
+    def ms_rgb_synthetic():
         """Use multiscale RGB information of a synthetic scene.
         """
         run_pair_test(
@@ -128,7 +137,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def ms_rgbd_real(self):
+    @staticmethod
+    def ms_rgbd_real():
         """Use multiscale RGB+depth information of a real scene.
         """
         run_pair_test(
@@ -141,7 +151,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def ms_rgbd_synthetic(self):
+    @staticmethod
+    def ms_rgbd_synthetic():
         """Use multiscale RGB+depth information of a synthetic scene.
         """
         geom_weight = 10
@@ -160,12 +171,14 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def fail(self):
+    @staticmethod
+    def fail():
         """Test for fail alignment.
         """
         run_pair_test(ICPOdometry(10), load_ftb(_TEST_DATA / "sample1"))
 
-    def so3(self):
+    @staticmethod
+    def so3():
         """Test rotation only alignment.
         """
         dataset = load_ftb(_TEST_DATA / "sample1")
@@ -207,7 +220,8 @@ class _Tests:
 
         show_pcls([pcl0, pcl1.transform(init_transform), pcl2])
 
-    def trajectory(self):
+    @staticmethod
+    def trajectory():
         """Test mulstiscale RGB and depth alignment on a a synthetic trajectory.
         """
 

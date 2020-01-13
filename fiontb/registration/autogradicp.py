@@ -1,4 +1,4 @@
-"""Pose estimation using PyTorch's Autograd functionalities.
+"""Pose estimation using PyTorch's Autograd functionality.
 """
 import math
 
@@ -78,7 +78,6 @@ class AutogradICP:
 
         feat_weight (float): Feature term weighting, 0.0 to ignore
          point features.
-
     """
 
     def __init__(self, num_iters, learning_rate=0.01,
@@ -206,7 +205,7 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`ICPResult`): Resulting transformation and information.
+            (:obj:`fiontb.registration.result.ICPResult`): Resulting transformation and alignment information.
         """
 
         source_points = source_points[source_mask].view(-1, 3)
@@ -217,7 +216,7 @@ class AutogradICP:
                 source_feats.size(0), -1)
 
         matcher = FramePointCloudMatcher(target_points, target_normals, target_mask,
-                                         target_feats, kcam.to(target_points.device))
+                                         target_feats, kcam)
 
         return self._estimate(source_points, source_normals,
                               source_feats, matcher, transform)
@@ -228,11 +227,9 @@ class AutogradICP:
 
         Args:
 
-            source_pcl (:obj:`fiontb.pointcloud.PointCloud` or
-             :obj:`fiontb.surfel.SurfelCloud`): Source point cloud.
+            source_pcl (Union[:obj:`fiontb.pointcloud.PointCloud`, :obj:`fiontb.surfel.SurfelCloud`]): Source point cloud.
 
-            target_pcl (:obj:`fiontb.pointcloud.PointCloud` or
-             :obj:`fiontb.surfel.SurfelCloud`): Target pcl.
+            target_pcl (Union[:obj:`fiontb.pointcloud.PointCloud`, :obj:`fiontb.surfel.SurfelCloud`]): Target pcl.
 
             source_feats (:obj:`torch.Tensor`, optional): Source
              feature map (C x N).
@@ -245,8 +242,8 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`ICPResult`): Resulting transformation and
-             information.
+            (:obj:`fiontb.registration.result.ICPResult`): Resulting transformation and
+             alignment information.
         """
 
         matcher = PointCloudMatcher(
@@ -261,11 +258,9 @@ class AutogradICP:
 
         Args:
 
-            source_frame (:obj:`fiontb.frame.Frame` or
-             :obj:`fiontb.frame.FramePointCloud`): Source frame.
+            source_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Source frame.
 
-            target_frame (:obj:`fiontb.frame.Frame` or
-             :obj:`fiontb.frame.FramePointCloud`): Target frame.
+            target_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Target frame.
 
             source_feats (:obj:`torch.Tensor`, optional): Source
              feature map (C x H x W).
@@ -280,7 +275,7 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`ICPResult`): Resulting transformation and
+            (:obj:`fiontb.registration.result.ICPResult`): Resulting transformation and
              information.
 
         """
@@ -321,7 +316,6 @@ class AGICPOption:
          enough, it'll cause lookups too far outside the target search
          bounds, causing errors. On our tests good values are 0.01
          between and 0.1.
-
     """
 
     def __init__(self, scale, iters=30, learning_rate=5e-2,
@@ -335,7 +329,7 @@ class AGICPOption:
 
 
 class MultiscaleAutogradICP(_MultiscaleOptimization):
-    """Refines point-to-plane AutogradICP by leveraing from lower
+    """Refines point-to-plane AutogradICP by leveraging from lower
     resolution results.
 
     """

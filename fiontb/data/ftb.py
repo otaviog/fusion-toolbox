@@ -168,11 +168,11 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None, start_frame=
                         cv2.cvtColor(frame.rgb_image, cv2.COLOR_RGB2BGR))
             frame_dict['rgb_image'] = rgb_file
 
-        if frame.seg_mask is not None:
-            mask_file = "{}{:05d}_mask.png".format(prefix, i)
-            cv2.imwrite(str(base_path / mask_file),
+        if frame.seg_image is not None:
+            seg_file = "{}{:05d}_seg.png".format(prefix, i)
+            cv2.imwrite(str(base_path / seg_file),
                         frame.seg_mask.astype(np.uint16))
-            frame_dict['segmentation'] = mask_file
+            frame_dict['segmentation'] = seg_file
 
         frames.append(frame_dict)
 

@@ -218,11 +218,9 @@ class ICPOdometry:
 
         Args:
 
-            source_frame (:obj:`fiontb.frame.Frame` or
-             :obj:`fiontb.frame.FramePointCloud`): Source frame.
+            source_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Source frame.
 
-            target_frame (:obj:`fiontb.frame.Frame` or
-             :obj:`fiontb.frame.FramePointCloud`): Target frame.
+            target_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Target frame.
 
             source_feats (:obj:`torch.Tensor`, optional): Source
              feature map (C x H x W).
@@ -285,7 +283,7 @@ class ICPOption:
 
 
 class MultiscaleICPOdometry(_MultiscaleOptimization):
-    """Refines point-to-plane ICP by leveraing from lower resolution results.
+    """Refines point-to-plane ICP by leveraging from lower resolution results.
     """
 
     def __init__(self, options, downsample_xyz_method=DownsampleXYZMethod.Nearest):
