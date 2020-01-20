@@ -15,13 +15,23 @@ from fiontb.camera import RigidTransform
 
 
 class DatasetViewer:
-    """Viewer of RGB-D datasets. It shows the image, depth, camera point
-    cloud and accumulated world points.
+    """A Viewer for RGB-D datasets. It'll show the RGB, depth, camera's
+    point cloud and accumulated world space point clouds.
+
     """
 
     def __init__(self, dataset, title="Dataset", max_pcls=50,
                  width=640, height=480, invert=False,
                  camera_view=True, trajectory_cmap="Blues", show_grid=True):
+        """Setups the dataset. Call `run` to show.
+
+        Args:
+
+            dataset (List[:obj:``): Any dataset, that is, classes that
+        function like a list of frames.
+
+        """
+        
         self.dataset = dataset
         self.title = title
         self.show_segmentation = False
@@ -60,7 +70,7 @@ class DatasetViewer:
 
     def _set_model(self, frame, idx):
         finfo = frame.info
-        cmap = get_cmap('viridis', finfo.depth_max)
+        cmap = get_cmap('viridis', int(finfo.depth_max))
 
         depth_img = (frame.depth_image / finfo.depth_max)
         depth_img = cmap(depth_img)
@@ -216,4 +226,5 @@ class DatasetViewer:
                         vcam.visible = self._show_cams
             if quit_loop:
                 break
+
         cv2.destroyWindow(self.title)

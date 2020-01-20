@@ -30,16 +30,16 @@ class ComputeConfidences:
     def __init__(self):
         self._confidences = None
 
-    def __call__(self, kcam, weight, width, height):
+    def __call__(self, kcam, weight, width, height, device):
         center = kcam.pixel_center
         max_dist = math.sqrt((width - center[0])*(width - center[0])
                              + (height - center[1])*(height - center[1]))
 
         self._confidences = _utils.empty_ensured_size(self._confidences, height, width,
                                                       dtype=torch.float,
-                                                      device=kcam.device)
+                                                      device=device)
         _SurfelOp.compute_confidences(
-            kcam.matrix, weight, max_dist, self._confidences)
+            kcam.matrix.to(device), weight, max_dist, self._confidences)
         return self._confidences
 
 
@@ -99,7 +99,7 @@ class SurfelCloud:
         if confidences is None:
             confidences = ComputeConfidences()(
                 frame_pcl.kcam, confidence_weight,
-                frame_pcl.width, frame_pcl.height)[frame_pcl.mask]
+                frame_pcl.width, frame_pcl.height, frame_pcl.device)[frame_pcl.mask]
 
         radii = compute_surfel_radii(pcl.points, pcl.normals,
                                      frame_pcl.kcam)

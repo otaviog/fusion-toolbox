@@ -3,25 +3,19 @@
 """
 
 from enum import Enum
+from pathlib import Path
 
 import cv2
 import numpy as np
-from torchvision.transforms.functional import to_tensor
-
-from fiontb.processing import (estimate_normals,
-                               bilateral_depth_filter)
 
 
-class ColorMode(Enum):
-    """Specify color spaces for preprocessing functions.
-    """
-    RGB = 0
-    GRAY = 1
-    LAB = 2
-    HSV = 3
+from fiontb.processing import (estimate_normals, bilateral_depth_filter,
+                               ColorSpace, to_color_feature)
+from fiontb.data.ftb import load_ftb
 
 
-def preprocess_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB,
+
+def preprocess_frame(frame, scale=1, filter_depth=True, color_space=ColorSpace.LAB,
                      blur=False, compute_normals=False):
     """Preprocess a frame and extract color features.
     """
@@ -53,25 +47,17 @@ def preprocess_frame(frame, scale=1, filter_depth=True, color_mode=ColorMode.LAB
         frame.normal_image = estimate_normals(normal_depth_image, frame.info,
                                               mask)
 
-    features = get_color_feature(
-        frame.rgb_image, blur=blur, color_mode=color_mode)
+    features = to_color_feature(
+        frame.rgb_image, blur=blur, color_space=color_space)
 
     return frame, features
 
 
-def get_color_feature(rgb_image, blur=False, color_mode=ColorMode.LAB):
-    """Preprocess and reshape a rgb image into a feature format.
-    """
-    features = rgb_image
 
-    if blur:
-        features = cv2.blur(features, (5, 5))
 
-    if color_mode == ColorMode.LAB:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2LAB)
-    elif color_mode == ColorMode.HSV:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
-    elif color_mode == ColorMode.GRAY:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
+def load_sample1_dataset():
+    return load_ftb(Path(__file__).parent / "../test-data/rgbd/sample1")
 
-    return to_tensor(features)
+
+def load_sample2_dataset():
+    return load_ftb(Path(__file__).parent / "../test-data/rgbd/sample1")

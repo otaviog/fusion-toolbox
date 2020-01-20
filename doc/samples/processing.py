@@ -1,10 +1,8 @@
-from fiotb.testing import load_sample2_dataset
+from fiontb.data.ftb import load_ftb
+dataset = load_ftb("test-data/rgbd/sample2/")
+frame = dataset[0]
 
-dataset = load_sample2_dataset()
-
-frame0 = dataset[0]
-frame1 = dataset[1]
-
-frame0.depth_image = bilateral_filter(frame0.depth_image)
-frame1.depth_image = bilateral_filter(frame1.depth_image)
-
+from fiontb.processing import bilateral_depth_filter
+frame.depth_image = bilateral_depth_filter(
+    frame.depth_image, frame.depth_image > 0,
+    filter_width=6, sigma_color=30, sigma_space=5)

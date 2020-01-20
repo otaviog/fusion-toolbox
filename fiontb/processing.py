@@ -5,14 +5,16 @@ from enum import Enum
 
 import torch
 import torch.nn.functional
+from torchvision.transforms.functional import to_tensor
 import cv2
+
 
 from fiontb._cfiontb import (Processing as _Processing, EstimateNormalsMethod,
                              DownsampleXYZMethod)
 from fiontb._utils import ensure_torch, empty_ensured_size, depth_image_to_uvz
 
 
-def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,
+def bilateral_depth_filter(depth, mask=None, out_tensor=None, filter_width=6,
                            sigma_color=29.9999880000072,
                            sigma_space=4.50000000225,
                            depth_scale=1.0):
@@ -38,7 +40,11 @@ def bilateral_depth_filter(depth, mask, out_tensor=None, filter_width=6,
 
     """
     depth = ensure_torch(depth)
-    mask = ensure_torch(mask, dtype=torch.bool)
+    if mask is None:
+        mask = depth > 0
+    else:
+        mask = ensure_torch(mask, dtype=torch.bool)
+
     out_tensor = empty_ensured_size(out_tensor, depth.size(0), depth.size(1),
                                     dtype=depth.dtype, device=depth.device)
 
@@ -150,7 +156,7 @@ def feature_pyramid(feature_map, scales):
         if scale < 1.0:
             feature_map = torch.nn.functional.interpolate(
                 feature_map, scale_factor=scale, mode='bilinear',
-                align_corners=False).squeeze(0)
+                align_corners=False)
             pyramid.append(feature_map.squeeze(0))
 
     pyramid.reverse()
@@ -167,3 +173,34 @@ def erode_mask(in_mask):
 
     _Processing.erode_mask(in_mask, out_mask)
     return out_mask
+
+################################
+# Color
+################################
+
+
+class ColorSpace(Enum):
+    """Specify color spaces for preprocessing functions.
+    """
+    RGB = 0
+    GRAY = 1
+    LAB = 2
+    HSV = 3
+
+
+def to_color_feature(rgb_image, color_space=ColorSpace.RGB, blur=False):
+    """Preprocess and reshape a rgb image into a feature format.
+    """
+    features = rgb_image
+
+    if blur:
+        features = cv2.blur(features, (5, 5))
+
+    if color_space == ColorSpace.LAB:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2LAB)
+    elif color_space == ColorSpace.HSV:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
+    elif color_space == ColorSpace.GRAY:
+        features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
+
+    return to_tensor(features)

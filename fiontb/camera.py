@@ -248,7 +248,7 @@ class KCamera:
 
     @property
     def pixel_center(self):
-        """Center pixel. 
+        """Center pixel.
 
         Returns:
             (float, float): X and Y coordinates.
@@ -256,10 +256,14 @@ class KCamera:
         return (self.matrix[0, 2].item(), self.matrix[1, 2].item())
 
     def __str__(self):
-        return str(self.__dict__)
+
+        return (
+            "Intrinsic matrix: {self.matrix}"
+            ", radial distortion coefficients: {self.undist_coeff}"
+            ", image size: {self.image_size}").format(self=self)
 
     def __repr__(self):
-        return str(self.__dict__)
+        return str(vars(self))
 
     def __eq__(self, other):
         if not isinstance(other, KCamera):
@@ -345,9 +349,9 @@ class RigidTransform:
         """Transform the points in-place.
 
         Args:
-        
+
             points (torch.Tensor): Input points array (Nx3).
-        
+
         """
         points = points.view(-1, 3)
         _RigidTransformOp.transform_inplace(self.matrix, points)
@@ -368,9 +372,9 @@ class RigidTransform:
 
     def inplace_normals(self, normals):
         """Transform the normals in-place.
-        
-        Args: 
-        
+
+        Args:
+
             normals (torch.Tensor): Input normals array (Nx3).
 
         """
@@ -386,12 +390,12 @@ class RigidTransform:
 
         """
         rodrigues = torch.empty(3, dtype=self.matrix.dtype)
-        _RigidTransformOp.rodrigues(self.matrix.cpu(), rodrigues)        
+        _RigidTransformOp.rodrigues(self.matrix.cpu(), rodrigues)
         return rodrigues
 
     def translation(self):
         """Translation matrix part.
-        
+
         Returns: (torch.Tensor): A 3 sized tensor containing the X, Y
         and Z translation.
 
@@ -558,6 +562,7 @@ class RTCamera:
                                                     [0, 1, 0, ty],
                                                     [0, 0, 1, tz],
                                                     [0, 0, 0, 1]], dtype=torch.double))
+
     def difference(self, other):
         """
         Computes the he relative transformation between this camera to other.

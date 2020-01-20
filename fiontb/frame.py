@@ -1,8 +1,11 @@
 """Frame related data structures.
 """
+import textwrap
 
 import torch
 from torch.nn.functional import interpolate
+import cv2
+import numpy as np
 
 from fiontb.processing import (
     downsample_xyz, downsample_mask, DownsampleXYZMethod, erode_mask)
@@ -104,10 +107,14 @@ class FrameInfo:
             None if self.rt_cam is None else self.rt_cam.clone())
 
     def __str__(self):
-        return str(vars(self))
+        return ("Depth intrinsics: {{{self.kcam}}}"
+                ", depth scale: {self.depth_scale}"
+                ", depth bias: {self.depth_bias}"
+                ", timestamp: {self.timestamp}"
+                ", Rigid Transformation: {{{self.rt_cam}}}").format(self=self)
 
     def __repr__(self):
-        return str(self)
+        return str(vars(self))
 
 
 class Frame:
@@ -162,6 +169,62 @@ class Frame:
 
         return Frame(self.info, self.depth_image,
                      self.rgb_image, self.seg_image, self.normal_image)
+
+    def scaled(self, xscale, yscale=None, interpolation=cv2.INTER_LINEAR):
+        if yscale is None:
+            yscale = xscale
+
+        rgb_image = None
+        if self.rgb_image is not None:
+            rgb_image = cv2.resize(self.rgb_image, (0, 0),
+                                   None, xscale, yscale, interpolation)
+
+        depth_image = cv2.resize(
+            self.depth_image.astype(np.uint16), (0, 0), None, xscale, yscale,
+            interpolation).astype(np.int32)
+
+        seg_image = None
+        if self.seg_image is not None:
+            seg_image = cv2.resize(self.seg_image, (0, 0),
+                                   None, xscale, yscale, cv2.INTER_NEAREST)
+
+        normal_image = None
+        if self.normal_image is not None:
+            normal_image = cv2.resize(
+                self.normal_image, (0, 0), None, xscale, yscale, cv2.INTER_LINEAR)
+
+        info = FrameInfo(
+            kcam=self.info.kcam.scaled(xscale, yscale),
+            depth_scale=self.info.depth_scale,
+            depth_bias=self.info.depth_bias,
+            depth_max=self.info.depth_max,
+            timestamp=self.info.timestamp,
+            rgb_kcam=(self.info.rgb_kcam.scaled(xscale, yscale)
+                      if self.info.rgb_kcam is not None else None),
+            rt_cam=self.info.rt_cam)
+
+        return Frame(info, depth_image, rgb_image, seg_image, normal_image)
+
+    def __str__(self):
+        has_depth = self.depth_image is not None
+        has_rgb = self.rgb_image is not None
+        has_seg = self.seg_image is not None
+        has_normal = self.normal_image is not None
+
+        return (
+            "Frame with shape ({self.depth_image.shape[0]}x{self.depth_image.shape[1]})"
+            " depth: {has_depth}, RGB: {has_rgb}, segmentation: {has_seg}, Normal: {has_normal}"
+        ).format(self=self, has_depth=has_depth, has_rgb=has_rgb,
+                 has_seg=has_seg, has_normal=has_normal)
+
+        s = """\
+        Frame with shape: {self.depth_image.shape[0]}, {self.depth_image.shape[1]}\
+        with depth: {has_depth}, RGB: {has_rgb}, segmentation: {has_seg}, Normal: {has_normal}
+              info: {self.info}
+        """.format(self=self, has_depth=has_depth, has_rgb=has_rgb,
+                   has_seg=has_seg, has_normal=has_normal)
+
+        return textwrap.dedent(s)
 
 
 class _DepthImagePointCloud:
@@ -384,7 +447,7 @@ class FramePointCloud:
                              align_corners=False)
         colors = colors.squeeze().transpose(0, 1).transpose(2, 1).byte()
         kcam = self.kcam.scaled(scale)
-        
+
         return FramePointCloud(None, mask, kcam, rt_cam=self.rt_cam,
                                points=points, normals=normals,
                                colors=colors)
