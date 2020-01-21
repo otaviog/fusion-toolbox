@@ -185,8 +185,10 @@ class DatasetViewer:
 
     def run(self):
         """Show the viewer and block until user exit. Keys:
-        * 'q': quit
-        * 'm': toggle masking (when the dataset has it)
+
+        * 'q': quit;
+        * 'm': toggle masking (when the dataset has it);
+        * 'c': toggle camera frustums.
         """
 
         cv2.namedWindow(self.title, cv2.WINDOW_NORMAL)

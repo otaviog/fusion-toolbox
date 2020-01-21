@@ -1,3 +1,5 @@
+"""Quick showing
+"""
 import torch
 
 import tenviz
@@ -8,39 +10,28 @@ from fiontb.surfel import SurfelCloud, SurfelModel
 from .surfelrender import SurfelRender
 
 
-def show_pcls(pcl_list, width=640, height=480, overlay_mesh=None, point_size=1):
-    ctx = tenviz.Context(width, height)
+def geoshow(geometries, width=640, height=480, point_size=3,
+            title="fiontb.viz.geoshow", invert_y=False):
+    """Show Fusion Toolbox geometry data types.
 
-    with ctx.current():
-        scene = []
-        for pcl in pcl_list:
-            tv_pcl = tenviz.nodes.create_point_cloud(pcl.points.view(-1, 3),
-                                                     pcl.colors.view(-1, 3))
-            tv_pcl.style.point_size = int(point_size)
-            scene.append(tv_pcl)
+    The geometries display can be toggle using number keys starting at '1'.
 
-        if overlay_mesh is not None:
-            mesh = tenviz.nodes.create_mesh(overlay_mesh.verts, overlay_mesh.faces,
-                                            overlay_mesh.normals)
-            mesh.style.polygon_mode = tenviz.PolygonMode.Wireframe
-            scene.append(mesh)
+    Args:
 
-    viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
-    viewer.reset_view()
-    while True:
-        key = viewer.wait_key(1)
-        if key < 0:
-            break
+        geometries (List[Any]): Fusion Toolbox geometry list.
 
-        key = chr(key & 0xff)
-        if '1' <= key <= '9':
-            toggle_idx = int(key) - 1
-            if toggle_idx < len(scene):
-                scene[toggle_idx].visible = not scene[toggle_idx].visible
+        width (int): Window width.
 
+        height (int): Window height.
 
-def geoshow(geometries, width=640, height=480, point_size=3, title="fiontb.viz.geoshow",
-            invert_y=False):
+        point_size (int): Size of points.
+
+        title (str): Window title.
+
+        invert_y (bool): Whatever to flip the scene.
+
+    """
+    # pylint: disable=too-many-branches
 
     if isinstance(geometries, list):
         if not geometries:

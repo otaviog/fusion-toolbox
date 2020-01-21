@@ -1,3 +1,5 @@
+"""Rendering of surfel models.
+"""
 from pathlib import Path
 from enum import Enum
 
@@ -12,6 +14,8 @@ _SHADER_DIR = Path(__file__).parent / 'shaders'
 
 
 class RenderMode(Enum):
+    """Surfel coloring mode.
+    """
     Color = 0
     Confs = 1
     Normal = 2
@@ -21,6 +25,9 @@ class RenderMode(Enum):
 
 
 class SurfelRender(tenviz.DrawProgram):
+    """
+    """
+    
     def __init__(self, surfel_model):
         self.surfel_model = surfel_model
 
@@ -160,8 +167,6 @@ def show_surfels(gl_context, surfels_list, title="Surfels",
 
 
 def _test():
-    import tenviz.io
-
     geo = tenviz.io.read_3dobject(
         Path(__file__).parent / "../../test-data/bunny/bun_zipper_res4.ply").torch()
     normals = tenviz.geometry.compute_normals(geo.verts, geo.faces)
