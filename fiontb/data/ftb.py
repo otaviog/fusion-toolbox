@@ -171,7 +171,7 @@ def write_ftb(base_path, dataset, prefix="frame_", max_frames=None, start_frame=
         if frame.seg_image is not None:
             seg_file = "{}{:05d}_seg.png".format(prefix, i)
             cv2.imwrite(str(base_path / seg_file),
-                        frame.seg_mask.astype(np.uint16))
+                        frame.seg_image.astype(np.uint16))
             frame_dict['segmentation'] = seg_file
 
         frames.append(frame_dict)

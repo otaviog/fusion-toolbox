@@ -31,7 +31,7 @@ class DatasetViewer:
         function like a list of frames.
 
         """
-        
+
         self.dataset = dataset
         self.title = title
         self.show_segmentation = False
@@ -164,7 +164,7 @@ class DatasetViewer:
 
         seg_image = proc_data['seg_img']
         if self.show_segmentation and seg_image is not None:
-            cmap = get_cmap("rainbow", 255)
+            cmap = get_cmap("tab20", 1000)
             rgb_img = (cmap(seg_image)[:, :, :3]*255).astype(np.uint8)
         else:
             rgb_img = proc_data['rgb_img']
@@ -197,8 +197,8 @@ class DatasetViewer:
         cv2.createTrackbar("oppacity", self.title, 50, 100,
                            self._update_canvas)
         cv2.setMouseCallback(self.title, self._mouse_click)
+        self._update_canvas(None)
         while True:
-            self._update_canvas(None)
             cv_key = cv2.waitKey(1)
 
             if cv_key == 27:
@@ -222,6 +222,7 @@ class DatasetViewer:
                     quit_loop = True
                 elif key == 'm':
                     self.show_segmentation = not self.show_segmentation
+                    self._update_canvas(None)
                 elif key == 'c':
                     self._show_cams = not self._show_cams
                     for _, vcam in self.pcl_deque:

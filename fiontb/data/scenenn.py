@@ -1,9 +1,15 @@
 """Parser for the SceneNN RGB-D dataset from .oni files.
 """
+from pathlib import Path
+import xml.etree.ElementTree as ET
 
+import cv2
 import numpy as np
 import torch
+import natsort
+
 import onireader
+
 
 from fiontb.camera import KCamera, RTCamera
 from fiontb.frame import Frame, FrameInfo
@@ -25,7 +31,7 @@ class SceneNN:
 
     """
 
-    def __init__(self, oni_filepath, trajectory, kcam, ground_truth_model_path):
+    def __init__(self, oni_filepath, trajectory, kcam, mask_file_list=None):
         self._oni_filepath = oni_filepath
         self.rewind()
 
@@ -36,7 +42,7 @@ class SceneNN:
         self.last_idx = None
         self.cache = None
 
-        self.ground_truth_model_path = ground_truth_model_path
+        self.mask_file_list = mask_file_list
         self._debug = False
 
     def rewind(self):
@@ -78,7 +84,21 @@ class SceneNN:
 
         info = FrameInfo(self.kcam, depth_scale=0.001,
                          timestamp=depth_ts, rt_cam=RTCamera(rt_mtx))
-        return Frame(info, depth_img, rgb_image=rgb_img)
+        seg_image = None
+        if self.mask_file_list is not None:
+            filename = self.mask_file_list[idx]
+
+            seg_image = cv2.imread(filename, cv2.IMREAD_UNCHANGED)
+            # https://github.com/hkust-vgd/shrec17/blob/master/mask_from_label/mask_from_label.cpp
+
+            seg_image = seg_image.astype(np.uint32)
+            temp = np.bitwise_or(np.left_shift(seg_image[:, :, 0], 24),
+                                 np.left_shift(seg_image[:, :, 1], 16))
+            temp = np.bitwise_or(temp, np.left_shift(seg_image[:, :, 2], 8))
+            seg_image = np.bitwise_or(
+                temp, seg_image[:, :, 3]).astype(np.int32)
+
+        return Frame(info, depth_img, rgb_image=rgb_img, seg_image=seg_image)
 
     def __len__(self):
         return len(self.trajectory)
@@ -90,7 +110,17 @@ class SceneNN:
         return info
 
 
-def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_model_path=None):
+def load_annotations(xml_filepath):
+    root = ET.parse(xml_filepath).getroot()
+    annotations = []
+    for child in root:
+        annotations.append(child.attrib)
+
+    return annotations
+
+
+def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus',
+                 mask_dirpath=None):
     trajectory = []
     with open(traj_filepath, 'r') as file:
         while True:
@@ -113,4 +143,10 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus', ground_truth_mod
         raise RuntimeError("Undefined {} camera intrinsics. Use: {}".format(
             k_cam_dev, k_cam_dev.keys()))
 
-    return SceneNN(oni_filepath, trajectory, k_cams[k_cam_dev], ground_truth_model_path)
+    mask_file_list = None
+    if mask_dirpath is not None:
+        mask_file_list = natsort.natsorted(
+            [str(filepath) for filepath in Path(mask_dirpath).glob("*.png")])
+
+    return SceneNN(oni_filepath, trajectory, k_cams[k_cam_dev],
+                   mask_file_list=mask_file_list)
