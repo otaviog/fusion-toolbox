@@ -64,7 +64,6 @@ def compute_confidences(frame_pcl, no_mask=False):
 
 
 class SurfelVolume(_SurfelVolume):
-
     def __init__(self, aabb, voxel_size, feature_size=None):
         super().__init__(aabb[0, :], aabb[1, :],
                          voxel_size,
@@ -82,6 +81,25 @@ class SurfelVolume(_SurfelVolume):
 
 
 class SurfelCloud:
+    """Like a point cloud, but, with the extra attributes: radii, confidence, time and feature.
+
+    Attributes:
+
+        points (:obj:`torch.Tensor`): 3D points (N x 3) floats.
+
+        colors (:obj:`torch.Tensor`): Colors (N x 3) uint8s.
+
+        normals (:obj:`torch.Tensor`): Normal vectors (N x 3) floats.
+
+        radii (:obj:`torch.Tensor`): Per point radius (N) floats.
+
+        times (:obj:`torch.Tensor`): Per point time (N) int32s.
+
+        confidences (:obj:`torch.Tensor`): Per point confidence (N) floats.
+
+        features (:obj:`torch.Tensor`): An optional per point feature, (FxN) floats.
+    """
+
     def __init__(self, points, confidences, normals, radii,
                  colors, times, features=None):
         self.points = points
@@ -95,6 +113,27 @@ class SurfelCloud:
     @classmethod
     def from_frame_pcl(cls, frame_pcl, confidences=None, confidence_weight=0.5,
                        time=0, features=None):
+        """Constructs a point cloud from a FramePointCloud. 
+
+        Tensors are not explicitly copied.
+
+        Args:
+
+            frame_pcl (:obj:`fiontb.frame.FramePointCloud`): Source point cloud.
+
+            confidences (:obj:`torch.Tensor`, optional): Optional
+             confidence values. If not specified, then it will be
+             computed in this call.
+
+            confidence_weight (float): Global weighting of confidence
+             values while computing it.
+
+            time (int): Time of surfels. Default is 0.
+
+            features (:obj:`torch.Tensor`, optional): Optional
+             features. Must be (F x N) floats.
+
+        """
         pcl = frame_pcl.unordered_point_cloud(world_space=False)
         if confidences is None:
             confidences = ComputeConfidences()(
@@ -121,6 +160,24 @@ class SurfelCloud:
     @classmethod
     def from_frame(cls, frame, confidences=None, confidence_weight=0.5,
                    time=0, features=None):
+        """Constructs from a frame.
+
+        Args:
+
+            frame (obj:`fiontb.frame.Frame`): Source frame.
+
+            confidences (:obj:`torch.Tensor`, optional): Optional
+             confidence values. If not specified, then it will be
+             computed in this call.
+
+            confidence_weight (float): Global weighting of confidence
+             values while computing it.
+
+            time (int): Time of surfels. Default is 0.
+
+            features (:obj:`torch.Tensor`, optional): Optional
+             features. Must be (F x N) floats.
+        """
         return cls.from_frame_pcl(FramePointCloud.from_frame(frame),
                                   confidences=confidences,
                                   confidence_weight=confidence_weight,
@@ -139,6 +196,19 @@ class SurfelCloud:
 
     @classmethod
     def empty(cls, size, device="cpu:0", feature_size=None):
+        """Constructs a surfel cloud with a given size and no value initiliazation. 
+
+        Args:
+
+            size (int): Number of points. Denominated as
+             `N` on this documentation.
+
+            device (str): PyTorch's device string.
+
+            feature_size (int, optional): If specified, also allocate
+             feature space. It will require (F x N) float space.
+
+        """
         return cls(torch.empty((size, 3), device=device, dtype=torch.float),
                    torch.empty((size), device=device, dtype=torch.float),
                    torch.empty((size, 3), device=device, dtype=torch.float),
@@ -150,22 +220,49 @@ class SurfelCloud:
 
     @property
     def device(self):
+        """
+        Returns:
+
+             (str): Pytorch's device which this instance resides on.
+        """
         return self.points.device
 
     @property
     def size(self):
+        """
+        Returns:
+
+             (int): Number of points. Denominated as
+              `N` on this documentation.
+        """
+
         return self.points.size(0)
 
     @property
     def has_features(self):
+        """
+        Returns:
+
+             (bool): Whatever this instance has features.
+        """
+        
         return self.features is not None
 
     @property
     def feature_size(self):
+        """
+        Returns:
+        
+             (int): The size of the feature channel.
+        """
+        
         if self.features is not None:
             return self.features.size(0)
+        return 0
 
     def clone(self):
+        """Clone the point cloud.
+        """
         return SurfelCloud(self.points.clone(),
                            self.confidences.clone(),
                            self.normals.clone(),
@@ -175,11 +272,30 @@ class SurfelCloud:
                            self.features.clone() if self.features is not None else None)
 
     def itransform(self, matrix):
+        """Transforms the surfel cloud in-place by a rigid transformation.
+
+        Args:
+    
+            matrix (:obj:`torch.Tensor`): A (4 x 4) or (3 x 4) rigid transformation matrix.
+        """
         transform = RigidTransform(matrix.float().to(self.device))
         transform.inplace(self.points)
         transform.inplace_normals(self.normals)
 
     def transform(self, matrix):
+        """Transforms the surfel cloud by a rigid transformation.
+
+        Args:
+    
+            matrix (:obj:`torch.Tensor`): A (4 x 4) or (3 x 4) rigid transformation matrix.
+
+        Returns:
+    
+            (:obj:`fiontb.surfel.SurfelCloud`): New transformed
+             surfel cloud. It will still share the radii, colors and times
+             with the original.
+
+        """
         transform = RigidTransform(matrix.float().to(self.device))
 
         return SurfelCloud(transform @ self.points,
@@ -188,6 +304,20 @@ class SurfelCloud:
                            self.radii, self.colors, self.times)
 
     def to(self, device):
+        """Transfer the point cloud to an another device.
+        
+        If the device is the same, then the return will be new
+        instance, but pointing to the same attributes.
+
+        Args:
+        
+            device (str): Target device.
+        
+        Returns:
+
+            (obj:`fiontb.surfel.SurfelCloud`): New point cloud on the target device.
+
+        """
         return SurfelCloud(self.points.to(device),
                            self.confidences.to(device),
                            self.normals.to(device),
@@ -198,11 +328,23 @@ class SurfelCloud:
                            if self.features is not None else None)
 
     def as_point_cloud(self):
+        """Converts, without copying, to a PointCloud.
+        
+        Returns:
+        
+            (:obj:`fiontb.pointcloud.PointCloud`): PointCloud.
+        """
         from fiontb.pointcloud import PointCloud
 
         return PointCloud(self.points, self.colors, self.normals)
 
     def to_open3d(self):
+        """Converts to an Open3D point cloud.
+        
+        Returns:
+        
+            (:obj:`open3d.geometry.PointCloud`): Open3D's point cloud.
+        """
         return self.as_point_cloud().to_open3d()
 
     def to_cpp_(self):
@@ -222,6 +364,18 @@ class SurfelCloud:
         return params
 
     def downsample(self, voxel_size):
+        """Downsample the surfel cloud by discretizing it into a volume of a
+        given voxel size.
+
+        Args:
+        
+            voxel_size (float): The discrete volume voxel size.
+
+        Returns:
+
+            (:obj:`fiontb.surfel.SurfelCloud`): New surfel cloud.
+        """
+        
         min_pos = self.points.min(0)[0].tolist()
         max_pos = self.points.max(0)[0].tolist()
 
@@ -233,6 +387,12 @@ class SurfelCloud:
         return volume.to_surfel_cloud()
 
     def __getitem__(self, *args):
+        """Slicing operator for "cutting" all attributes at once.
+
+        Returns:
+
+            (:obj:`fiontb.surfel.SurfelCloud`): Sliced surfel cloud.
+        """
         return SurfelCloud(
             self.points[args],
             self.confidences[args],
