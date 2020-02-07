@@ -17,11 +17,29 @@ import fiontb._utils as _utils
 
 
 def compute_surfel_radii(cam_points, normals, kcam):
-    focal_len = (abs(kcam.matrix[0, 0]) + abs(kcam.matrix[1, 1])) * .5
-    radii = (
-        cam_points[:, 2] / focal_len) * math.sqrt(2)
-    radii = torch.min(2*radii, radii /
-                      normals[:, 2].squeeze().abs())
+    """Compute the surfel radius using the following of Weise, Thibaut,
+    Thomas Wismer, Bastian Leibe, and Luc Van Gool. "In-hand scanning
+    with online loop closure." In 2009 IEEE 12th International
+    Conference on Computer Vision Workshops, ICCV Workshops,
+    pp. 1630-1637. IEEE, 2009.
+
+    .. math::
+
+       r_i = \frac{1}{\sqrt{2}} \frac{\frac{p_i^z}{f}}{n_i^z}
+
+    Args:
+
+        cam_points (:obj:`torch.Tensor`): Camera points.
+
+        normals (:obj:`torch.Tensor`): Normals.
+
+        kcam (:obj:`fiontb.camera.KCamera`): Intrinsic camera.
+    """
+
+    radii = torch.empty(cam_points.size(0), dtype=cam_points.dtype,
+                        device=cam_points.device)
+    _SurfelOp.compute_radii(kcam.matrix.cpu(), cam_points[:, 2],
+                            normals[:, 2], radii)
 
     return radii
 
@@ -41,26 +59,6 @@ class ComputeConfidences:
         _SurfelOp.compute_confidences(
             kcam.matrix.to(device), weight, max_dist, self._confidences)
         return self._confidences
-
-
-def compute_confidences(frame_pcl, no_mask=False):
-    img_points = frame_pcl.image_points[:, :, :2].view(-1, 2)
-    img_mask = frame_pcl.mask.flatten()
-
-    if not no_mask:
-        img_points = img_points[img_mask]
-
-    camera_center = torch.tensor(
-        frame_pcl.kcam.pixel_center, device=img_points.device)
-
-    confidences = torch.norm(
-        img_points - camera_center, p=2, dim=1)
-    confidences = confidences / 400  # confidences.max()
-
-    confidences = torch.exp(-torch.pow(confidences, 2) /
-                            (2.0*math.pow(0.6, 2)))
-
-    return confidences
 
 
 class SurfelVolume(_SurfelVolume):
@@ -245,17 +243,17 @@ class SurfelCloud:
 
              (bool): Whatever this instance has features.
         """
-        
+
         return self.features is not None
 
     @property
     def feature_size(self):
         """
         Returns:
-        
+
              (int): The size of the feature channel.
         """
-        
+
         if self.features is not None:
             return self.features.size(0)
         return 0
@@ -275,7 +273,7 @@ class SurfelCloud:
         """Transforms the surfel cloud in-place by a rigid transformation.
 
         Args:
-    
+
             matrix (:obj:`torch.Tensor`): A (4 x 4) or (3 x 4) rigid transformation matrix.
         """
         transform = RigidTransform(matrix.float().to(self.device))
@@ -286,11 +284,11 @@ class SurfelCloud:
         """Transforms the surfel cloud by a rigid transformation.
 
         Args:
-    
+
             matrix (:obj:`torch.Tensor`): A (4 x 4) or (3 x 4) rigid transformation matrix.
 
         Returns:
-    
+
             (:obj:`fiontb.surfel.SurfelCloud`): New transformed
              surfel cloud. It will still share the radii, colors and times
              with the original.
@@ -305,14 +303,14 @@ class SurfelCloud:
 
     def to(self, device):
         """Transfer the point cloud to an another device.
-        
+
         If the device is the same, then the return will be new
         instance, but pointing to the same attributes.
 
         Args:
-        
+
             device (str): Target device.
-        
+
         Returns:
 
             (obj:`fiontb.surfel.SurfelCloud`): New point cloud on the target device.
@@ -329,9 +327,9 @@ class SurfelCloud:
 
     def as_point_cloud(self):
         """Converts, without copying, to a PointCloud.
-        
+
         Returns:
-        
+
             (:obj:`fiontb.pointcloud.PointCloud`): PointCloud.
         """
         from fiontb.pointcloud import PointCloud
@@ -340,9 +338,9 @@ class SurfelCloud:
 
     def to_open3d(self):
         """Converts to an Open3D point cloud.
-        
+
         Returns:
-        
+
             (:obj:`open3d.geometry.PointCloud`): Open3D's point cloud.
         """
         return self.as_point_cloud().to_open3d()
@@ -368,14 +366,14 @@ class SurfelCloud:
         given voxel size.
 
         Args:
-        
+
             voxel_size (float): The discrete volume voxel size.
 
         Returns:
 
             (:obj:`fiontb.surfel.SurfelCloud`): New surfel cloud.
         """
-        
+
         min_pos = self.points.min(0)[0].tolist()
         max_pos = self.points.max(0)[0].tolist()
 
