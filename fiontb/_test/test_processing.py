@@ -88,12 +88,13 @@ class InteractiveTests:
         plt.title("input")
         plt.imshow(depth)
         filter_depth = bilateral_depth_filter(
-            depth, mask, filter_width=13, sigma_d=4.50000000225,
-            sigma_r=29.9999880000072)
+            depth, mask, filter_width=13,
+            sigma_color=29.9999880000072,
+            sigma_space=4.50000000225)
 
         filtered_depth_image = cv2.bilateralFilter(
-            depth.float().numpy(), 13, 4.50000000225,
-            29.9999880000072)
+            depth.float().numpy(), 13,
+            29.9999880000072, 4.50000000225)
         plt.figure()
         plt.title("cv2")
         plt.imshow(filtered_depth_image)

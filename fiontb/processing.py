@@ -39,6 +39,7 @@ def bilateral_depth_filter(depth, mask=None, out_tensor=None, filter_width=6,
          filtering. Default is no scaling.
 
     """
+
     depth = ensure_torch(depth)
     if mask is None:
         mask = depth > 0
@@ -55,11 +56,11 @@ def bilateral_depth_filter(depth, mask=None, out_tensor=None, filter_width=6,
 
 
 class BilateralDepthFilter:
-    def __init__(self, filter_width=6, sigma_d=4.50000000225,
-                 sigma_r=29.9999880000072, depth_scale=1.0):
+    def __init__(self, filter_width=6, sigma_color=29.9999880000072,
+                 sigma_space=4.50000000225, depth_scale=1.0):
         self.filter_width = filter_width
-        self.sigma_d = sigma_d
-        self.sigma_r = sigma_r
+        self.sigma_color = sigma_color
+        self.sigma_space = sigma_space
         self.depth_scale = depth_scale
 
         self._out_tensor = None
@@ -70,8 +71,8 @@ class BilateralDepthFilter:
                                               device=depth.device,
                                               dtype=depth.dtype)
         _Processing.bilateral_depth_filter(depth, mask, self._out_tensor,
-                                           self.filter_width, self.sigma_d, self.sigma_r,
-                                           self.depth_scale)
+                                           self.filter_width, self.sigma_color,
+                                           self.sigma_space, self.depth_scale)
         return self._out_tensor
 
 

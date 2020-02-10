@@ -5,6 +5,10 @@
 #include "error.hpp"
 #include "kernel.hpp"
 
+#include <iostream>
+
+using namespace std;
+
 namespace fiontb {
 
 template <Device dev, typename scalar_t>
@@ -25,7 +29,8 @@ struct BilateralDepthFilterKernel {
         half_width(half_width),
         inv_sigma_color_sqr(inv_sigma_color_sqr),
         inv_sigma_space_sqr(inv_sigma_space_sqr),
-        depth_scale(depth_scale) {}
+        depth_scale(depth_scale) {
+  }
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
     result[row][col] = 0;
@@ -47,7 +52,6 @@ struct BilateralDepthFilterKernel {
       for (int x = -half_width; x <= half_width; ++x) {
         const int kcol = col + x;
         if (kcol < 0 || kcol >= width) continue;
-
         if (mask[krow][kcol] == 0) continue;
 
         const float curr_depth = input[krow][kcol] * depth_scale;

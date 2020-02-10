@@ -135,9 +135,9 @@ class AutogradICP:
 
             spoints = transform_source_points[smask]
 
-            mmask = normal_mask & (feat_diff < 0.2)
-            mmask = feat_diff < 0.3
-            # mmask = torch.ones_like(mmask)
+            #mmask = normal_mask & (feat_diff < 0.2)
+            #mmask = feat_diff < 0.5
+            mmask = torch.ones(spoints.size(0), dtype=torch.bool)
 
             if has_geom:
                 diff = tpoints[mmask] - spoints[mmask]
@@ -227,9 +227,11 @@ class AutogradICP:
 
         Args:
 
-            source_pcl (Union[:obj:`fiontb.pointcloud.PointCloud`, :obj:`fiontb.surfel.SurfelCloud`]): Source point cloud.
+            source_pcl (Union[:obj:`fiontb.pointcloud.PointCloud`,
+             :obj:`fiontb.surfel.SurfelCloud`]): Source point cloud.
 
-            target_pcl (Union[:obj:`fiontb.pointcloud.PointCloud`, :obj:`fiontb.surfel.SurfelCloud`]): Target pcl.
+            target_pcl (Union[:obj:`fiontb.pointcloud.PointCloud`,
+             :obj:`fiontb.surfel.SurfelCloud`]): Target pcl.
 
             source_feats (:obj:`torch.Tensor`, optional): Source
              feature map (C x N).
@@ -244,6 +246,7 @@ class AutogradICP:
 
             (:obj:`fiontb.registration.result.ICPResult`): Resulting transformation and
              alignment information.
+
         """
 
         matcher = PointCloudMatcher(
@@ -258,9 +261,11 @@ class AutogradICP:
 
         Args:
 
-            source_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Source frame.
+            source_frame (Union[:obj:`fiontb.frame.Frame`,
+             :obj:`fiontb.frame.FramePointCloud`]): Source frame.
 
-            target_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Target frame.
+            target_frame (Union[:obj:`fiontb.frame.Frame`,
+             :obj:`fiontb.frame.FramePointCloud`]): Target frame.
 
             source_feats (:obj:`torch.Tensor`, optional): Source
              feature map (C x H x W).

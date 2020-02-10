@@ -11,13 +11,13 @@ from fiontb.frame import FramePointCloud
 from fiontb.camera import RTCamera
 from fiontb.registration.icp import ICPVerifier
 from fiontb.viz import geoshow
-from fiontb.testing import preprocess_frame, ColorMode
+from fiontb.testing import preprocess_frame, ColorSpace
 from fiontb._utils import profile as _profile
 from fiontb.data.ftb import load_ftb
 
 
 def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
-                  color_mode=ColorMode.LAB, frame0_idx=0, frame1_idx=8,
+                  color_space=ColorSpace.LAB, frame0_idx=0, frame1_idx=8,
                   device="cuda:0"):
     """Test with two frames.
     """
@@ -25,7 +25,7 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     frame_args = {
         'filter_depth': filter_depth,
         'blur': blur,
-        'color_mode': color_mode
+        'color_space': color_space
     }
     prev_frame, target_feats = preprocess_frame(
         dataset[frame0_idx], **frame_args)
@@ -66,13 +66,13 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
 
     print("Key 1 - toggle target PCL")
     print("Key 2 - toggle source PCL")
-    print("Key 3 - toggle alignment PCL")
+    print("Key 3 - toggle aligned source PCL")
 
     geoshow([pcl0, pcl1, pcl2], title=icp.__class__.__name__, invert_y=True)
 
 
 def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
-                        color_mode=ColorMode.LAB):
+                        color_space=ColorSpace.LAB):
     """Trajectory test."""
 
     device = "cuda:0"
@@ -82,7 +82,7 @@ def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
     frame_args = {
         'filter_depth': filter_depth,
         'blur': blur,
-        'color_mode': color_mode
+        'color_space': color_space
     }
     prev_frame, prev_features = preprocess_frame(
         dataset[0], **frame_args)

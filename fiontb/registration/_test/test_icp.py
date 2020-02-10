@@ -8,19 +8,19 @@ import fire
 from fiontb.data import set_start_at_eye
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
-from fiontb.viz.show import show_pcls
 from fiontb.registration.icp import (
     ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOption)
-from fiontb.testing import preprocess_frame, ColorMode
+from fiontb.testing import preprocess_frame, ColorSpace
+from fiontb.viz.show import geoshow
 
-from .testing import (evaluate, run_trajectory_test, run_pair_test)
+from .testing import run_trajectory_test, run_pair_test
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=14, color_mode=ColorMode.GRAY,
+SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=14, color_space=ColorSpace.GRAY,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=14, color_mode=ColorMode.LAB,
+REAL_FRAME_ARGS = dict(frame1_idx=14, color_space=ColorSpace.LAB,
                        blur=True, filter_depth=True)
 
 
@@ -187,9 +187,9 @@ class _Tests:
 
         icp_verifier = ICPVerifier()
         frame, features0 = prepare_frame(
-            dataset[0], scale=1, filter_depth=True, to_hsv=True, blur=True)
+            dataset[0], scale=1, filter_depth=True, color_space=ColorSpace.RGB, blur=False)
         next_frame, features1 = prepare_frame(
-            dataset[6], scale=1, filter_depth=True, to_hsv=True, blur=True)
+            dataset[6], scale=1, filter_depth=True, color_space=ColorSpace.RGB, blur=False)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)
         next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
@@ -210,15 +210,12 @@ class _Tests:
         relative_rt = result.transform
         print("Tracking: ", icp_verifier(result))
 
-        evaluate(next_fpcl.rt_cam, fpcl.rt_cam,
-                 relative_rt)
-
         pcl0 = fpcl.unordered_point_cloud(world_space=False)
         pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
         pcl2 = pcl1.transform(relative_rt.to(device))
         pcl1 = pcl1.transform(init_transform)
 
-        show_pcls([pcl0, pcl1.transform(init_transform), pcl2])
+        geoshow([pcl0, pcl1.transform(init_transform), pcl2])
 
     @staticmethod
     def trajectory():
@@ -236,7 +233,7 @@ class _Tests:
         run_trajectory_test(icp, dataset,
                             filter_depth=SYNTHETIC_FRAME_ARGS['filter_depth'],
                             blur=SYNTHETIC_FRAME_ARGS['blur'],
-                            color_mode=SYNTHETIC_FRAME_ARGS['color_mode'])
+                            color_space=SYNTHETIC_FRAME_ARGS['color_space'])
 
 
 if __name__ == '__main__':

@@ -9,18 +9,18 @@ from fiontb.data.ftb import load_ftb
 from fiontb.registration.autogradicp import (AutogradICP, MultiscaleAutogradICP,
                                              AGICPOption)
 
-from fiontb.testing import ColorMode, preprocess_frame
+from fiontb.testing import ColorSpace, preprocess_frame
 from .testing import run_trajectory_test, run_pair_test
 
 # pylint: disable=no-self-use
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=5, color_mode=ColorMode.LAB,
+SYNTHETIC_FRAME_ARGS = dict(frame1_idx=5, color_space=ColorSpace.LAB,
                             blur=False, filter_depth=False)
 
 REAL_FRAME_ARGS = dict(frame1_idx=29,
-                       color_mode=ColorMode.LAB,
+                       color_space=ColorSpace.LAB,
                        blur=True, filter_depth=True)
 
 
@@ -48,7 +48,7 @@ class _Tests:
         """Use only RGB information of a real scene.
         """
         run_pair_test(
-            AutogradICP(50, geom_weight=0, feat_weight=1),
+            AutogradICP(500, geom_weight=0, feat_weight=1),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -155,8 +155,8 @@ class _Tests:
         ])
 
         dataset = load_ftb(_TEST_DATA / "sample1")
-        run_trajectory_test(icp, dataset, to_hsv=False,
-                            to_gray=True, blur=True)
+        run_trajectory_test(icp, dataset, color_space=ColorSpace.RGB,
+                            blur=False)
 
     def pcl_rgbd_real(self):
         """Test using sparse point cloud.
@@ -169,12 +169,12 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / "sample1")
 
-        frame0, features0 = preprocess_frame(dataset[0], color_mode=ColorMode.LAB,
+        frame0, features0 = preprocess_frame(dataset[0], color_space=ColorSpace.LAB,
                                              blur=False, filter_depth=True)
-        frame1, features1 = preprocess_frame(dataset[29], color_mode=ColorMode.LAB,
+        frame1, features1 = preprocess_frame(dataset[29], color_space=ColorSpace.LAB,
                                              blur=False, filter_depth=True)
 
-        icp = AutogradICP(3, learning_rate=1, geom_weight=0.5, feat_weight=0.1)
+        icp = AutogradICP(30, learning_rate=1, geom_weight=0.5, feat_weight=0.1)
 
         device = "cuda:0"
 

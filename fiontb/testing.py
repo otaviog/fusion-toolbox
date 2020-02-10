@@ -34,15 +34,14 @@ def preprocess_frame(frame, scale=1, filter_depth=True, color_space=ColorSpace.L
     if filter_depth:
         frame.depth_image = bilateral_depth_filter(
             frame.depth_image,
-            mask,
-            depth_scale=frame.info.depth_scale).numpy()
+            mask).numpy()
 
     if compute_normals:
         normal_depth_image = frame.depth_image
         if not filter_depth:
             normal_depth_image = bilateral_depth_filter(
                 frame.depth_image.to("cuda:0"),
-                mask.to("cuda:0"), depth_scale=frame.info.depth_scale).numpy()
+                mask.to("cuda:0")).numpy()
 
         frame.normal_image = estimate_normals(normal_depth_image, frame.info,
                                               mask)
