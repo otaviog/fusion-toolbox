@@ -130,9 +130,9 @@ class AutogradICP:
             normal_mask = torch.bmm(tnormals.view(-1, 1, 3),
                                     snormals.view(-1, 3, 1)).squeeze() > 0.5
 
-            feat_diff = torch.norm(
-                tfeatures - source_feats[:, smask], 2, dim=0)
-
+            feat_diff = torch.norm(tfeatures - source_feats[:, smask], 2, dim=0)
+            #feat_diff = -torch.cosine_similarity(tfeatures, source_feats[:, smask], dim=0)
+            
             spoints = transform_source_points[smask]
 
             #mmask = normal_mask & (feat_diff < 0.2)

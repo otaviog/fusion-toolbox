@@ -148,6 +148,77 @@ int GenerateTripletImpl(const SFFrameAccessor &anch_frame,
   return mask_count;
 }
 
+int GenerateTriplet2Impl(const SFFrameAccessor &anch_frame,
+                         const RigidTransform<kCPU, float> &anch_cam_to_world,
+                         const SFFrameAccessor &posv_frame,
+                         const KCamera<kCPU, float> posv_kcam,
+                         const RigidTransform<kCPU, float> &posv_cam_to_world,
+                         const RigidTransform<kCPU, float> &posv_world_to_cam,
+                         float point_dist_thresh,
+                         const SFFrameAccessor &negv_frame,
+                         SFCropAccessor anch_crop, SFCropAccessor posv_crop,
+                         torch::TensorAccessor<int32_t, 2> posv_indices,
+                         torch::TensorAccessor<bool, 2> posv_mask,
+                         SFCropAccessor negv_crop,
+                         torch::TensorAccessor<bool, 2> negv_mask,
+                         torch::TensorAccessor<bool, 2> negv_hard) {
+  bool is_hard_negv = dice(0.5);
+  const int hn_u = rand_int_except(-10, 10, 0);
+  const int hn_v = rand_int_except(-10, 10, 0);
+
+  int mask_count;
+  for (int row = 0; row < anch_frame.get_height(); ++row) {
+    for (int col = 0; col < anch_frame.get_width(); ++col) {
+      anch_crop.set_color(row, col, anch_frame.get_color(row, col));
+      anch_crop.set_depth(row, col, anch_frame.get_depth(row, col));
+
+      posv_crop.set_color(row, col, posv_frame.get_color(row, col));
+      posv_crop.set_depth(row, col, posv_frame.get_depth(row, col));
+      posv_mask[row][col] = false;
+      posv_indices[row][col] = -1;
+          
+      negv_crop.set_color(row, col, negv_frame.get_color(row, col));
+      negv_crop.set_depth(row, col, negv_frame.get_depth(row, col));
+      negv_mask[row][col] = negv_frame.is_valid(row, col);
+      negv_hard[row][col] = false;
+
+      if (!anch_frame.is_valid(row, col)) {
+        continue;
+      }
+
+      const Eigen::Vector3f anc_point(anch_frame.get_point(row, col));
+      const Eigen::Vector3f world_point(anch_cam_to_world.Transform(anc_point));
+      const Eigen::Vector3f pred_pos_point(
+          posv_world_to_cam.Transform(world_point));
+      int u, v;
+      posv_kcam.Projecti(pred_pos_point, u, v);
+      if ((u >= 0 && u < posv_frame.get_width()) &&
+          (v >= 0 && v < posv_frame.get_height())) {
+        const Eigen::Vector3f pos_point(
+            posv_cam_to_world.Transform(posv_frame.get_point(v, u)));
+        if ((pos_point - world_point).squaredNorm() <= point_dist_thresh &&
+            posv_frame.is_valid(v, u)) {
+          posv_indices[row][col] = v * anch_frame.get_width() + u;
+          posv_mask[row][col] = true;
+          ++mask_count;
+        }
+
+        if (is_hard_negv) {
+          const int neg_u = u + hn_u;
+          const int neg_v = v + hn_v;
+          if (posv_frame.is_valid(neg_v, neg_u)) {
+            negv_crop.set_color(row, col, posv_frame.get_color(neg_v, neg_u));
+            negv_crop.set_depth(row, col, posv_frame.get_depth(neg_v, neg_u));
+            negv_mask[row][col] = true;
+            negv_hard[row][col] = true;
+          }
+        }
+      }
+    }
+  }
+  return mask_count;
+}
+
 }  // namespace
 
 int SlamFeatOp::GenerateTriplet(
@@ -169,9 +240,29 @@ int SlamFeatOp::GenerateTriplet(
       negv_hard.accessor<bool, 2>());
 }
 
+int SlamFeatOp::GenerateTriplet2(
+    const SFFrame &anch_frame, const torch::Tensor anch_cam_to_world,
+    const SFFrame &posv_frame, const torch::Tensor &posv_kcam,
+    const torch::Tensor posv_cam_to_world, float point_dist_thresh,
+    const SFFrame &negv_frame, SFCrop anch_crop, SFCrop posv_crop,
+    torch::Tensor posv_indices, torch::Tensor posv_mask, SFCrop negv_crop,
+    torch::Tensor negv_mask, torch::Tensor negv_hard) {
+  return GenerateTriplet2Impl(
+      SFFrameAccessor(anch_frame),
+      RigidTransform<kCPU, float>(anch_cam_to_world),
+      SFFrameAccessor(posv_frame), KCamera<kCPU, float>(posv_kcam),
+      RigidTransform<kCPU, float>(posv_cam_to_world),
+      RigidTransform<kCPU, float>(posv_cam_to_world.inverse()),
+      point_dist_thresh, SFFrameAccessor(negv_frame), SFCropAccessor(anch_crop),
+      SFCropAccessor(posv_crop), posv_indices.accessor<int32_t, 2>(),
+      posv_mask.accessor<bool, 2>(), SFCropAccessor(negv_crop),
+      negv_mask.accessor<bool, 2>(), negv_hard.accessor<bool, 2>());
+}
+
 void SlamFeatOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<SlamFeatOp>(m, "SlamFeatOp")
-      .def_static("generate_triplet", &SlamFeatOp::GenerateTriplet);
+      .def_static("generate_triplet", &SlamFeatOp::GenerateTriplet)
+      .def_static("generate_triplet2", &SlamFeatOp::GenerateTriplet2);
 
   pybind11::class_<SFFrame>(m, "SFFrame")
       .def(pybind11::init())
