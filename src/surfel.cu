@@ -73,12 +73,15 @@ struct ComputeRadiiKernel {
         normals_z(Accessor<dev, scalar_t, 1>::Get(normals_z)),
         radii(Accessor<dev, scalar_t, 1>::Get(radii)) {
     const KCamera<kCPU, scalar_t> kcam(kcam_);
-    focal_len = (abs(kcam.matrix[0][0]) + abs(kcam.matrix[1][1])) * 0.5;
+    focal_len =
+        (abs(kcam.matrix[0][0]) + abs(kcam.matrix[1][1])) * 0.5;
   }
 
   FTB_DEVICE_HOST void operator()(int idx) {
     const scalar_t _1_sqrt_2 = 0.7071067811865475;
-    radii[idx] = _1_sqrt_2 * ((depths[idx] / focal_len) / normals_z[idx]);
+    const scalar_t radius = _1_sqrt_2 * (depths[idx] / focal_len);
+
+    radii[idx] = min(radius / abs(normals_z[idx]), 2 * radius);
   }
 };
 }  // namespace

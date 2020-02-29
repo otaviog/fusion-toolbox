@@ -153,7 +153,7 @@ class AutogradICP:
 
             if torch.isnan(loss):
                 return loss
-
+            print(loss.item())
             return loss*self.learning_rate
 
         box = _ClosureBox(_closure, upsilon_omega)
@@ -166,6 +166,7 @@ class AutogradICP:
         if initial_transform is not None:
             transform = _to_4x4(initial_transform) @ transform
 
+        print(transform)
         return ICPResult(transform, None, loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,

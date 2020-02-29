@@ -40,7 +40,6 @@ def compute_surfel_radii(cam_points, normals, kcam):
                         device=cam_points.device)
     _SurfelOp.compute_radii(kcam.matrix.cpu(), cam_points[:, 2],
                             normals[:, 2], radii)
-
     return radii
 
 
