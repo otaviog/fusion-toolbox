@@ -9,6 +9,12 @@ doc-create:
 doc-open:
 	sensible-browser doc/build/html/index.html
 
+cpp-doc-create:
+	doxygen Doxyfile
+
+cpp-doc-open:
+	sensible-browser doc/cpp/html/index.html
+
 pylint:
 	python3 -m pylint rflow
 

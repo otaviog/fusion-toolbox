@@ -2,21 +2,18 @@
 
 #include <pybind11/eigen.h>
 #include <torch/csrc/utils/pybind.h>
-#include <torch/python.h>
-#include <torch/torch.h>
 
 #include "camera.hpp"
 #include "elastic_fusion.hpp"
-#include "icpodometry.hpp"
+#include "icp_jacobian.hpp"
 #include "matching.hpp"
-#include "mesh.hpp"
 #include "nearest_neighbors.hpp"
 #include "processing.hpp"
 #include "so3.hpp"
 #include "surfel.hpp"
 #include "surfel_fusion.hpp"
 #include "surfel_volume.hpp"
-#include "trigoctree.hpp"
+#include "triangle_mesh_octree.hpp"
 #include "slamfeat.hpp"
 
 using namespace std;
@@ -35,7 +32,7 @@ PYBIND11_MODULE(_cfiontb, m) {
   SO3tExpOp::RegisterPybind(m);
 
   // fiontb.spatial
-  TrigOctree::RegisterPybind(m);
+  TriangleMeshOctree::RegisterPybind(m);
   FPCLMatcherOp::RegisterPybind(m);
   NearestNeighborsOp::RegisterPybind(m);
 

@@ -22,8 +22,6 @@ AABB::AABB(const torch::Tensor &points) {
   max_ = from_tensorv3f(ma.cpu());
 }
 
-AABB::AABB(const torch::Tensor &indices, const torch::Tensor &points) {}
-
 bool AABB::IsInside(const Eigen::Vector3f &point) const {
   if (point[0] < min_[0] || point[1] < min_[1] || point[2] < min_[2])
     return false;
@@ -34,23 +32,11 @@ bool AABB::IsInside(const Eigen::Vector3f &point) const {
   return true;
 }
 
-bool AABB::IsInside(const Eigen::Vector3f &point, float radius) const {
+bool AABB::Intersects(const Eigen::Vector3f &point, float radius) const {
   Eigen::Vector3f closest(GetClosestPoint(point));
 
   const Eigen::Vector3f v = point - closest;
   return radius * radius > v.squaredNorm();
-}
-
-Eigen::Vector3f AABB::GetClosestPoint(const Eigen::Vector3f &point) const {
-  Eigen::Vector3f result = point;
-  result[0] = (result[0] < min_[0]) ? min_[0] : result[0];
-  result[1] = (result[1] < min_[1]) ? min_[1] : result[1];
-  result[2] = (result[2] < min_[2]) ? min_[2] : result[2];
-
-  result[0] = (result[0] > max_[0]) ? max_[0] : result[0];
-  result[1] = (result[1] > max_[1]) ? max_[1] : result[1];
-  result[2] = (result[2] > max_[2]) ? max_[2] : result[2];
-  return result;
 }
 
 bool AABB::Intersects(const Eigen::Vector3f &p0, const Eigen::Vector3f &p1,
@@ -81,21 +67,17 @@ bool AABB::Intersects(const Eigen::Vector3f &p0, const Eigen::Vector3f &p1,
   return true;
 }
 
-void SubdivideAABBOcto(const AABB &aabb, AABB subs[8]) {
-  using namespace Eigen;
+Eigen::Vector3f AABB::GetClosestPoint(const Eigen::Vector3f &point) const {
+  Eigen::Vector3f result = point;
+  result[0] = (result[0] < min_[0]) ? min_[0] : result[0];
+  result[1] = (result[1] < min_[1]) ? min_[1] : result[1];
+  result[2] = (result[2] < min_[2]) ? min_[2] : result[2];
 
-  const Vector3f mi = aabb.get_min();
-  const Vector3f ma = aabb.get_max();
-  const Vector3f ce = (mi + ma) * 0.5;
-
-  subs[0] = AABB(Vector3f(mi[0], mi[1], mi[2]), ce);
-  subs[1] = AABB(Vector3f(mi[0], mi[1], ma[2]), ce);
-  subs[2] = AABB(Vector3f(mi[0], ma[1], ma[2]), ce);
-  subs[3] = AABB(Vector3f(mi[0], ma[1], mi[2]), ce);
-  subs[4] = AABB(Vector3f(ma[0], mi[1], mi[2]), ce);
-  subs[5] = AABB(Vector3f(ma[0], mi[1], ma[2]), ce);
-  subs[6] = AABB(Vector3f(ma[0], ma[1], ma[2]), ce);
-  subs[7] = AABB(Vector3f(ma[0], ma[1], mi[2]), ce);
+  result[0] = (result[0] > max_[0]) ? max_[0] : result[0];
+  result[1] = (result[1] > max_[1]) ? max_[1] : result[1];
+  result[2] = (result[2] > max_[2]) ? max_[2] : result[2];
+  return result;
 }
+
 
 }  // namespace fiontb

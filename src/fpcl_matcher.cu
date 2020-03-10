@@ -4,7 +4,6 @@
 #include "error.hpp"
 #include "feature_map.hpp"
 #include "kernel.hpp"
-#include "pointgrid.hpp"
 
 #include "correspondence.hpp"
 

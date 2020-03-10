@@ -1,7 +1,4 @@
-#include "icpodometry.hpp"
-
-#include <pybind11/eigen.h>
-#include <torch/csrc/utils/pybind.h>
+#include "icp_jacobian.hpp"
 
 #include "accessor.hpp"
 #include "atomic_int.hpp"
@@ -66,7 +63,7 @@ struct GeometricJacobianKernel {
     ++match_count;
 
     const scalar_t residual = (tgt_point - Tsrc_point).dot(tgt_normal);
-    jacobian.Compute(Tsrc_point, tgt_normal, residual);    
+    jacobian.Compute(Tsrc_point, tgt_normal, residual);
     squared_residual[ri] = residual * residual;
   }
 };
@@ -132,10 +129,4 @@ int ICPJacobian::EstimateGeometric(
   return num_matches;
 }
 
-void ICPJacobian::RegisterPybind(pybind11::module &m) {
-  py::class_<ICPJacobian>(m, "ICPJacobian")
-      .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)
-      .def_static("estimate_feature", &ICPJacobian::EstimateFeature)
-      .def_static("estimate_feature_so3", &ICPJacobian::EstimateFeatureSO3);
-}
 }  // namespace fiontb

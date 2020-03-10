@@ -1,4 +1,4 @@
-#include "mesh.hpp"
+#include "geometry.hpp"
 
 #include <cmath>
 
@@ -36,7 +36,6 @@ Eigen::Vector3f GetClosestPointLine(const Eigen::Vector3f &query,
 
   return p0 + vec * t;
 }
-}  // namespace
 
 Eigen::Vector3f GetClosestPointTriangle(const Eigen::Vector3f &query,
                                         const Eigen::Vector3f &p0,
@@ -68,6 +67,7 @@ Eigen::Vector3f GetClosestPointTriangle(const Eigen::Vector3f &query,
 
   return c2;
 }
+}  // namespace
 
 pair<Eigen::Vector3f, long> QueryClosestPoint(const Eigen::Vector3f &qpoint,
                                               const torch::Tensor &verts,

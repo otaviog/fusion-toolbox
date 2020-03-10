@@ -1,0 +1,21 @@
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - cmake>=3.14.0
+  - cudatoolkit>=10.1.0
+  - cudnn
+  - eigen>=3.3.7
+  - numpy>=1.18.1
+  - pytorch>=1.2.0
+
+
+
+
+
+
+
+
+
+

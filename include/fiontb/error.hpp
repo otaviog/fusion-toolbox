@@ -5,6 +5,10 @@
 
 namespace fiontb {
 
+/**
+ * Raises a runtime error with the file, line and message if test is
+ * false.
+ */
 inline void Check(bool test, const char *file, int line, const char *message) {
   if (!test) {
     std::stringstream msg;
@@ -13,6 +17,13 @@ inline void Check(bool test, const char *file, int line, const char *message) {
   }
 }
 
+/**
+ * Raises a runtime error whatever the test_tensor is in a different
+ * device than the espected one.
+
+ * @param expected_dev The expected device.
+ * @param test_tensor The tensor which should be tested.
+ */
 inline void CheckDevice(const torch::Device expected_dev,
                         const torch::Tensor &test_tensor, const char *file,
                         int line) {

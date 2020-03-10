@@ -8,13 +8,15 @@ cuda_add_library(fiontb
   erode_mask.cu
   processing.cpp
   camera.cpp
-  camera.cu  
-  icp_jacobian.cu
+  camera.cu
+  icp_jacobian.cpp
+  icp_jacobian_geometric.cu
   icp_jacobian_feature.cu
   so3.cu
   aabb.cpp
-  sat.cpp mesh.cpp
-  trigoctree.cpp
+  sat.cpp
+  geometry.cpp
+  triangle_mesh_octree.cpp
   nearest_neighbors.cu
   nearest_neighbors.cpp
   fpcl_matcher.cu

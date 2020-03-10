@@ -24,3 +24,4 @@ test_fiontb
 *.prof
 out-*
 .ipynb_checkpoints
+doc/cpp

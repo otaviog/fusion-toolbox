@@ -1,17 +1,40 @@
-#include "trigoctree.hpp"
+#include "triangle_mesh_octree.hpp"
 
 #include <torch/csrc/utils/pybind.h>
 
-#include "mesh.hpp"
+#include "aabb.hpp"
+#include "geometry.hpp"
 
 using namespace std;
 
 namespace fiontb {
 
-class ATrigOctNode {
+namespace {
+
+void SubdivideAABBOcto(const AABB &aabb, AABB subs[8]) {
+  using namespace Eigen;
+
+  const Vector3f mi = aabb.get_min();
+  const Vector3f ma = aabb.get_max();
+  const Vector3f ce = (mi + ma) * 0.5;
+
+  subs[0] = AABB(Vector3f(mi[0], mi[1], mi[2]), ce);
+  subs[1] = AABB(Vector3f(mi[0], mi[1], ma[2]), ce);
+  subs[2] = AABB(Vector3f(mi[0], ma[1], ma[2]), ce);
+  subs[3] = AABB(Vector3f(mi[0], ma[1], mi[2]), ce);
+  subs[4] = AABB(Vector3f(ma[0], mi[1], mi[2]), ce);
+  subs[5] = AABB(Vector3f(ma[0], mi[1], ma[2]), ce);
+  subs[6] = AABB(Vector3f(ma[0], ma[1], ma[2]), ce);
+  subs[7] = AABB(Vector3f(ma[0], ma[1], mi[2]), ce);
+}
+
+}  // namespace
+
+namespace detail {
+class AbstractOctNode {
  public:
-  ATrigOctNode(const AABB &box) : box_(box) {}
-  virtual ~ATrigOctNode() {}
+  AbstractOctNode(const AABB &box) : box_(box) {}
+  virtual ~AbstractOctNode() {}
 
   virtual pair<Eigen::Vector3f, long> QueryClosest(
       const Eigen::Vector3f bounded_qpoint,
@@ -25,22 +48,24 @@ class ATrigOctNode {
  protected:
   AABB box_;
 };
+}  // namespace detail
 
-class LeafTrigOctNode : public ATrigOctNode {
+using namespace detail;
+
+class LeafOctNode : public AbstractOctNode {
  public:
-  LeafTrigOctNode(const torch::Tensor &verts, torch::Tensor faces,
-                  const AABB &box)
-      : ATrigOctNode(box), verts_(verts), faces_(faces) {}
+  LeafOctNode(const torch::Tensor &verts, torch::Tensor faces, const AABB &box)
+      : AbstractOctNode(box), verts_(verts), faces_(faces) {}
 
   pair<Eigen::Vector3f, long> QueryClosest(
       const Eigen::Vector3f /*bounded_qpoint*/,
       const Eigen::Vector3f &qpoint) const override {
-    return QueryClosestPoint(qpoint, verts_, faces_);
+    return GetClosestPoint(qpoint, verts_, faces_);
   }
 
   pair<Eigen::Vector3f, long> QueryClosest(const Eigen::Vector3f &qpoint,
                                            float /*radius*/) const override {
-    return QueryClosestPoint(qpoint, verts_, faces_);
+    return GetClosestPoint(qpoint, verts_, faces_);
   }
 
  private:
@@ -48,11 +73,11 @@ class LeafTrigOctNode : public ATrigOctNode {
   torch::Tensor faces_;
 };
 
-class TrigOctNode : public ATrigOctNode {
+class OctNode : public AbstractOctNode {
  public:
-  TrigOctNode(const torch::Tensor &verts, const torch::Tensor &faces,
-              const AABB &split_box, int leaf_num_trigs)
-      : ATrigOctNode(split_box) {
+  OctNode(const torch::Tensor &verts, const torch::Tensor &faces,
+          const AABB &split_box, int leaf_num_trigs)
+      : AbstractOctNode(split_box) {
     AABB octo_boxes[8];
     SubdivideAABBOcto(box_, octo_boxes);
 
@@ -91,16 +116,15 @@ class TrigOctNode : public ATrigOctNode {
       if (select_count == 0) continue;
 
       if (select_count <= leaf_num_trigs) {
-        children_[box_idx] =
-            new LeafTrigOctNode(verts, selected_faces, curr_box);
+        children_[box_idx] = new LeafOctNode(verts, selected_faces, curr_box);
       } else {
         children_[box_idx] =
-            new TrigOctNode(verts, selected_faces, curr_box, leaf_num_trigs);
+            new OctNode(verts, selected_faces, curr_box, leaf_num_trigs);
       }
     }
   }
 
-  ~TrigOctNode() {
+  ~OctNode() {
     for (int i = 0; i < 8; ++i) {
       delete children_[i];
     }
@@ -110,9 +134,9 @@ class TrigOctNode : public ATrigOctNode {
       const Eigen::Vector3f bounded_qpoint,
       const Eigen::Vector3f &qpoint) const override {
     pair<Eigen::Vector3f, long> result(Eigen::Vector3f(0, 0, 0), -1);
-    const ATrigOctNode *visited = nullptr;
+    const AbstractOctNode *visited = nullptr;
     for (int i = 0; i < 8; ++i) {
-      const ATrigOctNode *child = children_[i];
+      const AbstractOctNode *child = children_[i];
       if (child == nullptr) {
         continue;
       }
@@ -133,12 +157,12 @@ class TrigOctNode : public ATrigOctNode {
     }
 
     for (int i = 0; i < 8; ++i) {
-      const ATrigOctNode *child = children_[i];
+      const AbstractOctNode *child = children_[i];
       if (child == nullptr || child == visited) {
         continue;
       }
 
-      if (child->get_box().IsInside(qpoint, min_distance)) {
+      if (child->get_box().Intersects(qpoint, min_distance)) {
         const auto this_result = child->QueryClosest(qpoint, min_distance);
 
         if (this_result.second == -1) continue;
@@ -159,12 +183,12 @@ class TrigOctNode : public ATrigOctNode {
     pair<Eigen::Vector3f, long> result(Eigen::Vector3f(Inf, Inf, Inf), -1);
 
     for (int i = 0; i < 8; ++i) {
-      const ATrigOctNode *child = children_[i];
+      const AbstractOctNode *child = children_[i];
       if (child == nullptr) {
         continue;
       }
 
-      if (child->get_box().IsInside(qpoint, radius)) {
+      if (child->get_box().Intersects(qpoint, radius)) {
         const auto this_result = child->QueryClosest(qpoint, radius);
         const float distance = (this_result.first - qpoint).norm();
         if (distance < radius) {
@@ -178,24 +202,25 @@ class TrigOctNode : public ATrigOctNode {
   }
 
  private:
-  ATrigOctNode *children_[8];
+  AbstractOctNode *children_[8];
 };
 
-TrigOctree::TrigOctree(torch::Tensor verts, const torch::Tensor &faces,
-                       int leaf_num_trigs)
+TriangleMeshOctree::TriangleMeshOctree(torch::Tensor verts,
+                                       const torch::Tensor &faces,
+                                       int leaf_num_trigs)
     : verts_(verts) {
-  root_ = new TrigOctNode(verts_, faces, AABB(verts), leaf_num_trigs);
+  root_ = new OctNode(verts_, faces, AABB(verts), leaf_num_trigs);
 }
 
-void TrigOctree::RegisterPybind(pybind11::module &m) {
-  py::class_<TrigOctree>(m, "TrigOctree")
+void TriangleMeshOctree::RegisterPybind(pybind11::module &m) {
+  py::class_<TriangleMeshOctree>(m, "TriangleMeshOctree")
       .def(py::init<torch::Tensor, torch::Tensor, int>())
-      .def("query_closest_points", &TrigOctree::QueryClosest);
+      .def("query_closest_points", &TriangleMeshOctree::QueryClosest);
 }
 
-TrigOctree::~TrigOctree() { delete root_; }
+TriangleMeshOctree::~TriangleMeshOctree() { delete root_; }
 
-pair<torch::Tensor, torch::Tensor> TrigOctree::QueryClosest(
+pair<torch::Tensor, torch::Tensor> TriangleMeshOctree::QueryClosest(
     const torch::Tensor &points) {
   torch::Tensor closest_mtx = torch::empty({points.size(0), 3}, torch::kFloat);
 

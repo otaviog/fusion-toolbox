@@ -2,20 +2,26 @@
 
 #include "accessor.hpp"
 #include "camera.hpp"
-#include "pointgrid.hpp"
 
 namespace fiontb {
 template <Device dev, typename scalar_t>
-class PointGrid : public BasePointGrid<dev> {
+class PointGrid {
  public:
   const typename Accessor<dev, scalar_t, 3>::T points;
   const typename Accessor<dev, scalar_t, 3>::T normals;
+  const typename Accessor<dev, bool, 2>::T mask;
+  const int width;
+  const int height;
 
   PointGrid(const torch::Tensor &points, const torch::Tensor normals,
             const torch::Tensor &mask)
-      : BasePointGrid<dev>(mask),
-        points(Accessor<dev, scalar_t, 3>::Get(points)),
-        normals(Accessor<dev, scalar_t, 3>::Get(normals)) {}
+      : points(Accessor<dev, scalar_t, 3>::Get(points)),
+        normals(Accessor<dev, scalar_t, 3>::Get(normals)),
+        mask(Accessor<dev, bool, 2>::Get(mask)),
+        width(mask.size(1)),
+        height(mask.size(0)) {}
+
+  FTB_DEVICE_HOST bool empty(int row, int col) const { return !mask[row][col]; }
 };
 
 template <Device dev, typename scalar_t>
