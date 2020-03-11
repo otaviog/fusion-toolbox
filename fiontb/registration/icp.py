@@ -17,7 +17,7 @@ from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 
 class _Step:
-    def __init__(self, geom, so3, distance_threshold, normals_angle_thresh):
+    def __init__(self, geom, so3, distance_threshold, normals_angle_thresh, feat_residual_thresh):
         self.JtJ = None
         self.Jtr = None
         self.residual = None
@@ -25,6 +25,7 @@ class _Step:
         self.so3 = so3
         self.distance_threshold = distance_threshold
         self.normals_angle_thresh = normals_angle_thresh
+        self.feat_residual_thresh = feat_residual_thresh
 
     def __call__(self, target_points, target_normals, target_feats, target_mask,
                  source_points, source_normals, source_feats, source_mask,
@@ -58,12 +59,14 @@ class _Step:
                     target_points, target_normals, target_feats,
                     target_mask, source_points,
                     source_feats, source_mask, kcam, transform.to(dtype),
+                    self.distance_threshold, self.normals_angle_thresh, self.feat_residual_thresh,
                     self.JtJ, self.Jtr, self.residual)
         else:
             match_count = _ICPJacobian.estimate_feature_so3(
                 target_points, target_normals, target_feats,
                 target_mask, source_points, source_feats,
                 source_mask, kcam, transform.to(dtype),
+                self.distance_threshold, self.normals_angle_thresh, self.feat_residual_thresh,
                 self.JtJ, self.Jtr, self.residual)
 
         Jtr = self.Jtr.double().sum(0)
@@ -95,20 +98,22 @@ class ICPOdometry:
 
         normals_angle_thresh (float): Maximum angle in radians between
          normals to match a pair of source and target points.
+
+        feat_residual_thresh (float): Maximum residual between features.
     """
 
     def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False,
-                 distance_threshold=0.1, normals_angle_thresh=math.pi/8.0):
+                 distance_threshold=0.1, normals_angle_thresh=math.pi/8.0, feat_residual_thresh=0.5):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
         self.so3 = so3
 
         self._geom_step = (_Step(True, so3, distance_threshold,
-                                 normals_angle_thresh)
+                                 normals_angle_thresh, feat_residual_thresh)
                            if geom_weight > 0 and not so3 else None)
         self._feature_step = (_Step(False, so3, distance_threshold,
-                                    normals_angle_thresh)
+                                    normals_angle_thresh, feat_residual_thresh)
                               if feat_weight > 0 else None)
 
     def estimate(self, kcam, source_points, source_normals,

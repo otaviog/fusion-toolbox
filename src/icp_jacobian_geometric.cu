@@ -44,15 +44,15 @@ struct GeometricJacobianKernel {
         squared_residual(Accessor<dev, scalar_t, 1>::Get(squared_residual)),
         match_count(match_count) {}
 
-  FTB_DEVICE_HOST void operator()(int ri) {
-    SE3ICPJacobian<dev, scalar_t> jacobian(JtJ_partial[ri], Jtr_partial[ri]);
-    squared_residual[ri] = 0;
-    if (!src_mask[ri]) return;
+  FTB_DEVICE_HOST void operator()(int source_idx) {
+    SE3ICPJacobian<dev, scalar_t> jacobian(JtJ_partial[source_idx], Jtr_partial[source_idx]);
+    squared_residual[source_idx] = 0;
+    if (!src_mask[source_idx]) return;
 
     const Vector<scalar_t, 3> Tsrc_point =
-        rt_cam.Transform(to_vec3<scalar_t>(src_points[ri]));
+        rt_cam.Transform(to_vec3<scalar_t>(src_points[source_idx]));
     const Vector<scalar_t, 3> Tsrc_normal =
-        rt_cam.TransformNormal(to_vec3<scalar_t>(src_normals[ri]));
+        rt_cam.TransformNormal(to_vec3<scalar_t>(src_normals[source_idx]));
 
     Vector<scalar_t, 3> tgt_point;
     Vector<scalar_t, 3> tgt_normal;
@@ -64,7 +64,7 @@ struct GeometricJacobianKernel {
 
     const scalar_t residual = (tgt_point - Tsrc_point).dot(tgt_normal);
     jacobian.Compute(Tsrc_point, tgt_normal, residual);
-    squared_residual[ri] = residual * residual;
+    squared_residual[source_idx] = residual * residual;
   }
 };
 
@@ -120,7 +120,8 @@ int ICPJacobian::EstimateGeometric(
           typedef RobustCorrespondence<kCPU, scalar_t> Correspondence;
 
           GeometricJacobianKernel<kCPU, scalar_t, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam),
+              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
+                             distance_thresh, normals_angle_thresh),
               src_points, src_normals, src_mask, rt_cam, JtJ_partial,
               Jr_partial, squared_residual, match_count.get());
           Launch1DKernelCPU(kernel, src_points.size(0));

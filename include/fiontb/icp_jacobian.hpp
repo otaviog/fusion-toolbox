@@ -136,8 +136,10 @@ struct ICPJacobian {
       const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
       const torch::Tensor &src_points, const torch::Tensor &src_feats,
       const torch::Tensor &src_mask, const torch::Tensor &kcam,
-      const torch::Tensor &rt_cam, torch::Tensor JtJ_partial,
-      torch::Tensor Jtr_partial, torch::Tensor squared_residual);
+      const torch::Tensor &rt_cam, float distance_thresh,
+      float normals_angle_thresh, float resdidual_thresh,
+      torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
+      torch::Tensor squared_residual);
 
   /**
    * Computes the \f$\mathfrak{so}(3)\f$ jacobian of the feature
@@ -197,8 +199,10 @@ struct ICPJacobian {
       const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
       const torch::Tensor &src_points, const torch::Tensor &src_feats,
       const torch::Tensor &src_mask, const torch::Tensor &kcam,
-      const torch::Tensor &rt_cam, torch::Tensor JtJ_partial,
-      torch::Tensor Jtr_partial, torch::Tensor squared_residual);
+      const torch::Tensor &rt_cam, float distance_thresh,
+      float normals_angle_thresh, float resdidual_thresh,
+      torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
+      torch::Tensor squared_residual);
 
   /**
    * Register it in Pybind.

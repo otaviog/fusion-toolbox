@@ -26,54 +26,59 @@ struct FeatureJacobianKernel {
 
   const RigidTransform<scalar_t> rt_cam;
 
+  const float residual_thresh;
+
   typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
   typename Accessor<dev, scalar_t, 2>::T Jtr_partial;
-  typename Accessor<dev, scalar_t, 1>::T squared_residual;
+  typename Accessor<dev, scalar_t, 1>::T squared_residuals;
 
   AtomicInt<dev> match_count;
 
-  FeatureJacobianKernel(
-      const Correspondence &corresp, const torch::Tensor &tgt_featmap,
-      const torch::Tensor &src_points, const torch::Tensor &src_feats,
-      const torch::Tensor &src_mask, const torch::Tensor &rt_cam,
-      torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
-      torch::Tensor squared_residual, AtomicInt<dev> match_count)
+  FeatureJacobianKernel(const Correspondence &corresp,
+                        const torch::Tensor &tgt_featmap,
+                        const torch::Tensor &src_points,
+                        const torch::Tensor &src_feats,
+                        const torch::Tensor &src_mask,
+                        const torch::Tensor &rt_cam, float residual_thresh,
+                        torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
+                        torch::Tensor squared_residuals,
+                        AtomicInt<dev> match_count)
       : corresp(corresp),
         tgt_featmap(tgt_featmap),
         src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
         src_feats(Accessor<dev, scalar_t, 2>::Get(src_feats)),
         src_mask(Accessor<dev, bool, 1>::Get(src_mask)),
         rt_cam(rt_cam),
+        residual_thresh(residual_thresh),
         JtJ_partial(Accessor<dev, scalar_t, 3>::Get(JtJ_partial)),
         Jtr_partial(Accessor<dev, scalar_t, 2>::Get(Jtr_partial)),
-        squared_residual(Accessor<dev, scalar_t, 1>::Get(squared_residual)),
+        squared_residuals(Accessor<dev, scalar_t, 1>::Get(squared_residuals)),
         match_count(match_count) {}
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int ri) {
-    JacobianType jacobian(JtJ_partial[ri], Jtr_partial[ri]);
+  FTB_DEVICE_HOST void operator()(int source_idx) {
+    JacobianType jacobian(JtJ_partial[source_idx], Jtr_partial[source_idx]);
 
-    squared_residual[ri] = 0.0;
+    squared_residuals[source_idx] = 0.0;
 
-    if (src_mask[ri] == 0) return;
+    if (src_mask[source_idx] == 0) return;
 
     const Vector<scalar_t, 3> Tsrc_point =
-        rt_cam.Transform(to_vec3<scalar_t>(src_points[ri]));
-
+        rt_cam.Transform(to_vec3<scalar_t>(src_points[source_idx]));
+    
     scalar_t u, v;
     if (!corresp.Match(Tsrc_point, u, v)) {
       return;
     }
 
-    ++match_count;
-
+    scalar_t squared_residual = 0;
     const BilinearInterp<dev, scalar_t> interp(tgt_featmap.GetBilinear(u, v));
     const BilinearInterpGrad<dev, scalar_t> dx_interp(
         tgt_featmap.GetBilinearGrad(u, v, 0.05));
 
     for (int channel = 0; channel < tgt_featmap.channel_size; ++channel) {
       const scalar_t feat_residual =
-          (interp.Get(channel) - src_feats[channel][ri]);
+          (interp.Get(channel) - src_feats[channel][source_idx]);
       scalar_t du, dv;
 
       dx_interp.Get(channel, du, dv);
@@ -86,8 +91,15 @@ struct FeatureJacobianKernel {
                                       du * j02_proj + dv * j12_proj);
 
       jacobian.Compute(Tsrc_point, gradk, feat_residual);
-      squared_residual[ri] += feat_residual * feat_residual;
+      squared_residual += feat_residual * feat_residual;
     }
+
+    if (squared_residual > residual_thresh * residual_thresh) {
+      jacobian.Zero();
+      return;
+    }
+    squared_residuals[source_idx] = squared_residual;
+    ++match_count;
   }
 };
 }  // namespace
@@ -97,8 +109,10 @@ int ICPJacobian::EstimateFeature(
     const torch::Tensor &tgt_feats, const torch::Tensor &tgt_mask,
     const torch::Tensor &src_points, const torch::Tensor &src_feats,
     const torch::Tensor &src_mask, const torch::Tensor &kcam,
-    const torch::Tensor &rt_cam, torch::Tensor JtJ_partial,
-    torch::Tensor Jr_partial, torch::Tensor squared_residual) {
+    const torch::Tensor &rt_cam, float distance_thresh,
+    float normals_angle_thresh, float residual_thresh,
+    torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+    torch::Tensor squared_residuals) {
   const auto reference_dev = src_points.device();
   FTB_CHECK_DEVICE(reference_dev, tgt_points);
   FTB_CHECK_DEVICE(reference_dev, tgt_normals);
@@ -112,7 +126,7 @@ int ICPJacobian::EstimateFeature(
   FTB_CHECK_DEVICE(reference_dev, rt_cam);
   FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
   FTB_CHECK_DEVICE(reference_dev, Jr_partial);
-  FTB_CHECK_DEVICE(reference_dev, squared_residual);
+  FTB_CHECK_DEVICE(reference_dev, squared_residuals);
 
   int num_matches;
   if (reference_dev.is_cuda()) {
@@ -124,9 +138,11 @@ int ICPJacobian::EstimateFeature(
           ScopedAtomicInt<kCUDA> match_count;
 
           FeatureJacobianKernel<kCUDA, scalar_t, TGroup, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam), tgt_feats,
-              src_points, src_feats, src_mask, rt_cam, JtJ_partial,
-              Jr_partial, squared_residual, match_count.get());
+              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
+                             distance_thresh, normals_angle_thresh),
+              tgt_feats, src_points, src_feats, src_mask, rt_cam,
+              residual_thresh, JtJ_partial, Jr_partial, squared_residuals,
+              match_count.get());
 
           Launch1DKernelCUDA(kernel, src_points.size(0));
 
@@ -141,9 +157,11 @@ int ICPJacobian::EstimateFeature(
           ScopedAtomicInt<kCPU> match_count;
 
           FeatureJacobianKernel<kCPU, scalar_t, TGroup, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam), tgt_feats,
-              src_points, src_feats, src_mask, rt_cam, JtJ_partial,
-              Jr_partial, squared_residual, match_count.get());
+              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
+                             distance_thresh, normals_angle_thresh),
+              tgt_feats, src_points, src_feats, src_mask, rt_cam,
+              residual_thresh, JtJ_partial, Jr_partial, squared_residuals,
+              match_count.get());
           Launch1DKernelCPU(kernel, src_points.size(0));
 
           num_matches = match_count;
@@ -157,8 +175,10 @@ int ICPJacobian::EstimateFeatureSO3(
     const torch::Tensor &tgt_feats, const torch::Tensor &tgt_mask,
     const torch::Tensor &src_points, const torch::Tensor &src_feats,
     const torch::Tensor &src_mask, const torch::Tensor &kcam,
-    const torch::Tensor &rt_cam, torch::Tensor JtJ_partial,
-    torch::Tensor Jr_partial, torch::Tensor squared_residual) {
+    const torch::Tensor &rt_cam, float distance_thresh,
+    float normals_angle_thresh, float residual_thresh,
+    torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+    torch::Tensor squared_residuals) {
   const auto reference_dev = src_points.device();
   FTB_CHECK_DEVICE(reference_dev, tgt_points);
   FTB_CHECK_DEVICE(reference_dev, tgt_normals);
@@ -172,7 +192,7 @@ int ICPJacobian::EstimateFeatureSO3(
   FTB_CHECK_DEVICE(reference_dev, rt_cam);
   FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
   FTB_CHECK_DEVICE(reference_dev, Jr_partial);
-  FTB_CHECK_DEVICE(reference_dev, squared_residual);
+  FTB_CHECK_DEVICE(reference_dev, squared_residuals);
 
   int num_matches;
   if (reference_dev.is_cuda()) {
@@ -184,9 +204,11 @@ int ICPJacobian::EstimateFeatureSO3(
           ScopedAtomicInt<kCUDA> match_count;
 
           FeatureJacobianKernel<kCUDA, scalar_t, TGroup, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam), tgt_feats,
-              src_points, src_feats, src_mask, rt_cam, JtJ_partial,
-              Jr_partial, squared_residual, match_count.get());
+              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
+                             distance_thresh, normals_angle_thresh),
+              tgt_feats, src_points, src_feats, src_mask, rt_cam,
+              residual_thresh, JtJ_partial, Jr_partial, squared_residuals,
+              match_count.get());
 
           Launch1DKernelCUDA(kernel, src_points.size(0));
 
@@ -201,9 +223,11 @@ int ICPJacobian::EstimateFeatureSO3(
           ScopedAtomicInt<kCPU> match_count;
 
           FeatureJacobianKernel<kCPU, scalar_t, TGroup, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam), tgt_feats,
-              src_points, src_feats, src_mask, rt_cam, JtJ_partial,
-              Jr_partial, squared_residual, match_count.get());
+              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
+                             distance_thresh, normals_angle_thresh),
+              tgt_feats, src_points, src_feats, src_mask, rt_cam,
+              residual_thresh, JtJ_partial, Jr_partial, squared_residuals,
+              match_count.get());
           Launch1DKernelCPU(kernel, src_points.size(0));
 
           num_matches = match_count;
