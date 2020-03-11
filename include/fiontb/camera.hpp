@@ -12,13 +12,27 @@ class module;
 
 namespace fiontb {
 
+/**
+ * Intrinsic camera parameters accessor.
+ */
 template <Device dev, typename scalar_t>
 struct KCamera {
   const typename Accessor<dev, scalar_t, 2>::T matrix;
 
+  /**
+   * Initializer.
+   *
+   * @param matrix The [3x3] intrinsic camera matrix. Must be in the
+   * same device kind as the `dev` template argument.
+   */
   KCamera(const torch::Tensor matrix)
       : matrix(Accessor<dev, scalar_t, 2>::Get(matrix)) {}
 
+  /**
+   * Forward project a 3D point into a 2D one, and round to integer.
+   *
+   * @param point The 3D point.
+   */
   FTB_DEVICE_HOST Eigen::Vector2i Project(
       const Vector<scalar_t, 3> point) const {
     const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
@@ -30,6 +44,9 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
+  /**
+   * Forward project a 3D point into a 2D one, and round to integer. V2
+   */
   FTB_DEVICE_HOST inline void Projecti(const Vector<scalar_t, 3> point, int &x,
                                        int &y) const {
     scalar_t img_x, img_y;
@@ -43,6 +60,9 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
+  /**
+   * Forward
+   */
   FTB_DEVICE_HOST inline void Project(const Vector<scalar_t, 3> point,
                                       scalar_t &x, scalar_t &y) const {
     const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
@@ -89,12 +109,17 @@ struct ProjectOp {
   static void RegisterPybind(pybind11::module &m);
 };
 
-template <Device dev, typename scalar_t>
+template <typename scalar_t>
 struct RigidTransform {
-  const typename Accessor<dev, scalar_t, 2>::T rt_matrix;
+  Eigen::Matrix<scalar_t, 3, 4> rt_matrix;
+  Eigen::Matrix<scalar_t, 3, 3> normal_matrix;
 
-  RigidTransform(const torch::Tensor &rt_matrix)
-      : rt_matrix(Accessor<dev, scalar_t, 2>::Get(rt_matrix)) {}
+  RigidTransform(const torch::Tensor &matrix) {
+    const auto cpu_matrix = matrix.cpu();
+    rt_matrix = to_matrix<scalar_t, 3, 4>(cpu_matrix.accessor<scalar_t, 2>());
+    const auto rot_cpu_matrix = rt_matrix.topLeftCorner(3, 3);
+    normal_matrix = rot_cpu_matrix.inverse().transpose();
+  }
 
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
@@ -102,58 +127,12 @@ struct RigidTransform {
   FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> Transform(
       const Eigen::Matrix<scalar_t, 3, 1> &point) const {
     const auto mtx = rt_matrix;
-    const scalar_t px = mtx[0][0] * point[0] + mtx[0][1] * point[1] +
-                        mtx[0][2] * point[2] + mtx[0][3];
-    const scalar_t py = mtx[1][0] * point[0] + mtx[1][1] * point[1] +
-                        mtx[1][2] * point[2] + mtx[1][3];
-    const scalar_t pz = mtx[2][0] * point[0] + mtx[2][1] * point[1] +
-                        mtx[2][2] * point[2] + mtx[2][3];
-
-    return Eigen::Matrix<scalar_t, 3, 1>(px, py, pz);
-  }
-};
-
-struct RigidTransformOp {
-  static void Rodrigues(const torch::Tensor &rot_matrix,
-                        torch::Tensor rodrigues);
-
-  static void TransformPoints(const torch::Tensor &matrix,
-                              torch::Tensor points);
-
-  static void TransformNormals(const torch::Tensor &matrix,
-                               torch::Tensor normals);
-
-  static void RegisterPybind(pybind11::module &m);
-};
-
-template <typename scalar_t>
-struct RTCamera {
-  Eigen::Matrix<scalar_t, 3, 4> rt_matrix;
-  Eigen::Matrix<scalar_t, 3, 3> normal_matrix;
-
-#ifdef __CUDACC__
-#pragma nv_exec_check_disable
-#endif
-  RTCamera(const torch::Tensor &matrix) {
-    auto cpu_matrix = matrix.cpu();
-    rt_matrix = to_matrix<scalar_t, 3, 4>(cpu_matrix.accessor<scalar_t, 2>());
-    normal_matrix = rt_matrix.topLeftCorner(3, 3).inverse().transpose();
-  }
-
-#ifdef __CUDACC__
-#pragma nv_exec_check_disable
-#endif
-  FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> Transform(
-      const Eigen::Matrix<scalar_t, 3, 1> &point) const {
-    const scalar_t px = rt_matrix(0, 0) * point[0] +
-                        rt_matrix(0, 1) * point[1] +
-                        rt_matrix(0, 2) * point[2] + rt_matrix(0, 3);
-    const scalar_t py = rt_matrix(1, 0) * point[0] +
-                        rt_matrix(1, 1) * point[1] +
-                        rt_matrix(1, 2) * point[2] + rt_matrix(1, 3);
-    const scalar_t pz = rt_matrix(2, 0) * point[0] +
-                        rt_matrix(2, 1) * point[1] +
-                        rt_matrix(2, 2) * point[2] + rt_matrix(2, 3);
+    const scalar_t px = mtx(0, 0) * point[0] + mtx(0, 1) * point[1] +
+                        mtx(0, 2) * point[2] + mtx(0, 3);
+    const scalar_t py = mtx(1, 0) * point[0] + mtx(1, 1) * point[1] +
+                        mtx(1, 2) * point[2] + mtx(1, 3);
+    const scalar_t pz = mtx(2, 0) * point[0] + mtx(2, 1) * point[1] +
+                        mtx(2, 2) * point[2] + mtx(2, 3);
 
     return Eigen::Matrix<scalar_t, 3, 1>(px, py, pz);
   }
@@ -177,6 +156,19 @@ struct RTCamera {
 
     return Eigen::Matrix<scalar_t, 3, 1>(nx, ny, nz);
   }
+};
+
+struct RigidTransformOp {
+  static void Rodrigues(const torch::Tensor &rot_matrix,
+                        torch::Tensor rodrigues);
+
+  static void TransformPointsInplace(const torch::Tensor &matrix,
+                                     torch::Tensor points);
+
+  static void TransformNormalsInplace(const torch::Tensor &matrix,
+                                      torch::Tensor normals);
+
+  static void RegisterPybind(pybind11::module &m);
 };
 
 }  // namespace fiontb

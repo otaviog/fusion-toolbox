@@ -76,11 +76,11 @@ struct SFCropAccessor {
 
 namespace {
 int GenerateTripletImpl(const SFFrameAccessor &anch_frame,
-                        const RigidTransform<kCPU, float> &anch_cam_to_world,
+                        const RigidTransform<float> &anch_cam_to_world,
                         const SFFrameAccessor &posv_frame,
                         const KCamera<kCPU, float> posv_kcam,
-                        const RigidTransform<kCPU, float> &posv_cam_to_world,
-                        const RigidTransform<kCPU, float> &posv_world_to_cam,
+                        const RigidTransform<float> &posv_cam_to_world,
+                        const RigidTransform<float> &posv_world_to_cam,
                         float point_dist_thresh,
                         const SFFrameAccessor &negv_frame,
                         SFCropAccessor anch_crop, SFCropAccessor posv_crop,
@@ -149,11 +149,11 @@ int GenerateTripletImpl(const SFFrameAccessor &anch_frame,
 }
 
 int GenerateTriplet2Impl(const SFFrameAccessor &anch_frame,
-                         const RigidTransform<kCPU, float> &anch_cam_to_world,
+                         const RigidTransform<float> &anch_cam_to_world,
                          const SFFrameAccessor &posv_frame,
                          const KCamera<kCPU, float> posv_kcam,
-                         const RigidTransform<kCPU, float> &posv_cam_to_world,
-                         const RigidTransform<kCPU, float> &posv_world_to_cam,
+                         const RigidTransform<float> &posv_cam_to_world,
+                         const RigidTransform<float> &posv_world_to_cam,
                          float point_dist_thresh,
                          const SFFrameAccessor &negv_frame,
                          SFCropAccessor anch_crop, SFCropAccessor posv_crop,
@@ -230,10 +230,10 @@ int SlamFeatOp::GenerateTriplet(
     torch::Tensor negv_hard) {
   return GenerateTripletImpl(
       SFFrameAccessor(anch_frame),
-      RigidTransform<kCPU, float>(anch_cam_to_world),
+      RigidTransform<float>(anch_cam_to_world),
       SFFrameAccessor(posv_frame), KCamera<kCPU, float>(posv_kcam),
-      RigidTransform<kCPU, float>(posv_cam_to_world),
-      RigidTransform<kCPU, float>(posv_cam_to_world.inverse()),
+      RigidTransform<float>(posv_cam_to_world),
+      RigidTransform<float>(posv_cam_to_world.inverse()),
       point_dist_thresh, SFFrameAccessor(negv_frame), SFCropAccessor(anch_crop),
       SFCropAccessor(posv_crop), posv_mask.accessor<bool, 2>(),
       SFCropAccessor(negv_crop), negv_mask.accessor<bool, 2>(),
@@ -249,10 +249,10 @@ int SlamFeatOp::GenerateTriplet2(
     torch::Tensor negv_mask, torch::Tensor negv_hard) {
   return GenerateTriplet2Impl(
       SFFrameAccessor(anch_frame),
-      RigidTransform<kCPU, float>(anch_cam_to_world),
+      RigidTransform<float>(anch_cam_to_world),
       SFFrameAccessor(posv_frame), KCamera<kCPU, float>(posv_kcam),
-      RigidTransform<kCPU, float>(posv_cam_to_world),
-      RigidTransform<kCPU, float>(posv_cam_to_world.inverse()),
+      RigidTransform<float>(posv_cam_to_world),
+      RigidTransform<float>(posv_cam_to_world.inverse()),
       point_dist_thresh, SFFrameAccessor(negv_frame), SFCropAccessor(anch_crop),
       SFCropAccessor(posv_crop), posv_indices.accessor<int32_t, 2>(),
       posv_mask.accessor<bool, 2>(), SFCropAccessor(negv_crop),

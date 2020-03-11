@@ -18,7 +18,7 @@ struct GeometricJacobianKernel {
   const typename Accessor<dev, scalar_t, 2>::T src_normals;
   const typename Accessor<dev, bool, 1>::T src_mask;
 
-  const RTCamera<scalar_t> rt_cam;
+  const RigidTransform<scalar_t> rt_cam;
 
   typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
   typename Accessor<dev, scalar_t, 2>::T Jtr_partial;
@@ -75,6 +75,7 @@ int ICPJacobian::EstimateGeometric(
     const torch::Tensor &tgt_mask, const torch::Tensor &src_points,
     const torch::Tensor &src_normals, const torch::Tensor &src_mask,
     const torch::Tensor &kcam, const torch::Tensor &rt_cam,
+    float distance_thresh, float normals_angle_thresh,
     torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
     torch::Tensor squared_residual) {
   const auto reference_dev = src_points.device();
@@ -102,7 +103,8 @@ int ICPJacobian::EstimateGeometric(
           typedef RobustCorrespondence<kCUDA, scalar_t> Correspondence;
 
           GeometricJacobianKernel<kCUDA, scalar_t, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam),
+              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
+                             distance_thresh, normals_angle_thresh),
               src_points, src_normals, src_mask, rt_cam, JtJ_partial,
               Jr_partial, squared_residual, match_count.get());
 

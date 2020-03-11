@@ -24,7 +24,7 @@ struct FeatureJacobianKernel {
   const typename Accessor<dev, scalar_t, 2>::T src_feats;
   const typename Accessor<dev, bool, 1>::T src_mask;
 
-  const RigidTransform<dev, scalar_t> rt_cam;
+  const RigidTransform<scalar_t> rt_cam;
 
   typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
   typename Accessor<dev, scalar_t, 2>::T Jtr_partial;

@@ -111,7 +111,7 @@ struct UpdateKernel {
 
   typename Accessor<dev, int32_t, 3>::T model_merge_map;
 
-  const RTCamera<float> rt_cam;
+  const RigidTransform<float> rt_cam;
   const int time;
 
   SurfelModelAccessor<dev> model;

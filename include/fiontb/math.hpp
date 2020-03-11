@@ -11,8 +11,9 @@
 
 namespace fiontb {
 
-inline FTB_DEVICE_HOST float GetVectorsAngle(const Eigen::Vector3f &v0,
-                                             const Eigen::Vector3f &v1) {
+template <typename scalar_t>
+inline FTB_DEVICE_HOST scalar_t GetVectorsAngle(const Vector<scalar_t, 3> &v0,
+                                                const Vector<scalar_t, 3> &v1) {
   return acos(v0.dot(v1) / (v0.norm() * v1.norm()));
 }
 

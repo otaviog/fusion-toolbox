@@ -1,5 +1,7 @@
 """Pose estimation via iterative closest points algorithm.
 """
+import math
+
 import torch
 from tenviz.pose import SE3, SO3
 
@@ -15,12 +17,14 @@ from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 
 class _Step:
-    def __init__(self, geom, so3=False):
+    def __init__(self, geom, so3, distance_threshold, normals_angle_thresh):
         self.JtJ = None
         self.Jtr = None
         self.residual = None
         self.geom = geom
         self.so3 = so3
+        self.distance_threshold = distance_threshold
+        self.normals_angle_thresh = normals_angle_thresh
 
     def __call__(self, target_points, target_normals, target_feats, target_mask,
                  source_points, source_normals, source_feats, source_mask,
@@ -46,7 +50,9 @@ class _Step:
                 match_count = _ICPJacobian.estimate_geometric(
                     target_points, target_normals, target_mask,
                     source_points, source_normals, source_mask,
-                    kcam, transform.to(dtype), self.JtJ, self.Jtr, self.residual)
+                    kcam, transform.to(dtype),
+                    self.distance_threshold, self.normals_angle_thresh,
+                    self.JtJ, self.Jtr, self.residual)
             else:
                 match_count = _ICPJacobian.estimate_feature(
                     target_points, target_normals, target_feats,
@@ -68,8 +74,8 @@ class _Step:
 
 
 class ICPOdometry:
-    """Point-to-plane iterative closest points
-    algorithm.
+    """Iterative closest points algorithm using the point-to-plane error,
+    and Gauss-Newton optimization procedure.
 
     Attributes:
 
@@ -84,17 +90,26 @@ class ICPOdometry:
 
         so3 (bool): SO3 optimization, i.e., rotation only.
 
+        distance_threshold (float): Maximum distance to match a pair
+         of source and target points.
+
+        normals_angle_thresh (float): Maximum angle in radians between
+         normals to match a pair of source and target points.
     """
 
-    def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False):
+    def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False,
+                 distance_threshold=0.1, normals_angle_thresh=math.pi/8.0):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
         self.so3 = so3
 
-        self._geom_step = _Step(
-            True, so3=so3) if geom_weight > 0 and not so3 else None
-        self._feature_step = _Step(False, so3=so3) if feat_weight > 0 else None
+        self._geom_step = (_Step(True, so3, distance_threshold,
+                                 normals_angle_thresh)
+                           if geom_weight > 0 and not so3 else None)
+        self._feature_step = (_Step(False, so3, distance_threshold,
+                                    normals_angle_thresh)
+                              if feat_weight > 0 else None)
 
     def estimate(self, kcam, source_points, source_normals,
                  source_mask, source_feats=None,
@@ -218,9 +233,11 @@ class ICPOdometry:
 
         Args:
 
-            source_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Source frame.
+            source_frame (Union[:obj:`fiontb.frame.Frame`,
+             :obj:`fiontb.frame.FramePointCloud`]): Source frame.
 
-            target_frame (Union[:obj:`fiontb.frame.Frame`, :obj:`fiontb.frame.FramePointCloud`]): Target frame.
+            target_frame (Union[:obj:`fiontb.frame.Frame`,
+             :obj:`fiontb.frame.FramePointCloud`]): Target frame.
 
             source_feats (:obj:`torch.Tensor`, optional): Source
              feature map (C x H x W).
@@ -237,6 +254,7 @@ class ICPOdometry:
 
             (:obj:`ICPResult`): Resulting transformation and
              information.
+
         """
 
         if isinstance(source_frame, Frame):
@@ -256,7 +274,7 @@ class ICPOdometry:
                              transform=transform)
 
 
-class ICPOption:
+class ICPOptions:
     """Options for the ICP algorithm.
 
     Attributes:
@@ -272,14 +290,24 @@ class ICPOption:
          point features.
 
         so3 (bool): SO3 optimization, i.e., rotation only.
+
+        distance_threshold (float): Maximum distance to match a pair
+         of source and target points.
+
+        normals_angle_thresh (float): Maximum angle in radians between
+         normals to match a pair of source and target points.
+
     """
 
-    def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, so3=False):
+    def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, so3=False,
+                 distance_threshold=0.1, normals_angle_thresh=math.pi/2.0):
         self.scale = scale
         self.iters = iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
         self.so3 = so3
+        self.distance_threshold = distance_threshold
+        self.normals_angle_thresh = normals_angle_thresh
 
 
 class MultiscaleICPOdometry(_MultiscaleOptimization):

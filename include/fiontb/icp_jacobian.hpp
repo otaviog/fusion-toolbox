@@ -48,8 +48,14 @@ struct ICPJacobian {
    *
    * @param kcam Camera intrinsics matrix. Float or double [3x3] tensor.
    *
-   * @param rt_cam rigid transformation matrix. Float or double is [3x4] or
+   * @param rt_cam Rigid transformation matrix. Float or double is [3x4] or
    * [4x4] tensor.
+   *
+   * @param distance_thresh Points with distance higher than this
+   * are set as non-matches.
+   *
+   * @param normals_angle_thresh Maximum angle in radians between
+   * normals to match a pair of source and target points.
    *
    * @param JtJ_partial Transposed Jacobian @ Jacobian partial
    * matrices. To have the final (\f$ J^\top J\f$), sum all N
@@ -68,6 +74,7 @@ struct ICPJacobian {
       const torch::Tensor &tgt_mask, const torch::Tensor &src_points,
       const torch::Tensor &src_normals, const torch::Tensor &src_mask,
       const torch::Tensor &kcam, const torch::Tensor &rt_cam,
+      float distance_thresh, float normals_angle_thresh,
       torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
       torch::Tensor squared_residual);
 

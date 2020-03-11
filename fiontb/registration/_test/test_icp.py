@@ -9,7 +9,7 @@ from fiontb.data import set_start_at_eye
 from fiontb.data.ftb import load_ftb
 from fiontb.frame import FramePointCloud
 from fiontb.registration.icp import (
-    ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOption)
+    ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOptions)
 from fiontb.testing import preprocess_frame, ColorSpace
 from fiontb.viz.show import geoshow
 
@@ -33,7 +33,8 @@ class _Tests:
         """Use only depth information of a real scene.
         """
         run_pair_test(
-            ICPOdometry(15, geom_weight=1, feat_weight=0),
+            ICPOdometry(15, geom_weight=1, feat_weight=0,
+                        distance_threshold=0.05, normals_angle_thresh=0.25),
             set_start_at_eye(load_ftb(_TEST_DATA / "sample1")),
             **REAL_FRAME_ARGS,
             device="cuda:0")
@@ -91,9 +92,9 @@ class _Tests:
         """
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 15, geom_weight=1, feat_weight=0),
-                ICPOption(0.5, 10, geom_weight=1, feat_weight=0),
-                ICPOption(0.5, 5, geom_weight=1, feat_weight=0)]),
+                ICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
+                ICPOptions(0.5, 10, geom_weight=1, feat_weight=0),
+                ICPOptions(0.5, 5, geom_weight=1, feat_weight=0)]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -103,11 +104,11 @@ class _Tests:
         """
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 15, geom_weight=1, feat_weight=0),
-                ICPOption(0.5, 20, geom_weight=1, feat_weight=0),
-                ICPOption(0.5, 20, geom_weight=1, feat_weight=0),
-                ICPOption(0.5, 20, geom_weight=1, feat_weight=0),
-                ICPOption(0.5, 20, geom_weight=1, feat_weight=0)]),
+                ICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
+                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0),
+                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0),
+                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0),
+                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0)]),
             #load_ftb(_TEST_DATA / "sample2"),
             load_ftb(
                 "/home/otaviog/3drec/slam-feature/data/replica/replica-ftb/hotel_0"),
@@ -119,9 +120,9 @@ class _Tests:
         """
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 20, geom_weight=0, feat_weight=1),
-                ICPOption(0.5, 10, geom_weight=0, feat_weight=1),
-                ICPOption(0.5, 5, geom_weight=0, feat_weight=1)]),
+                ICPOptions(1.0, 20, geom_weight=0, feat_weight=1),
+                ICPOptions(0.5, 10, geom_weight=0, feat_weight=1),
+                ICPOptions(0.5, 5, geom_weight=0, feat_weight=1)]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -131,9 +132,9 @@ class _Tests:
         """
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 20, geom_weight=0, feat_weight=1),
-                ICPOption(0.5, 10, geom_weight=0, feat_weight=1),
-                ICPOption(0.5, 5, geom_weight=0, feat_weight=1)]),
+                ICPOptions(1.0, 20, geom_weight=0, feat_weight=1),
+                ICPOptions(0.5, 10, geom_weight=0, feat_weight=1),
+                ICPOptions(0.5, 5, geom_weight=0, feat_weight=1)]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -143,10 +144,10 @@ class _Tests:
         """
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 20, geom_weight=10, feat_weight=1),
-                ICPOption(0.5, 15, geom_weight=10, feat_weight=1),
-                ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-                # ICPOption(1, 10, geom_weight=0, feat_weight=1, so3=True)
+                ICPOptions(1.0, 20, geom_weight=10, feat_weight=1),
+                ICPOptions(0.5, 15, geom_weight=10, feat_weight=1),
+                ICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
+                # ICPOptions(1, 10, geom_weight=0, feat_weight=1, so3=True)
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
@@ -159,13 +160,13 @@ class _Tests:
         feat_weight = 0
         run_pair_test(
             MultiscaleICPOdometry([
-                ICPOption(1.0, 10, geom_weight=geom_weight,
+                ICPOptions(1.0, 10, geom_weight=geom_weight,
                           feat_weight=feat_weight),
-                ICPOption(0.5, 20, geom_weight=geom_weight,
+                ICPOptions(0.5, 20, geom_weight=geom_weight,
                           feat_weight=feat_weight),
-                ICPOption(0.5, 20, geom_weight=geom_weight,
+                ICPOptions(0.5, 20, geom_weight=geom_weight,
                           feat_weight=feat_weight),
-                ICPOption(0.5, 30, geom_weight=geom_weight,
+                ICPOptions(0.5, 30, geom_weight=geom_weight,
                           feat_weight=feat_weight)
             ]),
             load_ftb(_TEST_DATA / "sample2"),
@@ -224,10 +225,10 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / "sample2")
         icp = MultiscaleICPOdometry([
-            ICPOption(1.0, 10, geom_weight=10, feat_weight=1),
-            ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-            ICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-            #ICPOption(1.0, 10, feat_weight=1, so3=True),
+            ICPOptions(1.0, 10, geom_weight=10, feat_weight=1),
+            ICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
+            ICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
+            #ICPOptions(1.0, 10, feat_weight=1, so3=True),
         ])
         icp = ICPOdometry(25, geom_weight=1, feat_weight=0)
         run_trajectory_test(icp, dataset,

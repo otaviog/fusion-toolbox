@@ -20,7 +20,7 @@ struct CarveKernel {
   const IndexMapAccessor<dev> model_indexmap;
 
   const KCamera<dev, float> kcam;
-  const RTCamera<float> inverse_rt;
+  const RigidTransform<float> inverse_rt;
 
   const int time;
   const int neighbor_size;

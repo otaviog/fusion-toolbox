@@ -40,8 +40,8 @@ void RigidTransformOp::Rodrigues(const torch::Tensor &rot_matrix,
 void RigidTransformOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<RigidTransformOp>(m, "RigidTransformOp")
       .def_static("rodrigues", &RigidTransformOp::Rodrigues)
-      .def_static("transform_inplace", &RigidTransformOp::TransformPoints)
-      .def_static("transform_normals_inplace", &RigidTransformOp::TransformNormals);
+      .def_static("transform_inplace", &RigidTransformOp::TransformPointsInplace)
+      .def_static("transform_normals_inplace", &RigidTransformOp::TransformNormalsInplace);
 }
 
 }  // namespace fiontb
