@@ -1,14 +1,70 @@
-"""Metrics that use polygon information.
+"""Metrics for evaluating geometry of reconstructions.
 """
-
 
 import scipy.spatial.ckdtree
 import numpy as np
 import torch
 
+from fiontb.spatial.trigoctree import TrigOctree
 
-def reconstruction_accuracy(source_points, closest_pts, thresh_distance=0.01):
-    distances = torch.norm(source_points - closest_pts, 2, dim=1)
+
+def mesh_reconstruction_accuracy(gt_verts, gt_trig_faces, pred_points,
+                                 thresh_distance=0.01, octree_leaf_size=200):
+    """Computes the reconstruction accuracy, or the percentage of points
+    that are close to enough to its counter part on the ground truth.
+
+    This function will create an Octree to speedup the computation of
+    ground truth points on its mesh.
+
+    Args:
+
+        gt_verts (:obj:`torch.Tensor`): Ground truth mesh
+         vertices. Float [Vx3] tensor.
+
+        gt_trig_faces (:obj:`torch.Tensor`): Ground mesh triangle
+         faces. Int64 [Fx3] tensor.
+
+        pred_points (:obj:`torch.Tensor`): Predicted points. Float
+         [Nx3] tensor.
+
+        thresh_distance (float): Maximum distance between ground truth
+         points and predicted ones for positive accuracy.
+
+        octree_leaf_size (int): Number o triangles per Octree leaf.
+
+Returns: (float): The ratio of points that are close to the ground
+     truth.
+
+    """
+    octree = TrigOctree(gt_verts, gt_trig_faces.long(), octree_leaf_size)
+
+    gt_closest, _ = octree.query_closest_points(pred_points)
+    return reconstruction_accuracy(gt_closest, pred_points, thresh_distance)
+
+
+def reconstruction_accuracy(closest_gt_points, pred_points, thresh_distance=0.01):
+    """Computes the reconstruction accuracy, or the percentage of points
+    that are close to enough to its counter part on the ground truth.
+
+    This function expects that the closest ground truth points are
+    already computed. See `mesh_reconstruction_accuracy` for a finding
+    the those points.
+
+    Args:
+
+        closest_gt_points (:obj:`torch.Tensor`): Closest points on the
+         ground truth. Float [Nx3] tensor.
+
+        pred_points (:obj:`torch.Tensor`): Predicted points. Float [Nx3] tensor.
+
+        thresh_distance (float): Maximum distance between ground truth
+         points and predicted ones for positive accuracy.
+
+    Returns: (float): The ratio of points that are close to the ground
+     truth.
+    """
+
+    distances = torch.norm(closest_gt_points - pred_points, 2, dim=1)
     return torch.mean((distances < thresh_distance).float()).item()
 
 

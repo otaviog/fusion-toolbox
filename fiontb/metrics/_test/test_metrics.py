@@ -17,6 +17,7 @@ class TestGeometryMetrics(unittest.TestCase):
     """
 
     def test_reconstruction_accuracy(self):
+        """Test the reconstruction accuracy metrics"""
         bunny_root = Path(__file__).parent / "../../../test-data/bunny"
 
         hq_verts, hq_trigs = tenviz.io.read_3dobject(
@@ -29,13 +30,20 @@ class TestGeometryMetrics(unittest.TestCase):
         torch.manual_seed(10)
         for lq_verts, noise, expected in [
                 (lq4_verts, 0.01, 0.9249448180198669),
-                (lq4_verts, 0.05, 0.18101544678211212),
-                (lq4_verts, 0.1, 0.011037527583539486)]:
-            lq_verts += torch.rand(*lq_verts.shape, dtype=torch.float32)*noise
+                (lq4_verts, 0.05, 0.2693156599998474),
+                (lq4_verts, 0.1, 0.10154525190591812)]:
+            lq_verts = lq_verts + \
+                torch.rand(*lq_verts.shape, dtype=torch.float32)*noise
             lq_closest, _ = octree.query_closest_points(lq_verts)
 
             acc = fiontb.metrics.reconstruction_accuracy(lq_verts, lq_closest)
             self.assertAlmostEqual(expected, acc)
+
+        self.assertAlmostEqual(
+            0.556291401386261,
+            fiontb.metrics.mesh_reconstruction_accuracy(
+                hq_verts, hq_trigs,
+                lq4_verts + torch.rand(*lq_verts.shape, dtype=torch.float32)*0.02))
 
 
 class TestTrajectoryMetrics(unittest.TestCase):
@@ -69,14 +77,14 @@ class TestTrajectoryMetrics(unittest.TestCase):
         """
         are = fiontb.metrics.absolute_rotational_error(
             self.gt_traj, self.pred_traj)
-        self.assertAlmostEqual(0.1438, are.mean().sqrt().item(), places=4)
+        self.assertAlmostEqual(0.497086, are.mean().sqrt().item(), places=4)
 
     def test_rre(self):
         """Relative Rotational Error.
         """
         rre = fiontb.metrics.relative_rotational_error(
             self.gt_traj, self.pred_traj)
-        self.assertAlmostEqual(0.0069, rre.mean().sqrt().item(), places=4)
+        self.assertAlmostEqual(0.0992, rre.mean().sqrt().item(), places=4)
 
 
 if __name__ == "__main__":

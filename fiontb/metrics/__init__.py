@@ -2,7 +2,9 @@
 """
 
 
-from .geometry import (reconstruction_accuracy, chamfer_score, sample_points)
+from .geometry import (reconstruction_accuracy,
+                       mesh_reconstruction_accuracy,
+                       chamfer_score, sample_points)
 
 from .trajectory import (absolute_translational_error, absolute_rotational_error,
                          relative_translational_error, relative_rotational_error,
