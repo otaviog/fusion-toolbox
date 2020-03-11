@@ -79,7 +79,4 @@ class AABB {
   Eigen::Vector3f min_, max_;
 };
 
-
-
-
 }  // namespace fiontb

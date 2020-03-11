@@ -2,13 +2,20 @@
 """
 
 
+import scipy.spatial.ckdtree
 import numpy as np
 import torch
 
 
-def mesh_accuracy(source_points, closest_pts, thresh_distance=0.01):
+def reconstruction_accuracy(source_points, closest_pts, thresh_distance=0.01):
     distances = torch.norm(source_points - closest_pts, 2, dim=1)
     return torch.mean((distances < thresh_distance).float()).item()
+
+
+def chamfer_score(source_points, gt_points, max_search_radius=4.0):
+    src_kdtree = scipy.spatial.ckdtree.cKDTree(source_points, leafsize=128)
+    dists, _ = src_kdtree.query_ball_point(gt_points, r=max_search_radius)
+    return np.mean(dists)
 
 
 def sample_points(verts, faces, point_density, normals=None):

@@ -213,7 +213,7 @@ TriangleMeshOctree::TriangleMeshOctree(torch::Tensor verts,
 }
 
 void TriangleMeshOctree::RegisterPybind(pybind11::module &m) {
-  py::class_<TriangleMeshOctree>(m, "TriangleMeshOctree")
+  py::class_<TriangleMeshOctree>(m, "TrigOctree")
       .def(py::init<torch::Tensor, torch::Tensor, int>())
       .def("query_closest_points", &TriangleMeshOctree::QueryClosest);
 }

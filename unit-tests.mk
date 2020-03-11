@@ -1,14 +1,14 @@
-doctest:
-	python doc/doctest_runner.py
+about:
+	@echo "Shortcuts to run unit tests"
 
-fiontb.metrics:
-	python3 -m unittest fiontb.metrics._test_metrics
+fiontb.metrics.trajectory:
+	python3 -m unittest fiontb.metrics._test.test_metrics.TestTrajectoryMetrics
+
+fiontb.metrics.geometry:
+	python3 -m unittest fiontb.metrics._test.test_metrics.TestGeometryMetrics
 
 fiontb.metrics.mesh:
 	python3 -m unittest fiontb.metrics._test_metrics.TestMeshFunctions
-
-view.fiontb.metrics.sample_points:
-	python3 -m fiontb.metrics._test_metrics sample_points
 
 fiontb.data.sens:
 	python3 -m unittest fiontb.data._test.test_sens

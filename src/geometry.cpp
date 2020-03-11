@@ -69,9 +69,9 @@ Eigen::Vector3f GetClosestPointTriangle(const Eigen::Vector3f &query,
 }
 }  // namespace
 
-pair<Eigen::Vector3f, long> QueryClosestPoint(const Eigen::Vector3f &qpoint,
-                                              const torch::Tensor &verts,
-                                              const torch::Tensor &faces) {
+pair<Eigen::Vector3f, long> GetClosestPoint(const Eigen::Vector3f &qpoint,
+                                            const torch::Tensor &verts,
+                                            const torch::Tensor &faces) {
   float min_distance = std::numeric_limits<float>::infinity();
   Eigen::Vector3f min_closest;
   long min_face;

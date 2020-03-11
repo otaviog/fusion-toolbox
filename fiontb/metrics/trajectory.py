@@ -20,10 +20,9 @@ def translational_difference(matrix_true, matrix_pred):
     if isinstance(matrix_pred, RTCamera):
         matrix_pred = matrix_pred.matrix
 
-    rt_true = RigidTransform(matrix_true)
-    rt_pred = RigidTransform(matrix_pred)
+    rel_matrix = matrix_true.inverse() @ matrix_pred
 
-    return (rt_true.translation() - rt_pred.translation()).norm(2)
+    return (rel_matrix[:3, 3]).norm(2)
 
 
 def rotational_difference(matrix_true, matrix_pred):
@@ -41,6 +40,24 @@ def rotational_difference(matrix_true, matrix_pred):
 
     return (gt_rot - pred_rot).norm()
 
+def absolute_translational_error(trajectory_true, trajectory_pred):
+    traj_errors = []
+    for k, cam_true in trajectory_true.items():
+        cam_pred = trajectory_pred[k]
+        diff = translational_difference(cam_true, cam_pred)
+        traj_errors.append(diff)
+
+    return torch.tensor(traj_errors)
+
+
+def absolute_rotational_error(trajectory_true, trajectory_pred):
+    traj_errors = []
+    for k, cam_true in trajectory_true.items():
+        cam_pred = trajectory_pred[k]
+        diff = rotational_difference(cam_true, cam_pred)
+        traj_errors.append(diff)
+
+    return torch.tensor(traj_errors)
 
 def _get_relative_matrices(trajectory_true, trajectory_pred):
     keys = list(trajectory_true.keys())
@@ -79,21 +96,3 @@ def relative_rotational_error(trajectory_true, trajectory_pred):
                          for rel_true, rel_pred in zip(rel_trues, rel_preds)])
 
 
-def absolute_translational_error(trajectory_true, trajectory_pred):
-    traj_errors = []
-    for k, cam_true in trajectory_true.items():
-        cam_pred = trajectory_pred[k]
-        diff = translational_difference(cam_true, cam_pred)
-        traj_errors.append(diff)
-
-    return torch.tensor(traj_errors)
-
-
-def absolute_rotational_error(trajectory_true, trajectory_pred):
-    traj_errors = []
-    for k, cam_true in trajectory_true.items():
-        cam_pred = trajectory_pred[k]
-        diff = rotational_difference(cam_true, cam_pred)
-        traj_errors.append(diff)
-
-    return torch.tensor(traj_errors)

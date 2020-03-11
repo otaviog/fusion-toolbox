@@ -56,8 +56,8 @@ class TrajectoryViewer:
         for traj, color in zip(trajectories, colormaps):
             self.add_trajectory(traj, color)
 
-            cxs.extend([rt_cam.center[0].item() for rt_cam in traj.values()])
-            czs.extend([rt_cam.center[2].item() for rt_cam in traj.values()])
+            cxs.extend([rt_cam.center[0] for rt_cam in traj.values()])
+            czs.extend([rt_cam.center[2] for rt_cam in traj.values()])
 
         with self.gl_context.current():
             axis = tenviz.nodes.create_axis_grid(
