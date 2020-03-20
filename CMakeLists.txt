@@ -26,5 +26,7 @@ if (NOT WIN32)
 endif (NOT WIN32)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/3rd-party/manif/include)
+
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 add_subdirectory(src)

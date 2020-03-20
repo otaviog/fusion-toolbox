@@ -54,9 +54,8 @@ def geoshow(geometries, width=640, height=480, point_size=3,
                     geom = geom.unordered_point_cloud(
                         world_space=False, compute_normals=False)
 
-                node = tenviz.nodes.create_point_cloud(
-                    geom.points.view(-1, 3),
-                    geom.colors.view(-1, 3))
+                node = tenviz.nodes.PointCloud(geom.points.view(-1, 3),
+                                               geom.colors.view(-1, 3))
                 node.style.point_size = int(point_size)
             elif isinstance(geom, (SurfelCloud, SurfelModel)):
                 if isinstance(geom, SurfelCloud):

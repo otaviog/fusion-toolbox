@@ -1,4 +1,6 @@
+Sphinx
+sphinx_theme
+sphinxcontrib-napoleon
 autopep8
-ipdb
 pylint
-jedi
+

@@ -9,12 +9,12 @@
 #include "matching.hpp"
 #include "nearest_neighbors.hpp"
 #include "processing.hpp"
-#include "so3.hpp"
+#include "se3.hpp"
+#include "slamfeat.hpp"
 #include "surfel.hpp"
 #include "surfel_fusion.hpp"
 #include "surfel_volume.hpp"
 #include "triangle_mesh_octree.hpp"
-#include "slamfeat.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -25,18 +25,23 @@ PYBIND11_MODULE(_cfiontb, m) {
   // fiontb.frame
   Processing::RegisterPybind(m);
 
-  // fiontb.pose
-  ICPJacobian::RegisterPybind(m);
+  // Transform
   ProjectOp::RegisterPybind(m);
   RigidTransformOp::RegisterPybind(m);
-  SO3tExpOp::RegisterPybind(m);
 
-  // fiontb.spatial
+  ExpRtToMatrixOp::RegisterPybind(m);
+  ExpRtTransformOp::RegisterPybind(m);
+  QuatRtTransformOp::RegisterPybind(m);
+
+  // Registraion
+  ICPJacobian::RegisterPybind(m);
+
+  // Spatial
   TriangleMeshOctree::RegisterPybind(m);
   FPCLMatcherOp::RegisterPybind(m);
   NearestNeighborsOp::RegisterPybind(m);
 
-  // fiontb.fusion.surfel
+  // Surfel
   SurfelOp::RegisterPybind(m);
   SurfelAllocator::RegisterPybind(m);
   IndexMap::RegisterPybind(m);
@@ -48,5 +53,4 @@ PYBIND11_MODULE(_cfiontb, m) {
 
   // etc
   SlamFeatOp::RegisterPybind(m);
-  
 }

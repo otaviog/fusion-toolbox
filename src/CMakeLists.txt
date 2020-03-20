@@ -12,7 +12,10 @@ cuda_add_library(fiontb
   icp_jacobian.cpp
   icp_jacobian_geometric.cu
   icp_jacobian_feature.cu
-  so3.cu
+  exp_rt_to_matrix.cu
+  exp_rt_transform.cpp
+  quat_rt_transform.cpp
+  se3.cpp
   aabb.cpp
   sat.cpp
   geometry.cpp

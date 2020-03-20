@@ -32,8 +32,8 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     next_frame, source_feats = preprocess_frame(
         dataset[frame1_idx], **frame_args)
 
-    prev_fpcl = FramePointCloud.from_frame(prev_frame).to(device)
-    next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
+    prev_fpcl = FramePointCloud.from_frame(prev_frame).downsample(.5).to(device)
+    next_fpcl = FramePointCloud.from_frame(next_frame).downsample(.5).to(device)
 
     verifier = ICPVerifier()
 

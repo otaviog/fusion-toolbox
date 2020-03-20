@@ -37,8 +37,8 @@ fiontb.filtering:
 fiontb.filtering.featuremap:
 	python3 -m unittest fiontb._test.test_filtering.TestFiltering.test_featuremap
 
-fiontb.pose.so3:
-	python3 -m unittest fiontb.pose._test.test_so3
+fiontb.registration.se3:
+	python3 -m unittest fiontb.registration._test.test_se3
 
 fiontb.spatial.kdtreelayer:
 	python3 -m unittest fiontb.spatial._test.test_kdtree_layer

@@ -11,7 +11,7 @@ from fiontb.spatial.matching import (FramePointCloudMatcher,
                                      PointCloudMatcher)
 from fiontb.processing import DownsampleXYZMethod
 
-from .so3 import SO3tExp
+from .se3 import ExpRtToMatrix, ExpRtTransform
 from .result import ICPResult
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
@@ -38,13 +38,14 @@ class _ClosureBox:
 
             (float, List[float]): The cost value and 6D gradient.
         """
+
         with torch.no_grad():
-            self.x[0][0] = float(x[0])
-            self.x[0][1] = float(x[1])
-            self.x[0][2] = float(x[2])
-            self.x[0][3] = float(x[3])
-            self.x[0][4] = float(x[4])
-            self.x[0][5] = float(x[5])
+            self.x[0] = float(x[0])
+            self.x[1] = float(x[1])
+            self.x[2] = float(x[2])
+            self.x[3] = float(x[3])
+            self.x[4] = float(x[4])
+            self.x[5] = float(x[5])
         loss = self.closure()
 
         if loss == 0:
@@ -92,14 +93,10 @@ class AutogradICP:
         device = source_points.device
         dtype = source_points.dtype
 
-        upsilon_omega = torch.zeros(
-            1, 6, requires_grad=True, device=device, dtype=dtype)
+        exp_rt = torch.zeros(
+            6, requires_grad=True, device=device, dtype=dtype)
         initial_transform = None
         if transform is not None:
-            # TODO: investigate non-orthogonal matrices erro
-            # se3 = SE3.from_matrix(transform.cpu())
-            # upsilon_omega = se3.log().to(device).to(dtype).view(1, 6)
-            # upsilon_omega.requires_grad = True
             source_points = RigidTransform(
                 transform.to(device)) @ source_points.clone()
             initial_transform = transform.clone()
@@ -109,30 +106,32 @@ class AutogradICP:
         has_geom = self.geom_weight > 0
         has_feat = (self.feat_weight > 0
                     and source_feats is not None)
-
+        torch.set_printoptions(precision=10)
         def _closure():
-            nonlocal loss
+            nonlocal loss, exp_rt
 
-            if upsilon_omega.grad is not None:
-                upsilon_omega.grad.zero_()
-
-            transform = SO3tExp.apply(upsilon_omega.cpu()).squeeze().to(device)
+            
+            if exp_rt.grad is not None:
+                exp_rt.grad.zero_()
 
             geom_loss = 0
             feat_loss = 0
 
-            transform_source_points = (
-                RigidTransform(transform) @ source_points)
+            #transform = ExpRtToMatrix.apply(exp_rt.cpu()).squeeze().to(device)
+            #transform_source_points = RigidTransform(transform) @ source_points
+
+            print(exp_rt)
+            transform_source_points = ExpRtTransform.apply(exp_rt.cpu(),
+                                                           source_points.cpu())
+            transform_source_points = transform_source_points.to(device)
             tpoints, tnormals, tfeatures, smask = target_matcher.find_correspondences(
                 transform_source_points)
 
             snormals = source_normals[smask]
-            normal_mask = torch.bmm(tnormals.view(-1, 1, 3),
-                                    snormals.view(-1, 3, 1)).squeeze() > 0.5
 
-            feat_diff = torch.norm(tfeatures - source_feats[:, smask], 2, dim=0)
-            #feat_diff = -torch.cosine_similarity(tfeatures, source_feats[:, smask], dim=0)
-            
+            feat_diff = torch.norm(
+                tfeatures - source_feats[:, smask], 2, dim=0)
+
             spoints = transform_source_points[smask]
 
             #mmask = normal_mask & (feat_diff < 0.2)
@@ -147,20 +146,22 @@ class AutogradICP:
                 geom_loss = torch.pow(cost, 2).mean()
 
             if has_feat:
-                feat_loss = feat_diff[mmask].mean()
+                feat_loss = torch.pow(feat_diff[mmask], 2).mean()
+                #feat_loss = feat_diff[mmask].mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
 
             if torch.isnan(loss):
                 return loss
             print(loss.item())
+
             return loss*self.learning_rate
 
-        box = _ClosureBox(_closure, upsilon_omega)
-        scipy.optimize.minimize(box.func, upsilon_omega.detach().cpu().numpy(),
+        box = _ClosureBox(_closure, exp_rt)
+        scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
                                 method='BFGS', jac=True,
                                 options=dict(disp=False, maxiter=self.num_iters))
-        transform = SO3tExp.apply(upsilon_omega.detach().cpu()).squeeze(0)
+        transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 
         if initial_transform is not None:
