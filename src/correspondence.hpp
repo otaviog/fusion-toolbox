@@ -93,9 +93,9 @@ struct RobustCorrespondence {
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal) const {
     scalar_t u, v;
-    return Match(src_point, src_normal, tgt_point, tgt_normal);
+    return Match(src_point, src_normal, tgt_point, tgt_normal, u, v);
   }
-  
+
   FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal, scalar_t &u,
@@ -117,7 +117,6 @@ struct RobustCorrespondence {
 
   FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point, scalar_t &u,
                              scalar_t &v) const {
-
     Vector<scalar_t, 3> tgt_point, tgt_normal;
 
     return Match(src_point, tgt_point, tgt_normal, u, v);

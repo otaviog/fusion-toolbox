@@ -303,7 +303,7 @@ class AutogradICP:
                              transform=transform)
 
 
-class AGICPOption:
+class AGICPOptions:
     """Options for the AutogradICP algorithm.
 
     Attributes:

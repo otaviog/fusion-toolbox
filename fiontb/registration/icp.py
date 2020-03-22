@@ -48,6 +48,7 @@ class _Step:
 
         if not self.so3:
             if self.geom:
+
                 match_count = _ICPJacobian.estimate_geometric(
                     target_points, target_normals, target_mask,
                     source_points, source_normals, source_mask,
@@ -178,8 +179,6 @@ class ICPOdometry:
         has_features = (source_feats is not None
                         and target_feats is not None
                         and self._feature_step is not None)
-        import ipdb
-        ipdb.set_trace()
         for _ in range(self.num_iters):
             JtJ = torch.zeros(6, 6, dtype=torch.double)
             Jr = torch.zeros(6, dtype=torch.double)

@@ -34,10 +34,10 @@ class _Tests:
         """
         run_pair_test(
             ICPOdometry(15, geom_weight=1, feat_weight=0,
-                        distance_threshold=0.05, normals_angle_thresh=0.25),
+                        distance_threshold=10, normals_angle_thresh=2),
             set_start_at_eye(load_ftb(_TEST_DATA / "sample1")),
             **REAL_FRAME_ARGS,
-            device="cuda:0")
+            device="cpu")
 
     @staticmethod
     def depth_synthetic():

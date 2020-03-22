@@ -111,8 +111,8 @@ struct ProjectOp {
 
 template <typename scalar_t>
 struct RigidTransform {
-  Eigen::Matrix<scalar_t, 3, 4> rt_matrix;
-  Eigen::Matrix<scalar_t, 3, 3> normal_matrix;
+  Eigen::Matrix<scalar_t, 3, 4, Eigen::DontAlign> rt_matrix;
+  Eigen::Matrix<scalar_t, 3, 3, Eigen::DontAlign> normal_matrix;
 
   RigidTransform(const torch::Tensor &matrix) {
     const auto cpu_matrix = matrix.cpu();
