@@ -38,22 +38,17 @@ struct ForwardKernel {
 
 }  // namespace
 
-torch::Tensor ExpRtToMatrixOp::Forward(torch::Tensor x_exp_rt) {
-  torch::Tensor matrix = torch::empty(
-      {x_exp_rt.size(0), 3, 4},
-      torch::TensorOptions(x_exp_rt.type()).device(x_exp_rt.device()));
-
+void ExpRtToMatrixOp::Forward(const torch::Tensor &exp_rt, torch::Tensor matrix) {
   AT_DISPATCH_FLOATING_TYPES(
-      x_exp_rt.scalar_type(), "ExpRtToMatrixOp::Forward", ([&] {
-        if (x_exp_rt.is_cuda()) {
-          ForwardKernel<kCUDA, scalar_t> kernel(x_exp_rt, matrix);
-          Launch1DKernelCUDA(kernel, x_exp_rt.size(0));
+      exp_rt.scalar_type(), "ExpRtToMatrixOp::Forward", ([&] {
+        if (exp_rt.is_cuda()) {
+          ForwardKernel<kCUDA, scalar_t> kernel(exp_rt, matrix);
+          Launch1DKernelCUDA(kernel, exp_rt.size(0));
         } else {
-          ForwardKernel<kCPU, scalar_t> kernel(x_exp_rt, matrix);
-          Launch1DKernelCPU(kernel, x_exp_rt.size(0));
+          ForwardKernel<kCPU, scalar_t> kernel(exp_rt, matrix);
+          Launch1DKernelCPU(kernel, exp_rt.size(0));
         }
       }));
-  return matrix;
 }
 
 namespace {
@@ -61,25 +56,26 @@ template <Device dev, typename scalar_t>
 struct BackwardKernel {
   const typename Accessor<dev, scalar_t, 3>::T d_R_loss;
   const typename Accessor<dev, scalar_t, 2>::T x_exp_rt;
-  const typename Accessor<dev, scalar_t, 3>::T y_matrices;
+  const typename Accessor<dev, scalar_t, 3>::T y_matrix;
   typename Accessor<dev, scalar_t, 2>::T d_exp_rt_loss;
 
   BackwardKernel(const torch::Tensor &d_R_loss, const torch::Tensor &x_exp_rt,
-                 const torch::Tensor &y_matrices, torch::Tensor d_exp_rt_loss)
+                 const torch::Tensor &y_matrix, torch::Tensor d_exp_rt_loss)
       : d_R_loss(Accessor<dev, scalar_t, 3>::Get(d_R_loss)),
         x_exp_rt(Accessor<dev, scalar_t, 2>::Get(x_exp_rt)),
-        y_matrices(Accessor<dev, scalar_t, 3>::Get(y_matrices)),
+        y_matrix(Accessor<dev, scalar_t, 3>::Get(y_matrix)),
         d_exp_rt_loss(Accessor<dev, scalar_t, 2>::Get(d_exp_rt_loss)) {}
-
-  typedef Eigen::Matrix<scalar_t, 3, 3> Matrix3;
-  typedef Eigen::Matrix<scalar_t, 3, 1> Vector3;
 
 #pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(long idx) {
     const ExpRt<dev, scalar_t> exp_rt(x_exp_rt[idx]);
     const auto dR = d_R_loss[idx];
 
-    const Eigen::Matrix<scalar_t, 12, 6> J = exp_rt.Dx_ToMatrix();
+    const Eigen::Matrix<scalar_t, 3, 3> R =
+        to_matrix<scalar_t, 3, 3>(y_matrix[idx]);
+
+    Eigen::Matrix<scalar_t, 12, 6> J;
+    exp_rt.Dx_ToMatrix(R, J);
 
     d_exp_rt_loss[idx][0] = J(3, 0) * dR[0][3];
     d_exp_rt_loss[idx][1] = J(7, 1) * dR[1][3];
@@ -104,28 +100,23 @@ struct BackwardKernel {
 
 }  // namespace
 
-torch::Tensor ExpRtToMatrixOp::Backward(const torch::Tensor &dy_matrices,
-                                        const torch::Tensor &x_exp_rt,
-                                        const torch::Tensor &y_matrices) {
-  torch::Tensor dx_exp_rt = torch::empty(
-      x_exp_rt.sizes(),
-      torch::TensorOptions(x_exp_rt.type()).device(x_exp_rt.device()));
-
-  CudaCheck();
+void ExpRtToMatrixOp::Backward(const torch::Tensor &d_matrix_loss,
+                               const torch::Tensor &x_exp_rt,
+                               const torch::Tensor &y_matrix,
+                               torch::Tensor d_exp_rt_loss) {
   const long size = x_exp_rt.size(0);
   AT_DISPATCH_FLOATING_TYPES(
       x_exp_rt.scalar_type(), "ExpRtToMatrixOp::Backward", ([&] {
         if (x_exp_rt.is_cuda()) {
-          BackwardKernel<kCUDA, scalar_t> kernel(dy_matrices, x_exp_rt,
-                                                 y_matrices, dx_exp_rt);
+          BackwardKernel<kCUDA, scalar_t> kernel(d_matrix_loss, x_exp_rt,
+                                                 y_matrix, d_exp_rt_loss);
           Launch1DKernelCUDA(kernel, size);
         } else {
-          BackwardKernel<kCPU, scalar_t> kernel(dy_matrices, x_exp_rt,
-                                                y_matrices, dx_exp_rt);
+          BackwardKernel<kCPU, scalar_t> kernel(d_matrix_loss, x_exp_rt,
+                                                y_matrix, d_exp_rt_loss);
           Launch1DKernelCPU(kernel, size);
         }
       }));
-  return dx_exp_rt;
 }
 
 }  // namespace fiontb

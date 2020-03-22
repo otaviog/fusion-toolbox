@@ -46,7 +46,6 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
                                         target_feats=target_feats.to(
                                             device),
                                         device=device)
-
         relative_rt = result.transform.cpu().float()
 
     if not verifier(result):

@@ -7,15 +7,18 @@ cuda_add_library(fiontb
   downsample.cu
   erode_mask.cu
   processing.cpp
-  camera.cpp
+  
   camera.cu
-  icp_jacobian.cpp
+  camera.cpp
+  
   icp_jacobian_geometric.cu
   icp_jacobian_feature.cu
+  icp_jacobian.cpp
+  
   exp_rt_to_matrix.cu
-  exp_rt_transform.cpp
-  quat_rt_transform.cpp
+  matrix_to_exp_rt.cu
   se3.cpp
+  
   aabb.cpp
   sat.cpp
   geometry.cpp
@@ -24,7 +27,7 @@ cuda_add_library(fiontb
   nearest_neighbors.cpp
   fpcl_matcher.cu
   matching.cpp
-  surfel.cpp
+  
   surfel.cu
   # surfel_downsample.cu
   surfel_volume.cpp
@@ -36,9 +39,12 @@ cuda_add_library(fiontb
   surfel_fusion_merge.cu
   surfel_fusion_clean.cu
   surfel_fusion_copy_features.cu
-  elastic_fusion.cpp
+  surfel.cpp
+  
   elastic_fusion_update.cu
   elastic_fusion_clean.cu
+  elastic_fusion.cpp
+  
   slamfeat.cpp
   )
 
@@ -48,7 +54,7 @@ target_include_directories(fiontb
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/fiontb>
   )
 
-target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX Sophus::Sophus)
+target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX)
 
 set_target_properties(fiontb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)

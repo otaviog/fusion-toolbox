@@ -10,12 +10,15 @@ from fiontb._cfiontb import (FPCLMatcherOp as _FPCLMatcherOp)
 class FPCLMatcherOp(torch.autograd.Function):
 
     class Target:
-        def __init__(self, points, normals, mask, features, kcam):
+        def __init__(self, points, normals, mask, features, kcam,
+                     distance_threshold, normals_angle_thresh):
             self.points = points
             self.normals = normals
             self.mask = mask
             self.features = features
             self.kcam = kcam
+            self.distance_threshold = distance_threshold
+            self.normals_angle_thresh = normals_angle_thresh
 
     class Match:
         def __init__(self):
@@ -25,7 +28,8 @@ class FPCLMatcherOp(torch.autograd.Function):
             self.mask = None
 
     @staticmethod
-    def forward(ctx, source_points, target, match, grad_precision=0.005):
+    def forward(ctx, source_points, source_normals,
+                target, match, grad_precision=0.005):
         device = source_points.device
         dtype = source_points.dtype
 
@@ -38,7 +42,9 @@ class FPCLMatcherOp(torch.autograd.Function):
         match.mask = torch.empty(size, device=device, dtype=torch.bool)
 
         _FPCLMatcherOp.forward(target.points, target.normals, target.mask,
-                               target.features, source_points, target.kcam.matrix.to(device),
+                               target.features, source_points, source_normals,
+                               target.kcam.matrix.to(device),
+                               target.distance_threshold, target.normals_angle_thresh,
                                match.points, match.normals, match.features,
                                match.mask)
 
@@ -64,23 +70,25 @@ class FPCLMatcherOp(torch.autograd.Function):
                                 ctx.grad_precision,
                                 dx_points)
 
-        return dx_points, None, None
+        return dx_points, None, None, None
 
 
 class FramePointCloudMatcher:
     def __init__(self, target_points, target_normals, target_mask,
-                 target_features, kcam):
+                 target_features, kcam,
+                 distance_threshold=1.0, normals_angle_thresh=math.pi):
         self.target = FPCLMatcherOp.Target(
-            target_points, target_normals, target_mask, target_features, kcam)
+            target_points, target_normals, target_mask, target_features, kcam,
+            distance_threshold, normals_angle_thresh)
 
     @classmethod
     def from_frame_pcl(cls, target_fpcl, features):
         return cls(target_fpcl.points, target_fpcl.normals, target_fpcl.mask,
                    features, target_fpcl.kcam)
 
-    def find_correspondences(self, source_points):
+    def find_correspondences(self, source_points, source_normals):
         match = FPCLMatcherOp.Match()
-        FPCLMatcherOp.apply(source_points, self.target, match)
+        FPCLMatcherOp.apply(source_points, source_normals, self.target, match)
         return (match.points[match.mask, :], match.normals[match.mask, :],
                 match.features[:, match.mask], match.mask)
 
@@ -115,5 +123,5 @@ class PointCloudMatcher:
 
         matched_features = self.kdtree_op(self.target_features, source_points)
         matched_features = matched_features[:, match_mask]
-        
+
         return matched_points, matched_normals, matched_features, match_mask

@@ -102,7 +102,7 @@ struct FeatureJacobianKernel {
     ++match_count;
   }
 };
-}  // namespace
+} // namespace
 
 int ICPJacobian::EstimateFeature(
     const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,

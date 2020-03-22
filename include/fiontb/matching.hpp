@@ -14,7 +14,10 @@ struct FPCLMatcherOp {
                       const torch::Tensor &target_mask,
                       const torch::Tensor &target_features,
                       const torch::Tensor &source_points,
-                      const torch::Tensor &kcam, torch::Tensor out_points,
+                      const torch::Tensor &source_normals,
+                      const torch::Tensor &kcam,
+                      float distance_thresh, float normals_angle_thresh,
+                      torch::Tensor out_points,
                       torch::Tensor out_normals, torch::Tensor out_features,
                       torch::Tensor match_mask);
 

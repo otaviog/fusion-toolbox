@@ -31,6 +31,8 @@ class TestFPCLMatcher(unittest.TestCase):
         source_points = source_points.to(torch.double)
         source_points.requires_grad = True
 
-        inputs = (source_points, target, match)
+        source_normals = target.normals[100:110, 100:110, :].reshape(-1, 3)
+
+        inputs = (source_points, source_normals, target, match)
         torch.autograd.gradcheck(FPCLMatcherOp.apply, inputs, eps=1e-6, atol=1e-4,
                                  raise_exception=True)

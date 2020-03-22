@@ -178,7 +178,8 @@ class ICPOdometry:
         has_features = (source_feats is not None
                         and target_feats is not None
                         and self._feature_step is not None)
-
+        import ipdb
+        ipdb.set_trace()
         for _ in range(self.num_iters):
             JtJ = torch.zeros(6, 6, dtype=torch.double)
             Jr = torch.zeros(6, dtype=torch.double)
@@ -198,7 +199,8 @@ class ICPOdometry:
             if self._geom_step is not None:
                 geom_JtJ, geom_Jr, geom_residual, geom_count = self._geom_step(
                     target_points, target_normals, None, target_mask,
-                    source_points, source_normals, None, source_mask, kcam, transform)
+                    source_points, source_normals, None, source_mask,
+                    kcam, transform)
 
                 JtJ += geom_JtJ.cpu().double()*self.geom_weight*self.geom_weight
                 Jr += geom_Jr.cpu().double()*self.geom_weight
@@ -206,9 +208,6 @@ class ICPOdometry:
                 match_count = max(geom_count, match_count)
 
             try:
-                # Classic gauss newton update step:
-                # update = JtJ.cpu().inverse() @ Jr.cpu()
-
                 upper_JtJ = torch.cholesky(JtJ)
                 Jr = Jr.cpu().view(-1, 1).double()
                 update = torch.cholesky_solve(
@@ -226,7 +225,6 @@ class ICPOdometry:
                 transform = update_matrix @ transform
 
             residual = residual.item() / match_count
-
             best_result = ICPResult(
                 transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 

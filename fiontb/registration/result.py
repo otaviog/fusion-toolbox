@@ -68,6 +68,7 @@ class ICPVerifier:
         self.residual_threshhold = residual_threshhold
 
     def __call__(self, icp_result):
+        import ipdb; ipdb.set_trace()
         if icp_result.residual < self.residual_threshhold:
             return True
 

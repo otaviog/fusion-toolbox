@@ -16,6 +16,7 @@ struct ForwardKernel {
   const FeatureMap<dev, scalar_t> tgt_featmap;
 
   const typename Accessor<dev, scalar_t, 2>::T source_points;
+  const typename Accessor<dev, scalar_t, 2>::T source_normals;
 
   typename Accessor<dev, scalar_t, 2>::T out_points;
   typename Accessor<dev, scalar_t, 2>::T out_normals;
@@ -26,12 +27,16 @@ struct ForwardKernel {
                 const torch::Tensor &target_normals,
                 const torch::Tensor &target_mask,
                 const torch::Tensor &target_features,
-                const torch::Tensor &source_points, const torch::Tensor &kcam,
+                const torch::Tensor &source_points,
+                const torch::Tensor &source_normals, const torch::Tensor &kcam,
+                float distance_thresh, float normals_angle_thresh,
                 torch::Tensor out_points, torch::Tensor out_normals,
                 torch::Tensor out_features, torch::Tensor match_mask)
-      : corresp(target_points, target_normals, target_mask, kcam),
+      : corresp(target_points, target_normals, target_mask, kcam,
+                distance_thresh, normals_angle_thresh),
         tgt_featmap(target_features),
         source_points(Accessor<dev, scalar_t, 2>::Get(source_points)),
+        source_normals(Accessor<dev, scalar_t, 2>::Get(source_normals)),
         out_points(Accessor<dev, scalar_t, 2>::Get(out_points)),
         out_normals(Accessor<dev, scalar_t, 2>::Get(out_normals)),
         out_features(Accessor<dev, scalar_t, 2>::Get(out_features)),
@@ -41,10 +46,12 @@ struct ForwardKernel {
     match_mask[idx] = false;
 
     const Vector<scalar_t, 3> src_point = to_vec3<scalar_t>(source_points[idx]);
-
+    const Vector<scalar_t, 3> src_normal =
+        to_vec3<scalar_t>(source_normals[idx]);
     Vector<scalar_t, 3> tgt_point, tgt_normal;
     scalar_t u, v;
-    if (!corresp.Match(src_point, tgt_point, tgt_normal, u, v)) return;
+    if (!corresp.Match(src_point, src_normal, tgt_point, tgt_normal, u, v))
+      return;
 
     match_mask[idx] = true;
 
@@ -69,9 +76,11 @@ struct ForwardKernel {
 void FPCLMatcherOp::Forward(
     const torch::Tensor &target_points, const torch::Tensor &target_normals,
     const torch::Tensor &target_mask, const torch::Tensor &target_features,
-    const torch::Tensor &source_points, const torch::Tensor &kcam,
-    torch::Tensor out_points, torch::Tensor out_normals,
-    torch::Tensor out_features, torch::Tensor match_mask) {
+    const torch::Tensor &source_points, const torch::Tensor &source_normals,
+    const torch::Tensor &kcam, float distance_thresh,
+    float normals_angle_thresh, torch::Tensor out_points,
+    torch::Tensor out_normals, torch::Tensor out_features,
+    torch::Tensor match_mask) {
   const auto reference_dev = target_points.device();
   FTB_CHECK_DEVICE(reference_dev, target_points);
   FTB_CHECK_DEVICE(reference_dev, target_normals);
@@ -89,7 +98,8 @@ void FPCLMatcherOp::Forward(
         target_points.scalar_type(), "FPCLMatcherOp::Forward", ([&] {
           ForwardKernel<kCUDA, scalar_t> kernel(
               target_points, target_normals, target_mask, target_features,
-              source_points, kcam, out_points, out_normals, out_features,
+              source_points, source_normals, kcam, distance_thresh,
+              normals_angle_thresh, out_points, out_normals, out_features,
               match_mask);
 
           Launch1DKernelCUDA(kernel, source_points.size(0));
@@ -99,7 +109,8 @@ void FPCLMatcherOp::Forward(
         target_points.scalar_type(), "FPCLMatcherOp::Forward", ([&] {
           ForwardKernel<kCPU, scalar_t> kernel(
               target_points, target_normals, target_mask, target_features,
-              source_points, kcam, out_points, out_normals, out_features,
+              source_points, source_normals, kcam, distance_thresh,
+              normals_angle_thresh, out_points, out_normals, out_features,
               match_mask);
 
           Launch1DKernelCPU(kernel, source_points.size(0));

@@ -31,8 +31,10 @@ class _Tests:
     def depth_real(self):
         """Use only depth information of a real scene.
         """
+        import math
         run_pair_test(
-            AutogradICP(50, geom_weight=1, feat_weight=0),
+            AutogradICP(100, geom_weight=1, feat_weight=0,
+                        distance_threshold=10, normals_angle_thresh=math.pi/2),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -105,7 +107,7 @@ class _Tests:
             MultiscaleAutogradICP([
                 AGICPOption(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
                 AGICPOption(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
-                # AGICPOption(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
+                AGICPOption(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
@@ -174,7 +176,8 @@ class _Tests:
         frame1, features1 = preprocess_frame(dataset[29], color_space=ColorSpace.LAB,
                                              blur=False, filter_depth=True)
 
-        icp = AutogradICP(30, learning_rate=1, geom_weight=0.5, feat_weight=0.1)
+        icp = AutogradICP(30, learning_rate=1,
+                          geom_weight=0.5, feat_weight=0.1)
 
         device = "cuda:0"
 

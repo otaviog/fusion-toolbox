@@ -9,15 +9,9 @@ void ExpRtToMatrixOp::RegisterPybind(pybind11::module &m) {
       .def_static("backward", &ExpRtToMatrixOp::Backward);
 }
 
-void ExpRtTransformOp::RegisterPybind(pybind11::module &m) {
-  pybind11::class_<ExpRtTransformOp>(m, "ExpRtTransformOp")
-      .def_static("forward", &ExpRtTransformOp::Forward)
-      .def_static("backward", &ExpRtTransformOp::Backward);
+void MatrixToExpRtOp::RegisterPybind(pybind11::module &m) {
+  pybind11::class_<MatrixToExpRtOp>(m, "MatrixToExpRtOp")
+      .def_static("forward", &MatrixToExpRtOp::Forward);
 }
 
-void QuatRtTransformOp::RegisterPybind(pybind11::module &m) {
-  pybind11::class_<QuatRtTransformOp>(m, "QuatRtTransformOp")
-      .def_static("forward", &QuatRtTransformOp::Forward)
-      .def_static("backward", &QuatRtTransformOp::Backward);
-}
 }  // namespace fiontb

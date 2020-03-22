@@ -28,11 +28,9 @@ PYBIND11_MODULE(_cfiontb, m) {
   // Transform
   ProjectOp::RegisterPybind(m);
   RigidTransformOp::RegisterPybind(m);
-
   ExpRtToMatrixOp::RegisterPybind(m);
-  ExpRtTransformOp::RegisterPybind(m);
-  QuatRtTransformOp::RegisterPybind(m);
-
+  MatrixToExpRtOp::RegisterPybind(m);
+  
   // Registraion
   ICPJacobian::RegisterPybind(m);
 

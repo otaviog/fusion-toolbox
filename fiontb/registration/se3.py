@@ -5,81 +5,130 @@ import torch
 
 from fiontb._cfiontb import (
     ExpRtToMatrixOp as _ExpRtToMatrixOp,
-    ExpRtTransformOp as _ExpRtTransformOp,
-    QuatRtTransformOp as _QuatRtTransformOp)
+    MatrixToExpRtOp as _MatrixToExpRtOp)
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, arguments-differ
+
 
 class ExpRtToMatrix(torch.autograd.Function):
-    """Differantiable layer for converting exponential rotation vector and
-    a translation vector into a 4x4 matrix.
+    """Differantiable layer for converting translation vector and
+    exponential rotation (6-D) into a [3x4] rigid transformation matrix.
 
-    The forward and backward passes are implemented in C++.
+    The exponential rotation encodes the angle on its norm.
+
+    The derivation of the formula was done by Gallego, Guillermo, and
+    Anthony Yezzi. "A compact formula for the derivative of a 3-D
+    rotation in exponential coordinates." Journal of Mathematical
+    Imaging and Vision 51, no. 3 (2015): 378-384.
+
+    The forward and backward passes are implemented in C++. Based
+    initially on the implementation from Byravan, Arunkumar, Felix
+    Leeb, Franziska Meier, and Dieter Fox. "Se3-pose-nets: Structured
+    deep dynamics models for visuomotor planning and control." arXiv
+    preprint arXiv:1710.00489 (2017).
     """
 
     @staticmethod
-    def forward(ctx, exp_rot_t):
-        """Forward pass to compute the matrix [exp(w) t]
+    def forward(ctx, exp_rt):
+        """
+        Forward pass to compute the matrix
+        :math:`\begin{bmatrix}exp(w)|t\\end{bmatrix}`.
+
+        Args:
+
+            exp_rt (obj:`torch.Tensor`): XYZ translation and
+             exponential rotation axis. [Bx6] or [6] tensor.
+
+        Returns: (obj:`torch.Tensor`): The rigid transformation
+         matrix, [Bx3x4] or [3x4].
 
         """
-        y_matrix = _ExpRtToMatrixOp.forward(exp_rot_t.view(-1, 6).cpu())
 
-        ctx.save_for_backward(exp_rot_t, y_matrix)
-        return y_matrix
+        batch = 1 if exp_rt.dim() == 1 else exp_rt.size(0)
+        matrix = torch.empty(batch, 3, 4, dtype=exp_rt.dtype,
+                             device=exp_rt.device)
+
+        _ExpRtToMatrixOp.forward(exp_rt.view(-1, 6), matrix)
+
+        ctx.save_for_backward(exp_rt, matrix)
+        if exp_rt.dim() == 1:
+            return matrix.squeeze(0)
+
+        return matrix
 
     @staticmethod
-    def backward(ctx, dy_matrix):
-        """Computes wrt
+    def backward(ctx, d_matrix_loss):
+        """Computes the gradient of exp_rt w.r.t to the loss.
+
+        Args:
+
+            d_matrix_loss (:obj:`torch.Tensor`): The matrix gradient
+             w.r.t. to the loss. Should be a [Bx3x4] matrix.
+
+        Returns: (:obj:`torch.Tensor`):
+
+            The gradient of XYZ translation and exponential map w.r.t
+             to the loss.
+
         """
-        exp_rot_t, y_matrix = ctx.saved_tensors
-        #import pdb; pdb.set_trace()
+        exp_rt, y_matrix = ctx.saved_tensors
 
-        dx_exp_rot_t = _ExpRtToMatrixOp.backward(
-            dy_matrix.view(-1, 3, 4), exp_rot_t.view(-1, 6),
-            y_matrix.view(-1, 3, 4))
-
-        return dx_exp_rot_t.to(dy_matrix.device)
-
-
-def vee(vector):
-    # Create the skew symmetric matrix:
-    # [0 -z y; z 0 -x; -y x 0]
-    vec = vector.view(3)
-    output = vec.new().resize_(3, 3).fill_(0)
-    output[0, 1] = -vec[2]
-    output[1, 0] = vec[2]
-    output[0, 2] = vec[1]
-    output[2, 0] = -vec[1]
-    output[1, 2] = -vec[0]
-    output[2, 1] = vec[0]
-
-    return output
-
-
-class ExpRtTransform(torch.autograd.Function):
-    """Differantiable layer that transforms 3D vectors by a exponential
-    rotation and a translation vectors.
-
-    The forward and backward passes are implemented in C++.
-
-    """
-
-    @staticmethod
-    def forward(ctx, exp_rot_t, points):
-        y_points = torch.empty(
-            points.size(), dtype=points.dtype, device=points.device)
-        _ExpRtTransformOp.forward(exp_rot_t, points, y_points)
-
-        ctx.save_for_backward(exp_rot_t, points)
-        return y_points
-
-    @staticmethod
-    def backward(ctx, dy_points):
-        x_exp_rot_t, x_points = ctx.saved_tensors
-
+        batch = 1 if exp_rt.dim() == 1 else exp_rt.size(0)
         d_exp_rt_loss = torch.empty(
-            x_points.size(0), 6, dtype=x_exp_rot_t.dtype, device=x_exp_rot_t.device)
-        _ExpRtTransformOp.backward(
-            x_exp_rot_t, x_points, dy_points, d_exp_rt_loss)
+            batch, 6, dtype=exp_rt.dtype,
+            device=exp_rt.device)
 
-        return d_exp_rt_loss, None
+        _ExpRtToMatrixOp.backward(
+            d_matrix_loss.view(-1, 3, 4),
+            exp_rt.view(-1, 6),
+            y_matrix.view(-1, 3, 4),
+            d_exp_rt_loss)
+
+        if exp_rt.dim() == 1:
+            return d_exp_rt_loss.squeeze(0)
+        return d_exp_rt_loss
+
+
+class MatrixToExpRt(torch.autograd.Function):
+    """Converts a rigid transformation matrix into XYZ translation and
+    exponential rotation.
+
+    """
+    @staticmethod
+    def forward(ctx, matrix):
+        """Forward pass.
+
+        Args:
+
+            matrix (:obj:`torch.Tensor`): Rigid transformation
+             matrix. [Bx3x4] matrix.
+
+        Returns: (:obj:`torch.Tensor`):
+
+            XYZ translation and exponential axis angle rotation
+             (rodrigues formula). [Bx6] or [6] vector.
+
+        """
+
+        batch = 1 if matrix.dim() == 2 else matrix.size(0)
+        exp_rt = torch.empty(batch, 6, dtype=matrix.dtype,
+                             device=matrix.device)
+        _MatrixToExpRtOp.forward(matrix.view(-1, 3, 4), exp_rt)
+
+        if matrix.dim() == 2:
+            return exp_rt.squeeze(0)
+
+    @staticmethod
+    def backward(ctx, d_exp_rt_loss):
+        """Not implemented, should compute the gradient of the returned
+        matrix w.r.t. to the loss.
+
+        Args:
+
+            d_exp_rt_loss (:obj:`torch.Tensor`): The gradient of
+             coordinate w.r.t. the loss function.
+
+        Returns:
+
+        """
+        raise NotImplementedError()

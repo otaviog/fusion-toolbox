@@ -17,7 +17,6 @@ set(Torch_DIR ${FOUND_TORCH_DIR})
 find_package(Torch REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PythonLibs 3 REQUIRED)
-find_package(Sophus REQUIRED)
 find_package(OpenMP)
 
 if (NOT WIN32)
@@ -26,7 +25,6 @@ if (NOT WIN32)
 endif (NOT WIN32)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/3rd-party/manif/include)
 
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 add_subdirectory(src)

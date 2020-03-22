@@ -31,6 +31,13 @@ struct ExpRt {
   }
 
 #pragma nv_exec_check_disable
+  FTB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 2>::Ts matrix) {
+    translation = Vector3(matrix[0][3], matrix[1][3], matrix[2][3]);
+    Matrix33 R(to_matrix<scalar_t, 3, 3>(matrix));
+    exp_rotation = Eigen::AngleAxis<scalar_t>(R);
+  }
+
+#pragma nv_exec_check_disable
   inline FTB_DEVICE_HOST Vector3 Transform(const Vector3 &point) const {
     return exp_rotation * point + translation;
   }
@@ -53,10 +60,27 @@ struct ExpRt {
     return matrix;
   }
 #pragma nv_exec_check_disable
-  inline FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 12, 6> Dx_ToMatrix() const {
-    const Matrix33 R(ToMatrix().topLeftCorner(3, 3));
-
-    Eigen::Matrix<scalar_t, 12, 6> J(Eigen::Matrix<scalar_t, 12, 6>::Zero());
+  /**
+   * This code was based on the
+   *
+   * https://github.com/abyravan/se3posenets-pytorch/blob/master/layers/SE3ToRt.py
+   * from Byravan, Arunkumar, Felix Leeb, Franziska Meier, and
+   * Dieter Fox. "Se3-pose-nets: Structured deep dynamics models for
+   * visuomotor planning and control." arXiv preprint
+   * arXiv:1710.00489 (2017).
+   *
+   * The derivation of the formula was done by Gallego, Guillermo,
+   * and Anthony Yezzi. "A compact formula for the derivative of a
+   * 3-D rotation in exponential coordinates." Journal of
+   * Mathematical Imaging and Vision 51, no. 3 (2015): 378-384.
+   *
+   * @param[in] R Rotation matrix part from ToMatrix()
+   * @param[out] J The jacobian of the transformation matrix
+   * w.r.t. the translation and exponential rotation.
+   */
+  inline FTB_DEVICE_HOST void Dx_ToMatrix(
+      const Matrix33 &R, Eigen::Matrix<scalar_t, 12, 6> &J) const {
+    J = Eigen::Matrix<scalar_t, 12, 6>::Zero();
 
     const Vector3 v = exp_rotation.axis() * exp_rotation.angle();
     const scalar_t v_norm = v.squaredNorm();
@@ -88,7 +112,7 @@ struct ExpRt {
           case 2:
             skew = SkewMatrix(Vector3(0, 0, 1));
         }
-      }  // v_norm
+      }  // if (v_norm > ...
 
       const Matrix33 dR_vk = skew * R;
 
@@ -108,13 +132,6 @@ struct ExpRt {
     J(3, 0) = 1;
     J(7, 1) = 1;
     J(11, 2) = 1;
-    
-    return J;
   }
-
-#pragma nv_exec_check_disable
-  inline FTB_DEVICE_HOST Eigen::Matrix<scalar_t, 6, 1> Dx_Transform(
-      const Vector3 &point) const;
 };
-
 }  // namespace fiontb

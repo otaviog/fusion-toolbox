@@ -11,7 +11,7 @@ from fiontb.spatial.matching import (FramePointCloudMatcher,
                                      PointCloudMatcher)
 from fiontb.processing import DownsampleXYZMethod
 
-from .se3 import ExpRtToMatrix, ExpRtTransform
+from .se3 import ExpRtToMatrix, MatrixToExpRt
 from .result import ICPResult
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
@@ -82,24 +82,29 @@ class AutogradICP:
     """
 
     def __init__(self, num_iters, learning_rate=0.01,
-                 geom_weight=0.5, feat_weight=0.5):
+                 geom_weight=0.5, feat_weight=0.5,
+                 distance_threshold=0.1,
+                 normals_angle_thresh=math.pi/8.0,
+                 feat_residual_thresh=0.5):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
         self.learning_rate = learning_rate
+        self.distance_threshold = distance_threshold
+        self.normals_angle_thresh = normals_angle_thresh
+        self.feat_residual_thresh = feat_residual_thresh
 
     def _estimate(self, source_points, source_normals,
                   source_feats, target_matcher, transform=None):
         device = source_points.device
         dtype = source_points.dtype
 
-        exp_rt = torch.zeros(
-            6, requires_grad=True, device=device, dtype=dtype)
-        initial_transform = None
-        if transform is not None:
-            source_points = RigidTransform(
-                transform.to(device)) @ source_points.clone()
-            initial_transform = transform.clone()
+        if transform is None:
+            exp_rt = torch.zeros(
+                6, requires_grad=True, device=device, dtype=dtype)
+        else:
+            exp_rt = MatrixToExpRt.apply(transform[:3, :4]).to(device).to(dtype)
+            exp_rt.requires_grad = True
 
         loss = math.inf
 
@@ -107,25 +112,22 @@ class AutogradICP:
         has_feat = (self.feat_weight > 0
                     and source_feats is not None)
         torch.set_printoptions(precision=10)
+
         def _closure():
             nonlocal loss, exp_rt
 
-            
             if exp_rt.grad is not None:
                 exp_rt.grad.zero_()
 
             geom_loss = 0
             feat_loss = 0
 
-            #transform = ExpRtToMatrix.apply(exp_rt.cpu()).squeeze().to(device)
-            #transform_source_points = RigidTransform(transform) @ source_points
+            transform = ExpRtToMatrix.apply(exp_rt.cpu()).squeeze().to(device)
+            transform_source_points = RigidTransform(transform) @ source_points
 
-            print(exp_rt)
-            transform_source_points = ExpRtTransform.apply(exp_rt.cpu(),
-                                                           source_points.cpu())
-            transform_source_points = transform_source_points.to(device)
             tpoints, tnormals, tfeatures, smask = target_matcher.find_correspondences(
-                transform_source_points)
+                transform_source_points, RigidTransform(transform).transform_normals(
+                    source_normals))
 
             snormals = source_normals[smask]
 
@@ -147,7 +149,6 @@ class AutogradICP:
 
             if has_feat:
                 feat_loss = torch.pow(feat_diff[mmask], 2).mean()
-                #feat_loss = feat_diff[mmask].mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
 
@@ -158,17 +159,14 @@ class AutogradICP:
             return loss*self.learning_rate
 
         box = _ClosureBox(_closure, exp_rt)
-        scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
-                                method='BFGS', jac=True,
-                                options=dict(disp=False, maxiter=self.num_iters))
+        opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
+                                          method='BFGS', jac=True,
+                                          options=dict(disp=False, maxiter=self.num_iters))
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 
-        if initial_transform is not None:
-            transform = _to_4x4(initial_transform) @ transform
-
-        print(transform)
-        return ICPResult(transform, None, loss, 1.0)
+        return ICPResult(transform,
+                         torch.from_numpy(opt_res.hess_inv), loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,
                  target_points=None, target_mask=None, target_normals=None,
@@ -207,7 +205,9 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`fiontb.registration.result.ICPResult`): Resulting transformation and alignment information.
+            (:obj:`fiontb.registration.result.ICPResult`): Resulting
+             transformation and alignment information.
+
         """
 
         source_points = source_points[source_mask].view(-1, 3)
@@ -218,7 +218,8 @@ class AutogradICP:
                 source_feats.size(0), -1)
 
         matcher = FramePointCloudMatcher(target_points, target_normals, target_mask,
-                                         target_feats, kcam)
+                                         target_feats, kcam,
+                                         self.distance_threshold, self.normals_angle_thresh)
 
         return self._estimate(source_points, source_normals,
                               source_feats, matcher, transform)
