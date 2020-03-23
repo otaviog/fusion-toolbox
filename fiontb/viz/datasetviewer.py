@@ -96,7 +96,7 @@ class DatasetViewer:
                 self.cam_viewer.get_scene().erase(self.tv_camera_pcl)
 
             with self.cam_context.current():
-                self.tv_camera_pcl = tenviz.nodes.create_point_cloud(
+                self.tv_camera_pcl = tenviz.nodes.PointCloud(
                     cam_space, pcl.colors)
             self.cam_viewer.get_scene().add(self.tv_camera_pcl)
             # self.cam_viewer.reset_view()
@@ -127,7 +127,7 @@ class DatasetViewer:
             invert_cam @ rt_cam.cam_to_world) @ cam_space
 
         with self.wcontext.current():
-            pcl = tenviz.nodes.create_point_cloud(world_space, colors)
+            pcl = tenviz.nodes.PointCloud(world_space, colors)
             self.world_viewer.get_scene().add(pcl)
 
             vcam_color = self._trajectory_cmap(idx)[:3]

@@ -187,9 +187,9 @@ class _Tests:
         device = "cuda:0"
 
         icp_verifier = ICPVerifier()
-        frame, features0 = prepare_frame(
+        frame, features0 = preprocess_frame(
             dataset[0], scale=1, filter_depth=True, color_space=ColorSpace.RGB, blur=False)
-        next_frame, features1 = prepare_frame(
+        next_frame, features1 = preprocess_frame(
             dataset[6], scale=1, filter_depth=True, color_space=ColorSpace.RGB, blur=False)
 
         fpcl = FramePointCloud.from_frame(frame).to(device)

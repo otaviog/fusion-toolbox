@@ -6,10 +6,19 @@ from pathlib import Path
 import fire
 
 from fiontb.data.ftb import load_ftb
-from fiontb.registration.autogradicp import (AutogradICP, MultiscaleAutogradICP,
-                                             AGICPOption)
+from fiontb.registration.autogradicp import (
+    AutogradICP, MultiscaleAutogradICP,
+    AGICPOptions)
+from fiontb.pointcloud import PointCloud
+from fiontb.viz import geoshow
+from fiontb.camera import RTCamera
+from fiontb.metrics import (relative_rotational_error,
+                            relative_translational_error)
+from fiontb._utils import profile
+
 
 from fiontb.testing import ColorSpace, preprocess_frame
+
 from .testing import run_trajectory_test, run_pair_test
 
 # pylint: disable=no-self-use
@@ -28,17 +37,18 @@ class _Tests:
     """Tests the AutogradICP class.
     """
 
-    def depth_real(self):
+    @staticmethod
+    def depth_real():
         """Use only depth information of a real scene.
         """
-        import math
         run_pair_test(
             AutogradICP(100, geom_weight=1, feat_weight=0,
                         distance_threshold=10, normals_angle_thresh=math.pi/2),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def depth_synthetic(self):
+    @staticmethod
+    def depth_synthetic():
         """Use only depth information of a synthetic scene.
         """
         run_pair_test(
@@ -46,7 +56,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def rgb_real(self):
+    @staticmethod
+    def rgb_real():
         """Use only RGB information of a real scene.
         """
         run_pair_test(
@@ -54,7 +65,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def rgb_synthetic(self):
+    @staticmethod
+    def rgb_synthetic():
         """Use only RGB information of a synthetic scene.
         """
         run_pair_test(
@@ -62,7 +74,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def rgbd_real(self):
+    @staticmethod
+    def rgbd_real():
         """Use RGB+depth information of a real scene.
         """
         run_pair_test(
@@ -70,7 +83,8 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def rgbd_synthetic(self):
+    @staticmethod
+    def rgbd_synthetic():
         """Use RGB+depth information of a synthetic scene.
         """
         run_pair_test(
@@ -78,96 +92,99 @@ class _Tests:
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def ms_depth_real(self):
+    @staticmethod
+    def ms_depth_real():
         """Use multiscale depth information of a real scene.
         """
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(1.0, 15, geom_weight=1, feat_weight=0),
-                AGICPOption(0.5, 10, geom_weight=1, feat_weight=0),
-                AGICPOption(0.5, 5, geom_weight=1, feat_weight=0)]),
+                AGICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
+                AGICPOptions(0.5, 10, geom_weight=1, feat_weight=0),
+                AGICPOptions(0.5, 5, geom_weight=1, feat_weight=0)]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def ms_depth_synthetic(self):
+    @staticmethod
+    def ms_depth_synthetic():
         """Use multiscale depth information of a synthetic scene.
         """
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(1.0, 15, geom_weight=1, feat_weight=0),
-                AGICPOption(0.5, 10, geom_weight=1, feat_weight=0),
-                AGICPOption(0.5, 5, geom_weight=1, feat_weight=0)]),
+                AGICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
+                AGICPOptions(0.5, 10, geom_weight=1, feat_weight=0),
+                AGICPOptions(0.5, 5, geom_weight=1, feat_weight=0)]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def ms_rgb_real(self):
+    @staticmethod
+    def ms_rgb_real():
         """Use multiscale RGB information of a real scene.
         """
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOption(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOption(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
+                AGICPOptions(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
+                AGICPOptions(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
+                AGICPOptions(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def ms_rgb_synthetic(self):
+    @staticmethod
+    def ms_rgb_synthetic():
         """Use multiscale RGB information of a synthetic scene.
         """
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOption(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOption(0.5, 5, 0.05, geom_weight=0, feat_weight=1)]),
+                AGICPOptions(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
+                AGICPOptions(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
+                AGICPOptions(0.5, 5, 0.05, geom_weight=0, feat_weight=1)]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def ms_rgbd_real(self):
+    @staticmethod
+    def ms_rgbd_real():
         """Use multiscale RGB+depth information of a real scene.
         """
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(1.0, 20, 0.05, geom_weight=10, feat_weight=1),
-                AGICPOption(0.5, 15, 0.05, geom_weight=10, feat_weight=1),
-                AGICPOption(0.5, 10, 0.05, geom_weight=10, feat_weight=1),
+                AGICPOptions(1.0, 20, 0.05, geom_weight=10, feat_weight=1),
+                AGICPOptions(0.5, 15, 0.05, geom_weight=10, feat_weight=1),
+                AGICPOptions(0.5, 10, 0.05, geom_weight=10, feat_weight=1),
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
-    def ms_rgbd_synthetic(self):
+    @staticmethod
+    def ms_rgbd_synthetic():
         """Use multiscale RGB+depth information of a synthetic scene.
         """
         run_pair_test(
             MultiscaleAutogradICP([
-                AGICPOption(1.0, 10, geom_weight=10, feat_weight=1),
-                AGICPOption(0.5, 10, geom_weight=10, feat_weight=1),
-                AGICPOption(0.5, 10, geom_weight=10, feat_weight=1)]),
+                AGICPOptions(1.0, 10, geom_weight=10, feat_weight=1),
+                AGICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
+                AGICPOptions(0.5, 10, geom_weight=10, feat_weight=1)]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
-    def trajectory(self):
+    @staticmethod
+    def trajectory():
         """Test mulstiscale RGB and depth alignment on a a synthetic trajectory.
         """
 
         icp = MultiscaleAutogradICP([
-            AGICPOption(1.0, 50, 0.05, geom_weight=1, feat_weight=0),
-            AGICPOption(0.5, 50, 0.05, geom_weight=1, feat_weight=0),
-            AGICPOption(0.5, 50, 0.05, geom_weight=1, feat_weight=0)
+            AGICPOptions(1.0, 50, 0.05, geom_weight=1, feat_weight=0),
+            AGICPOptions(0.5, 50, 0.05, geom_weight=1, feat_weight=0),
+            AGICPOptions(0.5, 50, 0.05, geom_weight=1, feat_weight=0)
         ])
 
         dataset = load_ftb(_TEST_DATA / "sample1")
         run_trajectory_test(icp, dataset, color_space=ColorSpace.RGB,
                             blur=False)
 
-    def pcl_rgbd_real(self):
+    @staticmethod
+    def pcl_rgbd_real():
         """Test using sparse point cloud.
         """
-        from fiontb.pointcloud import PointCloud
-        from fiontb.spatial.matching import PointCloudMatcher
-        from fiontb.viz import geoshow
-        from fiontb.camera import RTCamera
-        from fiontb._utils import profile
 
         dataset = load_ftb(_TEST_DATA / "sample1")
 
@@ -176,32 +193,38 @@ class _Tests:
         frame1, features1 = preprocess_frame(dataset[29], color_space=ColorSpace.LAB,
                                              blur=False, filter_depth=True)
 
-        icp = AutogradICP(30, learning_rate=1,
-                          geom_weight=0.5, feat_weight=0.1)
+        icp = MultiscaleAutogradICP(
+            [AGICPOptions(-1, 300, learning_rate=0.1,
+                          geom_weight=1, feat_weight=0.0),
+             AGICPOptions(0.25, 300, learning_rate=0.1,
+                          geom_weight=1, feat_weight=0.0),
+             AGICPOptions(0.5, 300, learning_rate=0.1,
+                          geom_weight=1, feat_weight=0.0),
+            ])
 
         device = "cuda:0"
 
-        pcl0, mask = PointCloud.from_frame(frame0, world_space=False)
-        pcl0 = pcl0.to(device)
-        features0 = features0[:, mask].view(-1, pcl0.size).to(device)
+        from fiontb.surfel import SurfelCloud
+        pcl0 = SurfelCloud.from_frame(frame0, features=features0).to(device)
+        pcl1 = SurfelCloud.from_frame(frame1, features=features1).to(device)
 
-        pcl1, mask = PointCloud.from_frame(frame1, world_space=False)
-        pcl1 = pcl1.to(device)
-        features1 = features1[:, mask].view(-1, pcl1.size).to(device)
-
-        matcher = PointCloudMatcher.from_point_cloud(
-            pcl0, features0,
-            distance_upper_bound=0.5
-        )
         with profile(Path(__file__).parent / "pcl_rgbd_real.prof"):
-            result = icp.estimate2(pcl1.points, pcl1.normals, features1,
-                                   matcher)
+            result = icp.estimate_pcl(pcl0, pcl1)
 
         gt_traj = {0: frame0.info.rt_cam, 1: frame1.info.rt_cam}
         pred_traj = {0: RTCamera(), 1: RTCamera(result.transform)}
 
-        pcl2 = pcl1.transform(relative_rt.to(device))
-        geoshow([pcl0, pcl1, pcl2])
+        print("Translational error: ", relative_translational_error(
+            gt_traj, pred_traj).item())
+        print("Rotational error: ", relative_rotational_error(
+            gt_traj, pred_traj).item())
+
+        print("Key 1 - toggle target PCL")
+        print("Key 2 - toggle source PCL")
+        print("Key 3 - toggle aligned source PCL")
+
+        pcl2 = pcl1.transform(result.transform.to(device))
+        geoshow([pcl0, pcl1, pcl2], invert_y=True)
 
 
 if __name__ == '__main__':

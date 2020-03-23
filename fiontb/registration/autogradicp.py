@@ -59,8 +59,9 @@ class _ClosureBox:
 
 
 class AutogradICP:
-    """ICP using PyTorch's autograd function for estimating 6D
-    gradient. The pose is optimized by the BFGS algorithm.
+    """ICP using PyTorch's autograd for estimating 6D gradient
+    (translation + exponential map). The pose is optimized by the BFGS
+    algorithm.
 
     Attributes:
 
@@ -68,24 +69,34 @@ class AutogradICP:
          optimization algorithm.
 
         learning_rate (float): Scaling factor for the cost
-         function. Not rarely, BFGS will try high value parameter
-         values when estimating the Hessian matrix. If they're high
-         enough, it'll cause lookups too far outside the target search
-         bounds, causing errors. On our tests good values are 0.01
-         between and 0.1.
+         function. Not rarely, BFGS will try high parameter values
+         when estimating the Hessian matrix. If they're high enough,
+         it'll cause lookups outside the target search bounds, causing
+         errors. On our tests good values are 0.01 between and 0.1.
 
         geom_weight (float): Geometry term weighting, 0.0 to disable
          use of depth data.
 
         feat_weight (float): Feature term weighting, 0.0 to ignore
          point features.
+
+        distance_threshold (float): Maximum distance to match a pair
+         of source and target points.
+
+        normals_angle_thresh (float): Maximum angle in radians between
+         normals to match a pair of source and target points.
+
+        feat_residual_thresh (float): Maximum residual between features.
+
+        huber_loss_alpha (float): Alpha value for the Huber Loss.
     """
 
     def __init__(self, num_iters, learning_rate=0.01,
                  geom_weight=0.5, feat_weight=0.5,
                  distance_threshold=0.1,
                  normals_angle_thresh=math.pi/8.0,
-                 feat_residual_thresh=0.5):
+                 feat_residual_thresh=0.5,
+                 huber_loss_alpha=4.5):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
@@ -93,6 +104,7 @@ class AutogradICP:
         self.distance_threshold = distance_threshold
         self.normals_angle_thresh = normals_angle_thresh
         self.feat_residual_thresh = feat_residual_thresh
+        self.huber_loss_alpha = huber_loss_alpha
 
     def _estimate(self, source_points, source_normals,
                   source_feats, target_matcher, transform=None):
@@ -103,7 +115,8 @@ class AutogradICP:
             exp_rt = torch.zeros(
                 6, requires_grad=True, device=device, dtype=dtype)
         else:
-            exp_rt = MatrixToExpRt.apply(transform[:3, :4]).to(device).to(dtype)
+            exp_rt = MatrixToExpRt.apply(
+                transform[:3, :4]).to(device).to(dtype)
             exp_rt.requires_grad = True
 
         loss = math.inf
@@ -129,26 +142,32 @@ class AutogradICP:
                 transform_source_points, RigidTransform(transform).transform_normals(
                     source_normals))
 
-            snormals = source_normals[smask]
-
-            feat_diff = torch.norm(
-                tfeatures - source_feats[:, smask], 2, dim=0)
-
             spoints = transform_source_points[smask]
-
-            #mmask = normal_mask & (feat_diff < 0.2)
-            #mmask = feat_diff < 0.5
-            mmask = torch.ones(spoints.size(0), dtype=torch.bool)
-
             if has_geom:
-                diff = tpoints[mmask] - spoints[mmask]
+                diff = tpoints - spoints
 
-                cost = torch.bmm(tnormals[mmask].view(
+                cost = torch.bmm(tnormals.view(
                     -1, 1, 3), diff.view(-1, 3, 1))
                 geom_loss = torch.pow(cost, 2).mean()
 
             if has_feat:
-                feat_loss = torch.pow(feat_diff[mmask], 2).mean()
+                feat_diff = torch.norm(
+                    tfeatures - source_feats[:, smask], 1, dim=0)
+
+                feat_loss1 = feat_diff[feat_diff < self.huber_loss_alpha]
+                feat_loss1 = torch.pow(feat_loss1, 2)
+
+                feat_loss2 = feat_diff[feat_diff >= self.huber_loss_alpha]
+                feat_loss2 = (2.0*self.huber_loss_alpha*torch.abs(feat_loss2)
+                              - self.huber_loss_alpha**2)
+
+                feat_loss = 0
+
+                if feat_loss1.numel() > 0:
+                    feat_loss = feat_loss1.mean()
+
+                if feat_loss2.numel() > 0:
+                    feat_loss += feat_loss2.mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
 
@@ -166,7 +185,7 @@ class AutogradICP:
         transform = _to_4x4(transform)
 
         return ICPResult(transform,
-                         torch.from_numpy(opt_res.hess_inv), loss, 1.0)
+                         torch.from_numpy(opt_res.hess_inv).float(), loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,
                  target_points=None, target_mask=None, target_normals=None,
@@ -312,28 +331,45 @@ class AGICPOptions:
 
         iters (int): Number of optimizer iterations.
 
+        learning_rate (float): Scaling factor for the cost
+         function. Not rarely, BFGS will try high value parameter
+         values when estimating the Hessian matrix. If they're high
+         enough, it'll cause lookups too far outside the target search
+         bounds, causing runtime exception. On our tests good values
+         are 0.01 between and 0.1.
+
         geom_weight (float): Geometry term weighting, 0.0 to disable
          use of depth data.
 
         feat_weight (float): Feature term weighting, 0.0 to ignore
          point features.
 
-        learning_rate (float): Scaling factor for the cost
-         function. Not rarely, BFGS will try high value parameter
-         values when estimating the Hessian matrix. If they're high
-         enough, it'll cause lookups too far outside the target search
-         bounds, causing errors. On our tests good values are 0.01
-         between and 0.1.
+        distance_threshold (float): Maximum distance to match a pair
+         of source and target points.
+
+        normals_angle_thresh (float): Maximum angle in radians between
+         normals to match a pair of source and target points.
+
+        feat_residual_thresh (float): Maximum residual between features.
+
+        huber_loss_alpha (float): Alpha value for the Huber Loss.
     """
 
     def __init__(self, scale, iters=30, learning_rate=5e-2,
-                 geom_weight=1.0, feat_weight=1.0, so3=False):
+                 geom_weight=1.0, feat_weight=1.0,
+                 distance_threshold=0.1,
+                 normals_angle_thresh=math.pi/8.0,
+                 feat_residual_thresh=0.5,
+                 huber_loss_alpha=4.5):
         self.scale = scale
         self.iters = iters
         self.learning_rate = learning_rate
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
-        self.so3 = so3
+        self.distance_threshold = distance_threshold
+        self.normals_angle_thresh = normals_angle_thresh
+        self.feat_residual_thresh = feat_residual_thresh
+        self.huber_loss_alpha = huber_loss_alpha
 
 
 class MultiscaleAutogradICP(_MultiscaleOptimization):
@@ -346,7 +382,8 @@ class MultiscaleAutogradICP(_MultiscaleOptimization):
         super().__init__(
             [(opt.scale, AutogradICP(
                 opt.iters, opt.learning_rate, opt.geom_weight,
-                opt.feat_weight))
+                opt.feat_weight, opt.distance_threshold, opt.normals_angle_thresh,
+                opt.feat_residual_thresh, opt.huber_loss_alpha))
              for opt in options],
             downsample_xyz_method)
 
@@ -355,11 +392,17 @@ class MultiscaleAutogradICP(_MultiscaleOptimization):
         """Multiscale AutogradICP for point clouds.
         """
 
-        for scale, estimator in self.estimators:
-            src = source_pcl.to("cpu").downsample(scale).to(device)
-            tgt = target_pcl.to("cpu").downsample(scale).to(device)
+        if transform is not None:
+            transform = transform.cpu()
+        for scale, estimator in self.estimators[::-1]:
+            if scale > 0:
+                src = source_pcl.to("cpu").downsample(scale).to(device)
+                tgt = target_pcl.to("cpu").downsample(scale).to(device)
+            else:
+                src = source_pcl
+                tgt = target_pcl
 
-            result = estimator.estimate_pcl(src, tgt, transform=transform.to(device),
+            result = estimator.estimate_pcl(src, tgt, transform=transform,
                                             source_feats=src.features,
                                             target_feats=tgt.features)
             transform = result.transform

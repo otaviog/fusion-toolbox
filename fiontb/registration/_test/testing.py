@@ -1,9 +1,8 @@
+"""Testing procedures for registration methods.
+"""
 from pathlib import Path
 
-import torch
 from tqdm import tqdm
-import quaternion
-from tenviz.pose import Pose
 
 from fiontb.metrics import (relative_rotational_error,
                             relative_translational_error)
@@ -13,7 +12,6 @@ from fiontb.registration.icp import ICPVerifier
 from fiontb.viz import geoshow
 from fiontb.testing import preprocess_frame, ColorSpace
 from fiontb._utils import profile as _profile
-from fiontb.data.ftb import load_ftb
 
 
 def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
@@ -36,7 +34,6 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     next_fpcl = FramePointCloud.from_frame(next_frame).downsample(.5).to(device)
 
     verifier = ICPVerifier()
-
     with _profile(Path(__file__).parent / str(profile_file),
                   profile_file is not None):
         for _ in range(1 if profile_file is None else 5):

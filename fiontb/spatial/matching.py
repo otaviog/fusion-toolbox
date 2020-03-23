@@ -74,9 +74,27 @@ class FPCLMatcherOp(torch.autograd.Function):
 
 
 class FramePointCloudMatcher:
+    """Diffentiable layer for matching correspondence on RGBD Images.
+    """
+    
     def __init__(self, target_points, target_normals, target_mask,
                  target_features, kcam,
                  distance_threshold=1.0, normals_angle_thresh=math.pi):
+        """
+        Args:
+
+            target_features (:obj:`torch.Tensor`): 
+
+            target_normals (:obj:`torch.Tensor`): 
+
+            target_mask (:obj:`torch.Tensor`):
+
+            target_features (:obj:`torch.Tensor`):
+
+            distance_threshold (float):
+
+            normals_angle_thresh (float):
+        """
         self.target = FPCLMatcherOp.Target(
             target_points, target_normals, target_mask, target_features, kcam,
             distance_threshold, normals_angle_thresh)
@@ -110,8 +128,7 @@ class PointCloudMatcher:
         return cls(pcl.points, pcl.normals, features, num_neighbors=num_neighbors,
                    distance_upper_bound=distance_upper_bound)
 
-    def find_correspondences(self, source_points):
-
+    def find_correspondences(self, source_points, source_normals):
         match_mask = KDTreeLayer.query(source_points, k=self.num_neighbors,
                                        distance_upper_bound=self.distance_upper_bound)
         knn_index = KDTreeLayer.last_query[1]

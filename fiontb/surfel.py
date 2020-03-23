@@ -364,14 +364,19 @@ class SurfelCloud:
         """Downsample the surfel cloud by discretizing it into a volume of a
         given voxel size.
 
+
         Args:
 
-            voxel_size (float): The discrete volume voxel size.
+            voxel_size (float): The discrete volume's voxel size.
 
         Returns:
 
-            (:obj:`fiontb.surfel.SurfelCloud`): New surfel cloud.
+            (:obj:`fiontb.surfel.SurfelCloud`): New surfel cloud. If
+             `voxel_size` <= 0.0 then returns self.
+
         """
+        if voxel_size <= 0.0:
+            return self
 
         min_pos = self.points.min(0)[0].tolist()
         max_pos = self.points.max(0)[0].tolist()
