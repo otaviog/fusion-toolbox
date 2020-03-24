@@ -31,12 +31,6 @@ fiontb.processing:
 fiontb.spatial.trigoctree:
 	python3 -m unittest fiontb.spatial._test.test_trigoctree
 
-fiontb.filtering:
-	python3 -m unittest fiontb._test.test_filtering
-
-fiontb.filtering.featuremap:
-	python3 -m unittest fiontb._test.test_filtering.TestFiltering.test_featuremap
-
 fiontb.registration.se3:
 	python3 -m unittest fiontb.registration._test.test_se3
 

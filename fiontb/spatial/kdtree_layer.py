@@ -1,4 +1,6 @@
-from scipy.spatial.ckdtree import cKDTree
+"""Diffentiable layer for KDTree search.
+"""
+
 from pykdtree.kdtree import KDTree
 import torch.autograd
 import numpy
@@ -8,6 +10,17 @@ from fiontb._cfiontb import (
 
 
 class KDTreeLayer(torch.autograd.Function):
+    """Layer for retrieving features associated with 3D-points. 
+
+    The usage is:
+
+    * First call `setup()` with the target points and its features.
+
+    * Use `query()` to query points
+
+    * Use `forward()` to retrieve features interpolated by xyz points.
+
+    """
     tree = None
     target_xyz = None
     last_query = (None, None)
@@ -17,15 +30,9 @@ class KDTreeLayer(torch.autograd.Function):
     @staticmethod
     def setup(target_xyz):
         KDTreeLayer.target_xyz = target_xyz
-        if True:
-            KDTreeLayer.tree = KDTree(
-                target_xyz.cpu().numpy(),
-                leafsize=32
-            )
-        else:
-            KDTreeLayer.tree = cKDTree(
-                target_xyz.cpu().numpy(),
-                balanced_tree=True)
+        KDTreeLayer.tree = KDTree(
+            target_xyz.cpu().numpy(),
+            leafsize=32)
         return KDTreeLayer.apply
 
     @staticmethod
@@ -36,8 +43,7 @@ class KDTreeLayer(torch.autograd.Function):
         distance, index = KDTreeLayer.tree.query(
             xyz.detach().cpu().numpy(), k=k,
             distance_upper_bound=distance_upper_bound,
-            eps=0.5,
-            sqr_dists=True)
+            eps=0.5, sqr_dists=True)
 
         distance = torch.from_numpy(distance).to(
             ref_device).to(ref_dtype).view(-1, k)
@@ -62,8 +68,7 @@ class KDTreeLayer(torch.autograd.Function):
 
         ctx.save_for_backward(xyz, index, features)
         out_features = torch.empty(features.size(0), xyz.size(0),
-                                   dtype=ref_dtype,
-                                   device=ref_device)
+                                   dtype=ref_dtype, device=ref_device)
 
         _NearestNeighborsOp.forward(distances, index, features, out_features)
         return out_features

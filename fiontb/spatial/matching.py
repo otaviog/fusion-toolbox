@@ -76,7 +76,7 @@ class FPCLMatcherOp(torch.autograd.Function):
 class FramePointCloudMatcher:
     """Diffentiable layer for matching correspondence on RGBD Images.
     """
-    
+
     def __init__(self, target_points, target_normals, target_mask,
                  target_features, kcam,
                  distance_threshold=1.0, normals_angle_thresh=math.pi):
@@ -113,13 +113,15 @@ class FramePointCloudMatcher:
 
 class PointCloudMatcher:
     def __init__(self, target_points, target_normals, target_features, num_neighbors=5,
-                 distance_upper_bound=math.inf):
+                 distance_upper_bound=math.inf, normals_angle_thresh=1):
         self.target_points = target_points
         self.target_normals = target_normals
         self.target_features = target_features
 
         self.num_neighbors = num_neighbors
         self.distance_upper_bound = distance_upper_bound
+        self.normals_angle_thresh = normals_angle_thresh
+
         self.kdtree_op = KDTreeLayer.setup(target_points)
 
     @classmethod
@@ -128,11 +130,12 @@ class PointCloudMatcher:
         return cls(pcl.points, pcl.normals, features, num_neighbors=num_neighbors,
                    distance_upper_bound=distance_upper_bound)
 
-    def find_correspondences(self, source_points, source_normals):
+    def find_correspondences(self, source_points, source_normals=None):
         match_mask = KDTreeLayer.query(source_points, k=self.num_neighbors,
                                        distance_upper_bound=self.distance_upper_bound)
         knn_index = KDTreeLayer.last_query[1]
 
+        # pylint: disable=unsubscriptable-object
         top1_knn = knn_index[match_mask, 0]
 
         matched_points = self.target_points[top1_knn]
@@ -140,5 +143,17 @@ class PointCloudMatcher:
 
         matched_features = self.kdtree_op(self.target_features, source_points)
         matched_features = matched_features[:, match_mask]
+
+        #if source_normals is not None:
+        if False:
+            source_normals = source_normals[match_mask, :]
+            norms = (matched_normals * source_normals).sum(dim=1)
+            good_norms = norms >= self.normals_angle_thresh
+
+            matched_points = matched_points[good_norms, :]
+            matched_normals = matched_normals[good_norms, :]
+            matched_features = matched_features[:, good_norms]
+
+            match_mask[~good_norms.nonzero().flatten()] = False
 
         return matched_points, matched_normals, matched_features, match_mask

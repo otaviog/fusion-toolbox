@@ -58,6 +58,38 @@ class _ClosureBox:
         return value, grad
 
 
+class _HuberLoss(torch.nn.Module):
+    # pylint: disable=arguments-differ
+    def __init__(self, alpha):
+        """
+        Args:
+
+            alpha (float): Huber loss alpha value.
+        """
+        super().__init__()
+        self.alpha = alpha
+
+    def forward(self, residual):
+        """Module forward
+        """
+        loss1 = residual[residual < self.alpha]
+        loss1 = torch.pow(loss1, 2)
+
+        loss2 = residual[residual >= self.alpha]
+        loss2 = (2.0*self.alpha*torch.abs(loss2)
+                 - self.alpha**2)
+
+        loss = 0
+
+        if loss1.numel() > 0:
+            loss = loss1.mean()
+
+        if loss2.numel() > 0:
+            loss += loss2.mean()
+
+        return loss
+
+
 class AutogradICP:
     """ICP using PyTorch's autograd for estimating 6D gradient
     (translation + exponential map). The pose is optimized by the BFGS
@@ -126,9 +158,10 @@ class AutogradICP:
                     and source_feats is not None)
         torch.set_printoptions(precision=10)
 
-        def _closure():
-            nonlocal loss, exp_rt
+        huber_loss = _HuberLoss(self.huber_loss_alpha)
 
+        def _closure():
+            nonlocal loss
             if exp_rt.grad is not None:
                 exp_rt.grad.zero_()
 
@@ -148,26 +181,13 @@ class AutogradICP:
 
                 cost = torch.bmm(tnormals.view(
                     -1, 1, 3), diff.view(-1, 3, 1))
+
                 geom_loss = torch.pow(cost, 2).mean()
 
             if has_feat:
                 feat_diff = torch.norm(
                     tfeatures - source_feats[:, smask], 1, dim=0)
-
-                feat_loss1 = feat_diff[feat_diff < self.huber_loss_alpha]
-                feat_loss1 = torch.pow(feat_loss1, 2)
-
-                feat_loss2 = feat_diff[feat_diff >= self.huber_loss_alpha]
-                feat_loss2 = (2.0*self.huber_loss_alpha*torch.abs(feat_loss2)
-                              - self.huber_loss_alpha**2)
-
-                feat_loss = 0
-
-                if feat_loss1.numel() > 0:
-                    feat_loss = feat_loss1.mean()
-
-                if feat_loss2.numel() > 0:
-                    feat_loss += feat_loss2.mean()
+                feat_loss = huber_loss(feat_diff)
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
 
@@ -179,7 +199,7 @@ class AutogradICP:
 
         box = _ClosureBox(_closure, exp_rt)
         opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
-                                          method='BFGS', jac=True,
+                                          method='BFGS', jac=True, tol=0.000000001,
                                           options=dict(disp=False, maxiter=self.num_iters))
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
@@ -273,7 +293,8 @@ class AutogradICP:
 
         matcher = PointCloudMatcher(
             target_pcl.points, target_pcl.normals, target_feats,
-            num_neighbors=8, distance_upper_bound=0.5)
+            num_neighbors=5, distance_upper_bound=self.distance_threshold,
+            normals_angle_thresh=self.normals_angle_thresh)
         return self._estimate(source_pcl.points, source_pcl.normals,
                               source_feats, matcher, transform)
 

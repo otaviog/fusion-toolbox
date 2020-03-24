@@ -7,6 +7,7 @@ from tqdm import tqdm
 from fiontb.metrics import (relative_rotational_error,
                             relative_translational_error)
 from fiontb.frame import FramePointCloud
+from fiontb.surfel import SurfelCloud
 from fiontb.camera import RTCamera
 from fiontb.registration.icp import ICPVerifier
 from fiontb.viz import geoshow
@@ -66,6 +67,41 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
 
     geoshow([pcl0, pcl1, pcl2], title=icp.__class__.__name__, invert_y=True)
 
+
+def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=True, blur=True,
+                      color_space=ColorSpace.LAB, frame0_idx=0, frame1_idx=8,
+                      device="cuda:0"):
+    """Run testing alignment using the `estimate_pcl` method.
+    """
+
+    frame0, features0 = preprocess_frame(dataset[frame0_idx], color_space=color_space,
+                                         blur=blur, filter_depth=filter_depth)
+    frame1, features1 = preprocess_frame(dataset[frame1_idx], color_space=color_space,
+                                         blur=blur, filter_depth=filter_depth)
+
+
+    device = "cuda:0"
+
+    pcl0 = SurfelCloud.from_frame(frame0, features=features0).to(device)
+    pcl1 = SurfelCloud.from_frame(frame1, features=features1).to(device)
+
+    with _profile(profile_file):
+        result = registration.estimate_pcl(pcl0, pcl1)
+
+    gt_traj = {0: frame0.info.rt_cam, 1: frame1.info.rt_cam}
+    pred_traj = {0: RTCamera(), 1: RTCamera(result.transform)}
+
+    print("Translational error: ", relative_translational_error(
+        gt_traj, pred_traj).item())
+    print("Rotational error: ", relative_rotational_error(
+        gt_traj, pred_traj).item())
+
+    print("Key 1 - toggle target PCL")
+    print("Key 2 - toggle source PCL")
+    print("Key 3 - toggle aligned source PCL")
+
+    pcl2 = pcl0.transform(result.transform)
+    geoshow([pcl1, pcl0, pcl2], invert_y=True, title=registration.__class__.__name__)
 
 def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
                         color_space=ColorSpace.LAB):

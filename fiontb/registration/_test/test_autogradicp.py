@@ -9,17 +9,17 @@ from fiontb.data.ftb import load_ftb
 from fiontb.registration.autogradicp import (
     AutogradICP, MultiscaleAutogradICP,
     AGICPOptions)
-from fiontb.pointcloud import PointCloud
+
 from fiontb.viz import geoshow
 from fiontb.camera import RTCamera
 from fiontb.metrics import (relative_rotational_error,
                             relative_translational_error)
 from fiontb._utils import profile
 
-
 from fiontb.testing import ColorSpace, preprocess_frame
 
-from .testing import run_trajectory_test, run_pair_test
+from .testing import (run_trajectory_test, run_pair_test,
+                      run_pcl_pair_test)
 
 # pylint: disable=no-self-use
 
@@ -188,43 +188,24 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / "sample1")
 
-        frame0, features0 = preprocess_frame(dataset[0], color_space=ColorSpace.LAB,
-                                             blur=False, filter_depth=True)
-        frame1, features1 = preprocess_frame(dataset[29], color_space=ColorSpace.LAB,
-                                             blur=False, filter_depth=True)
-
         icp = MultiscaleAutogradICP(
-            [AGICPOptions(-1, 300, learning_rate=0.1,
-                          geom_weight=1, feat_weight=0.0),
-             AGICPOptions(0.25, 300, learning_rate=0.1,
-                          geom_weight=1, feat_weight=0.0),
-             AGICPOptions(0.5, 300, learning_rate=0.1,
-                          geom_weight=1, feat_weight=0.0),
-            ])
+            [AGICPOptions(-1, iters=600, learning_rate=0.1,
+                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4),
+             AGICPOptions(0.025, 300, learning_rate=0.1,
+                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4),
+             AGICPOptions(0.05, 300, learning_rate=0.1,
+                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4),
+             ])
 
-        device = "cuda:0"
-
-        from fiontb.surfel import SurfelCloud
-        pcl0 = SurfelCloud.from_frame(frame0, features=features0).to(device)
-        pcl1 = SurfelCloud.from_frame(frame1, features=features1).to(device)
-
-        with profile(Path(__file__).parent / "pcl_rgbd_real.prof"):
-            result = icp.estimate_pcl(pcl0, pcl1)
-
-        gt_traj = {0: frame0.info.rt_cam, 1: frame1.info.rt_cam}
-        pred_traj = {0: RTCamera(), 1: RTCamera(result.transform)}
-
-        print("Translational error: ", relative_translational_error(
-            gt_traj, pred_traj).item())
-        print("Rotational error: ", relative_rotational_error(
-            gt_traj, pred_traj).item())
-
-        print("Key 1 - toggle target PCL")
-        print("Key 2 - toggle source PCL")
-        print("Key 3 - toggle aligned source PCL")
-
-        pcl2 = pcl1.transform(result.transform.to(device))
-        geoshow([pcl0, pcl1, pcl2], invert_y=True)
+        run_pcl_pair_test(icp, dataset,
+                          profile_file=Path(__file__).parent /
+                          "pcl_rgbd_real.prof",
+                          filter_depth=True,
+                          blur=False,
+                          color_space=ColorSpace.LAB,
+                          frame0_idx=0,
+                          frame1_idx=8,
+                          device="cuda:0")
 
 
 if __name__ == '__main__':
