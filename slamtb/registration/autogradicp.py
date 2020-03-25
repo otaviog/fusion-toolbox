@@ -12,7 +12,7 @@ from slamtb.spatial.matching import (FramePointCloudMatcher,
 from slamtb.processing import DownsampleXYZMethod
 
 from .se3 import ExpRtToMatrix, MatrixToExpRt
-from .result import ICPResult
+from .result import RegistrationResult
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 
@@ -204,7 +204,7 @@ class AutogradICP:
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 
-        return ICPResult(transform,
+        return RegistrationResult(transform,
                          torch.from_numpy(opt_res.hess_inv).float(), loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,
@@ -244,7 +244,7 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`slamtb.registration.result.ICPResult`): Resulting
+            (:obj:`slamtb.registration.result.RegistrationResult`): Resulting
              transformation and alignment information.
 
         """
@@ -286,7 +286,7 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`slamtb.registration.result.ICPResult`): Resulting transformation and
+            (:obj:`slamtb.registration.result.RegistrationResult`): Resulting transformation and
              alignment information.
 
         """
@@ -323,7 +323,7 @@ class AutogradICP:
 
         Returns:
 
-            (:obj:`slamtb.registration.result.ICPResult`): Resulting transformation and
+            (:obj:`slamtb.registration.result.RegistrationResult`): Resulting transformation and
              information.
 
         """

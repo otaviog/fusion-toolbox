@@ -26,7 +26,7 @@ class FrameUI:
         if self.frame is None:
             return
 
-        cmap = get_cmap('plasma', self.frame.info.depth_max)
+        cmap = get_cmap('plasma', int(self.frame.info.depth_max))
         depth_img = (self.frame.depth_image / self.frame.info.depth_max)
         depth_img = cmap(depth_img)
         depth_img = depth_img[:, :, 0:3]

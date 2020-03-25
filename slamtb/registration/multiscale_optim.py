@@ -4,10 +4,11 @@ Multiscale optimzation shared functions.
 
 import torch
 
-from slamtb.frame import Frame
+from slamtb.frame import Frame, FramePointCloud
 from slamtb.processing import (
     downsample_xyz, downsample_mask, DownsampleXYZMethod, feature_pyramid)
-from .result import ICPResult
+
+from .result import RegistrationResult
 
 
 class MultiscaleOptimization:
@@ -50,7 +51,7 @@ class MultiscaleOptimization:
 
         Returns:
 
-             (:obj:`ICPResult`): Resulting transformation and
+             (:obj:`RegistrationResult`): Resulting transformation and
               information.
         """
 
@@ -97,7 +98,7 @@ class MultiscaleOptimization:
                  source_points, source_normals, source_mask,
                  target_feats, source_feats, kcam))
 
-        result = ICPResult()
+        result = RegistrationResult()
         for icp_instance, (tgt_points, tgt_normals, tgt_mask,
                            src_points, src_normals, src_mask,
                            tgt_feats, src_feats, pyr_kcam) in zip(
@@ -119,7 +120,6 @@ class MultiscaleOptimization:
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,
                        target_feats=None, transform=None, device="cpu"):
-        from slamtb.frame import FramePointCloud
 
         if isinstance(source_frame, Frame):
             source_frame = FramePointCloud.from_frame(source_frame).to(device)

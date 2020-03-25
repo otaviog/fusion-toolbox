@@ -124,7 +124,6 @@ setup(
             'ftb-view-dataset=slamtb.viz.datasetviewer:_main',
             'ftb-capture=slamtb.app.sensor_record.__main__:_main',
             'ftb-klg-view=slamtb.app.klg_view.__main__:_main',
-            'ftb-surfel-slam=slamtb.app.surfel_slam.__main__:_main'
         ]
     }
 )

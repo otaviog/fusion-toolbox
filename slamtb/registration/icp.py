@@ -10,7 +10,7 @@ from slamtb.frame import FramePointCloud, Frame
 from slamtb._cslamtb import ICPJacobian as _ICPJacobian
 from slamtb._utils import empty_ensured_size
 
-from .result import ICPResult, ICPVerifier
+from .result import RegistrationResult, RegistrationVerifier
 from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
 
 # pylint: disable=invalid-name
@@ -155,7 +155,7 @@ class ICPOdometry:
 
         Returns:
 
-            (:obj:`ICPResult`): Resulting transformation and information.
+            (:obj:`RegistrationResult`): Resulting transformation and information.
         """
 
         device = target_points.device
@@ -174,7 +174,7 @@ class ICPOdometry:
         if not geom_only:
             source_feats = source_feats.view(source_feats.size(0), -1)
 
-        best_result = ICPResult()
+        best_result = RegistrationResult()
 
         has_features = (source_feats is not None
                         and target_feats is not None
@@ -224,7 +224,7 @@ class ICPOdometry:
                 transform = update_matrix @ transform
 
             residual = residual.item() / match_count
-            best_result = ICPResult(
+            best_result = RegistrationResult(
                 transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 
         return best_result
@@ -254,7 +254,7 @@ class ICPOdometry:
 
         Returns:
 
-            (:obj:`ICPResult`): Resulting transformation and
+            (:obj:`RegistrationResult`): Resulting transformation and
              information.
 
         """

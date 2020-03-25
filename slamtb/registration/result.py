@@ -6,8 +6,8 @@ import math
 import torch
 
 
-class ICPResult:
-    """Result information from ICP algorithms.
+class RegistrationResult:
+    """Result information from registration algorithms.
 
     Attributes:
 
@@ -40,7 +40,7 @@ class ICPResult:
         return str(self)
 
 
-class ICPVerifier:
+class RegistrationVerifier:
     """A basic heuristic for verifying ICP results.
 
     The checking is done by its __call__ operator.

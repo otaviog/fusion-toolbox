@@ -12,7 +12,7 @@ class Clean:
         self.search_size = search_size
 
     def __call__(self, kcam, rt_cam, indexmap, time, model, update_gl=False):
-        ref_device = kcam.device
+        ref_device = model.device
         alloc_indices = model.allocated_indices().to(ref_device)
 
         if alloc_indices.size(0) == 0:
@@ -25,14 +25,14 @@ class Clean:
             with model.map_as_tensors(ref_device) as mapped_model:
                 if self.elastic_fusion:
                     ElasticFusionOp.clean(mapped_model, alloc_indices,
-                                          indexmap, kcam.matrix.float(),
+                                          indexmap, kcam.matrix.float().to(ref_device),
                                           rt_cam.world_to_cam.float().to(ref_device),
                                           time, self.stable_time_thresh,
                                           self.search_size, self.stable_conf_thresh,
                                           remove_mask)
                 else:
                     SurfelFusionOp.clean(mapped_model, alloc_indices,
-                                         indexmap, kcam.matrix.float(),
+                                         indexmap, kcam.matrix.float().to(ref_device),
                                          rt_cam.world_to_cam.float().to(ref_device),
                                          time, self.stable_time_thresh,
                                          2, self.stable_conf_thresh,

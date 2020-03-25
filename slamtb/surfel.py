@@ -38,7 +38,8 @@ def compute_surfel_radii(cam_points, normals, kcam):
 
     radii = torch.empty(cam_points.size(0), dtype=cam_points.dtype,
                         device=cam_points.device)
-    _SurfelOp.compute_radii(kcam.matrix.cpu(), cam_points[:, 2],
+
+    _SurfelOp.compute_radii(kcam.matrix, cam_points[:, 2],
                             normals[:, 2], radii)
     return radii
 

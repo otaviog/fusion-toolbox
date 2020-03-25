@@ -91,7 +91,6 @@ void SurfelOp::ComputeRadii(const torch::Tensor &kcam,
                             const torch::Tensor &normals_z,
                             torch::Tensor radii) {
   const auto ref_device = normals_z.device();
-  FTB_CHECK_DEVICE(ref_device, kcam);
   FTB_CHECK_DEVICE(ref_device, radii);
 
   const auto ref_type = normals_z.scalar_type();
