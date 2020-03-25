@@ -4,8 +4,8 @@ from pathlib import Path
 
 import fire
 
-from fiontb.data.ftb import load_ftb
-from fiontb.viz.datasetviewer import DatasetViewer
+from slamtb.data.ftb import load_ftb
+from slamtb.viz.datasetviewer import DatasetViewer
 
 
 class ViewSamples:

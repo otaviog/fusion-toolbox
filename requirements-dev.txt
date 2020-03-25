@@ -3,4 +3,5 @@ sphinx_theme
 sphinxcontrib-napoleon
 autopep8
 pylint
-
+fire
+tqdm

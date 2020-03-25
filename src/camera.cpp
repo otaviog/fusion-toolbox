@@ -5,7 +5,7 @@
 
 #include "error.hpp"
 
-namespace fiontb {
+namespace slamtb {
 void ProjectOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<ProjectOp>(m, "ProjectOp")
       .def_static("forward", &ProjectOp::Forward)
@@ -44,4 +44,4 @@ void RigidTransformOp::RegisterPybind(pybind11::module &m) {
       .def_static("transform_normals_inplace", &RigidTransformOp::TransformNormalsInplace);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

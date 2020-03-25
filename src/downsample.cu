@@ -6,7 +6,7 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 template <Device dev, typename scalar_t>
 struct DownsampleXYZNearestKernel {
   const typename Accessor<dev, scalar_t, 3>::T xyz_img;
@@ -129,4 +129,4 @@ void Processing::DownsampleMask(const torch::Tensor &mask, float scale,
     Launch2DKernelCPU(kernel, dst.size(1), dst.size(0));
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

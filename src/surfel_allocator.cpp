@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-namespace fiontb {
+namespace slamtb {
 
 SurfelAllocator::SurfelAllocator(int max_surfels) {
   max_surfels_ = max_surfels;
@@ -99,4 +99,4 @@ void SurfelAllocator::Copy_(const SurfelAllocator &other) {
   free_indices_ = other.free_indices_;
   max_surfels_ = other.max_surfels_;
 }
-}  // namespace fiontb
+}  // namespace slamtb

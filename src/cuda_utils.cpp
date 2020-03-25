@@ -1,6 +1,6 @@
 #include "cuda_utils.hpp"
 
-namespace fiontb {
+namespace slamtb {
 CudaKernelDims Get2DKernelDims(int width, int height) {
   dim3 block_dim = dim3(16, 16);
   dim3 grid_size(width / block_dim.x + 1, height / block_dim.y + 1);
@@ -13,4 +13,4 @@ CudaKernelDims Get1DKernelDims(int size) {
 
   return CudaKernelDims(dim3(num_blocks), dim3(block_size));
 }
-}  // namespace fiontb
+}  // namespace slamtb

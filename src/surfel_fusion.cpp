@@ -9,7 +9,7 @@
 
 namespace py = pybind11;
 
-namespace fiontb {
+namespace slamtb {
 
 std::mutex MergeMap<kCPU>::mutex_;
 
@@ -51,4 +51,4 @@ void SurfelFusionOp::RegisterPybind(py::module &m) {
       .def_static("copy_features", &SurfelFusionOp::CopyFeatures);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

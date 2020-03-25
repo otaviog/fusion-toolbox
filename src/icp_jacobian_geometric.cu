@@ -8,7 +8,7 @@
 #include "icp_jacobian_common.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 namespace {
 template <Device dev, typename scalar_t, typename Correspondence>
@@ -132,4 +132,4 @@ int ICPJacobian::EstimateGeometric(
   return num_matches;
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

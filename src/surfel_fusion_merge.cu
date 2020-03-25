@@ -8,7 +8,7 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 
 const int MAX_MERGE_VIOLATIONS = 1;
@@ -197,4 +197,4 @@ void SurfelFusionOp::Merge(const IndexMap &indexmap, torch::Tensor merge_map,
     Launch2DKernelCPU(kernel, indexmap.get_width(), indexmap.get_height());
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

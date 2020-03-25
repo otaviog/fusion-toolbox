@@ -7,7 +7,7 @@
 
 using namespace std;
 
-namespace fiontb {
+namespace slamtb {
 
 namespace {
 
@@ -246,4 +246,4 @@ pair<torch::Tensor, torch::Tensor> TriangleMeshOctree::QueryClosest(
   return make_pair(closest_mtx, idx_mtx);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

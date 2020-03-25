@@ -4,7 +4,7 @@
 #include "error.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev>
 struct ErodeMaskKernel {
@@ -52,4 +52,4 @@ void Processing::ErodeMask(const torch::Tensor &in_mask,
     Launch2DKernelCPU(kernel, in_mask.size(1), in_mask.size(0));
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

@@ -3,7 +3,7 @@
 #include "error.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 namespace {
 
@@ -211,4 +211,4 @@ void RigidTransformOp::TransformNormalsInplace(
     }
   });
 }
-}  // namespace fiontb
+}  // namespace slamtb

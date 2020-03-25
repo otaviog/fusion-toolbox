@@ -4,7 +4,7 @@
 
 #include "sat.hpp"
 
-namespace fiontb {
+namespace slamtb {
 AABB::AABB(const Eigen::Vector3f &p0, const Eigen::Vector3f &p1) {
   min_[0] = std::min(p0[0], p1[0]);
   min_[1] = std::min(p0[1], p1[1]);
@@ -80,4 +80,4 @@ Eigen::Vector3f AABB::GetClosestPoint(const Eigen::Vector3f &point) const {
 }
 
 
-}  // namespace fiontb
+}  // namespace slamtb

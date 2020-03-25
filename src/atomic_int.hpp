@@ -4,7 +4,7 @@
 
 #include "device.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev>
 struct AtomicInt {
@@ -62,4 +62,4 @@ class ScopedAtomicInt {
   AtomicInt<dev> instance;
 };
 
-}  // namespace fiontb
+}  // namespace slamtb

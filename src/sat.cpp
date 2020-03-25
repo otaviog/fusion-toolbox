@@ -2,7 +2,7 @@
 
 using namespace std;
 
-namespace fiontb {
+namespace slamtb {
 SATInterval GetTriangleInterval(const Eigen::Vector3f &p0,
                                 const Eigen::Vector3f &p1,
                                 const Eigen::Vector3f &p2,
@@ -53,4 +53,4 @@ SATInterval GetAABBInterval(const AABB &aabb, const Eigen::Vector3f &axis) {
 bool SATInterval::HasOverlap(const SATInterval &other) const {
   return (other.min <= this->max) && (this->min <= other.max);
 }
-}  // namespace fiontb
+}  // namespace slamtb

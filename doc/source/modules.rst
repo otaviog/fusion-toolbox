@@ -1,7 +1,7 @@
-fiontb
+slamtb
 ======
 
 .. toctree::
    :maxdepth: 4
 
-   fiontb
+   slamtb

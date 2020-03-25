@@ -6,8 +6,8 @@ from pathlib import Path
 
 import fire
 
-from fiontb.data.tumrgbd import read_trajectory
-from fiontb.viz.trajectoryviewer import TrajectoryViewer
+from slamtb.data.tumrgbd import read_trajectory
+from slamtb.viz.trajectoryviewer import TrajectoryViewer
 
 
 class Views:

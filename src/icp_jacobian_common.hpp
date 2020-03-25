@@ -3,7 +3,7 @@
 #include "accessor.hpp"
 #include "eigen_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 namespace {
 
@@ -113,4 +113,4 @@ struct SO3ICPJacobian {
 };
 
 }  // namespace
-}  // namespace fiontb
+}  // namespace slamtb

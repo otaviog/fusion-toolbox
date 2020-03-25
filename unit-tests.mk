@@ -1,41 +1,29 @@
 about:
 	@echo "Shortcuts to run unit tests"
 
-fiontb.metrics.trajectory:
-	python3 -m unittest fiontb.metrics._test.test_metrics.TestTrajectoryMetrics
+slamtb.metrics.trajectory:
+	python3 -m unittest slamtb.metrics._test.test_metrics.TestTrajectoryMetrics
 
-fiontb.metrics.geometry:
-	python3 -m unittest fiontb.metrics._test.test_metrics.TestGeometryMetrics
+slamtb.metrics.geometry:
+	python3 -m unittest slamtb.metrics._test.test_metrics.TestGeometryMetrics
 
-fiontb.metrics.mesh:
-	python3 -m unittest fiontb.metrics._test_metrics.TestMeshFunctions
+slamtb.metrics.mesh:
+	python3 -m unittest slamtb.metrics._test_metrics.TestMeshFunctions
 
-fiontb.data.sens:
-	python3 -m unittest fiontb.data._test.test_sens
+slamtb.camera:
+	python3 -m unittest slamtb._test.test_camera
 
-fiontb.data.sens.read:
-	python3 -m unittest fiontb.data._test.test_sens.TestSens.test_2_read
+slamtb.processing:
+	python3 -m unittest slamtb._test.test_processing
 
-fiontb.data.sens.write:
-	python3 -m unittest fiontb.data._test.test_sens.TestSens.test_1_write
+slamtb.spatial.trigoctree:
+	python3 -m unittest slamtb.spatial._test.test_trigoctree
 
-view.fiontb.data.sens:
-	python3 -m fiontb.data._test.test_sens
+slamtb.registration.se3:
+	python3 -m unittest slamtb.registration._test.test_se3
 
-fiontb.camera:
-	python3 -m unittest fiontb._test.test_camera
+slamtb.spatial.kdtreelayer:
+	python3 -m unittest slamtb.spatial._test.test_kdtree_layer
 
-fiontb.processing:
-	python3 -m unittest fiontb._test.test_processing
-
-fiontb.spatial.trigoctree:
-	python3 -m unittest fiontb.spatial._test.test_trigoctree
-
-fiontb.registration.se3:
-	python3 -m unittest fiontb.registration._test.test_se3
-
-fiontb.spatial.kdtreelayer:
-	python3 -m unittest fiontb.spatial._test.test_kdtree_layer
-
-fiontb.spatial.fpcl_matcher:
-	python3 -m unittest fiontb.spatial._test.test_fpcl_matcher
+slamtb.spatial.fpcl_matcher:
+	python3 -m unittest slamtb.spatial._test.test_fpcl_matcher

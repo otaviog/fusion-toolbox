@@ -3,7 +3,7 @@
 #include "accessor.hpp"
 #include "cuda_utils.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev, typename scalar_t>
 struct BilinearInterp {
@@ -83,4 +83,4 @@ struct FeatureMap {
     return BilinearInterpGrad<dev, scalar_t>(feature_map, u, v, h);
   }
 };
-}  // namespace fiontb
+}  // namespace slamtb

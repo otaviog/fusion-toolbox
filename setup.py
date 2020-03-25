@@ -4,7 +4,6 @@
 import sys
 import os
 from os import path
-from codecs import open
 import subprocess
 
 from distutils.version import LooseVersion
@@ -33,9 +32,14 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 REQUIREMENTS = [
-    'numpy', 'torch', 'numpy-quaternion', 'opencv-python',
-    'open3d-python', 'natsort', 'matplotlib', 'h5py',
-    'tqdm', 'pyquaternion', 'scikit-learn', 'fire'
+    'numpy',
+    'pykdtree',
+    'matplotlib',
+    'natsort',
+    'numba',
+    'numpy-quaternion',
+    'scipy',
+    'torch'
 ]
 
 
@@ -99,9 +103,9 @@ class CMakeBuild(build_ext):
 
 
 setup(
-    name='fusion-toolbox',
+    name='slam-toolbox',
     version='0.0.1',
-    description='Toolbox of fusion 3D reconstruction',
+    description='Toolbox for building RGBD SLAM prototyping',
     long_description=LONG_DESCRIPTION,
     url='',
     license='MIT',
@@ -111,25 +115,16 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3.5'
     ],
-    keywords='fusion 3d reconstruction',
+    keywords='slam 3d rgbd toolbox',
     packages=find_packages(),
     install_requires=REQUIREMENTS,
-    ext_modules=[CMakeExtension('_fiontb')],
-    extras_require={
-        'dev': ['Sphinx',
-                'sphinx_rtd_theme',
-                'sphinxcontrib-napoleon',
-                'docutils',
-                'pylint',
-                'autopep8'],
-        'test': ['coverage'],
-    },
+    ext_modules=[CMakeExtension('_cslamtb')],
     entry_points={
         'console_scripts': [
-            'ftb-view-dataset=fiontb.viz.datasetviewer:_main',
-            'ftb-capture=fiontb.app.sensor_record.__main__:_main',
-            'ftb-klg-view=fiontb.app.klg_view.__main__:_main',
-            'ftb-surfel-slam=fiontb.app.surfel_slam.__main__:_main'
+            'ftb-view-dataset=slamtb.viz.datasetviewer:_main',
+            'ftb-capture=slamtb.app.sensor_record.__main__:_main',
+            'ftb-klg-view=slamtb.app.klg_view.__main__:_main',
+            'ftb-surfel-slam=slamtb.app.surfel_slam.__main__:_main'
         ]
     }
 )

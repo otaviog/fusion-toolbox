@@ -9,7 +9,7 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev, typename scalar_t>
 struct CentralDifferencesKernel {
@@ -206,4 +206,4 @@ void Processing::EstimateNormals(const torch::Tensor xyz_image,
     });
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

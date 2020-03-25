@@ -3,7 +3,7 @@
 #include <pybind11/eigen.h>
 #include <torch/csrc/utils/pybind.h>
 
-namespace fiontb {
+namespace slamtb {
 void SurfelOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<SurfelOp>(m, "SurfelOp")
       .def_static("compute_confidences", &SurfelOp::ComputeConfidences)
@@ -38,4 +38,4 @@ void SurfelCloud::RegisterPybind(py::module &m) {
       .def_property("size", &SurfelCloud::get_size, nullptr);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

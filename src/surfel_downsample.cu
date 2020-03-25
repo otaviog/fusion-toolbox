@@ -8,7 +8,7 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 struct SurfelAccum {
   Eigen::Vector3f point;
   Eigen::Vector3f normal;
@@ -183,4 +183,4 @@ void SurfelOp::Downsample(const SurfelCloud &surfel_cloud, float voxel_size,
 }
 
 
-};  // namespace fiontb
+};  // namespace slamtb

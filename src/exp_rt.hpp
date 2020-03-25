@@ -3,7 +3,7 @@
 #include "accessor.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev, typename scalar_t>
 struct ExpRt {
@@ -134,4 +134,4 @@ struct ExpRt {
     J(11, 2) = 1;
   }
 };
-}  // namespace fiontb
+}  // namespace slamtb

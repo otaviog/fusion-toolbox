@@ -5,7 +5,7 @@
 #include "error.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 template <Device dev, typename scalar_t>
 struct ComputeConfidencesKernel {
@@ -109,4 +109,4 @@ void SurfelOp::ComputeRadii(const torch::Tensor &kcam,
   }
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

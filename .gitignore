@@ -11,12 +11,12 @@ detect_cuda_version.cc
 compile_commands.json
 CMakeCache.txt
 
-_cfiontb.so
-_cfiontb.dll
-_fiontb*
-libfiontb.a
-libfiontb.lib
-test_fiontb
+_cslamtb.so
+_clsamtbtb.dll
+_cslamtb.cpython*
+libslamtb.a
+libslamtb.lib
+test_slamtb
 *.exe
 
 *.out

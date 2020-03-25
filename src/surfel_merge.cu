@@ -4,7 +4,7 @@
 #include "kernel.hpp"
 #include "surfel_fusion_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 template <Device dev>
 struct MergeKernel {
   const SurfelCloudAccessor<dev> self;
@@ -68,4 +68,4 @@ void SurfelOp::Merge(const SurfelCloud &self, const SurfelCloud &other,
   }
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

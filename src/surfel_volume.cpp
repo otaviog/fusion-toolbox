@@ -4,7 +4,7 @@
 #include <pybind11/eigen.h>
 #include <torch/csrc/utils/pybind.h>
 
-namespace fiontb {
+namespace slamtb {
 
 void SurfelVolume::RegisterPybind(pybind11::module &m) {
   pybind11::class_<SurfelVolume>(m, "SurfelVolume")
@@ -14,4 +14,4 @@ void SurfelVolume::RegisterPybind(pybind11::module &m) {
       .def("to_surfel_cloud", &SurfelVolume::ToSurfelCloud);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

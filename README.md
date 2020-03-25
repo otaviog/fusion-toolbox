@@ -1,4 +1,4 @@
-# Fusion Toolbox
+# SLAM Toolbox
 
 A toolkit for prototyping RGBD-based simultaneous localization and
 mapping (SLAM) algorithms with PyTorch.
@@ -7,7 +7,7 @@ The aim of this project is to faciliciate load, process, visualization
 and evaluation of 3D reconstruction pipelines. We also offer
 registration algorithm and fusion of surfels using index map.
 
-This work is sponsered by Eldorado Research Institute.
+This work was sponsored by Eldorado Research Institute.
 
 ## Features
 

@@ -7,7 +7,7 @@
 #include "math.hpp"
 #include "surfel_fusion_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev>
 struct FindMergeKernel {
@@ -215,4 +215,4 @@ void SurfelFusionOp::Update(const IndexMap &model_indexmap,
                       model_indexmap.get_height());
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

@@ -5,7 +5,7 @@
 #include "kernel.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 const float DELTA_H = 0.0005;
 }
@@ -292,4 +292,4 @@ void NearestNeighborsOp::Backward(const torch::Tensor &epsilon_distances,
   }
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

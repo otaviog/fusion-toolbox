@@ -9,7 +9,7 @@
 
 using namespace std;
 
-namespace fiontb {
+namespace slamtb {
 
 template <Device dev, typename scalar_t>
 struct BilateralDepthFilterKernel {
@@ -109,4 +109,4 @@ torch::Tensor Processing::BilateralDepthFilter(
   return result;
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

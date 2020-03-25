@@ -10,7 +10,7 @@
 #include "math.hpp"
 #include "surfel_fusion_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 
 template <Device dev>
@@ -133,4 +133,4 @@ void SurfelFusionOp::CarveSpace(MappedSurfelModel model,
   }
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

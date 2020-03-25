@@ -3,7 +3,7 @@
 #include <pybind11/eigen.h>
 #include <torch/csrc/utils/pybind.h>
 
-namespace fiontb {
+namespace slamtb {
 void ICPJacobian::RegisterPybind(pybind11::module &m) {
   py::class_<ICPJacobian>(m, "ICPJacobian")
       .def_static("estimate_geometric", &ICPJacobian::EstimateGeometric)

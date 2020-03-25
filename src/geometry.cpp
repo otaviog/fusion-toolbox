@@ -4,7 +4,7 @@
 
 using namespace std;
 
-namespace fiontb {
+namespace slamtb {
 
 namespace {
 bool IsPointInsideTriangle(const Eigen::Vector3f &query,
@@ -101,4 +101,4 @@ pair<Eigen::Vector3f, long> GetClosestPoint(const Eigen::Vector3f &qpoint,
   return make_pair(min_closest, min_face);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

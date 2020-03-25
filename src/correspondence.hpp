@@ -4,7 +4,7 @@
 #include "camera.hpp"
 #include "math.hpp"
 
-namespace fiontb {
+namespace slamtb {
 template <Device dev, typename scalar_t>
 class PointGrid {
  public:
@@ -129,4 +129,4 @@ struct RobustCorrespondence {
     return Match(src_point, tgt_point, tgt_normal, u, v);
   }
 };
-}  // namespace fiontb
+}  // namespace slamtb

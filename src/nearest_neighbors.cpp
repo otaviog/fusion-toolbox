@@ -2,7 +2,7 @@
 
 #include <torch/csrc/utils/pybind.h>
 
-namespace fiontb {
+namespace slamtb {
 void NearestNeighborsOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<NearestNeighborsOp>(m, "NearestNeighborsOp")
       .def_static("forward", &NearestNeighborsOp::Forward)
@@ -10,4 +10,4 @@ void NearestNeighborsOp::RegisterPybind(pybind11::module &m) {
                   &NearestNeighborsOp::ComputeEpsilonDistances)
       .def_static("backward", &NearestNeighborsOp::Backward);
 }
-}  // namespace fiontb
+}  // namespace slamtb

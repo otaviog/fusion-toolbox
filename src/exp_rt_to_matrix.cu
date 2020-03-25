@@ -7,7 +7,7 @@
 #include "exp_rt.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 template <Device dev, typename scalar_t>
 struct ForwardKernel {
@@ -119,4 +119,4 @@ void ExpRtToMatrixOp::Backward(const torch::Tensor &d_matrix_loss,
       }));
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

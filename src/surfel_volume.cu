@@ -6,7 +6,7 @@
 #include "math.hpp"
 #include "surfel_fusion_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 
 namespace {
 struct AccumKernel {
@@ -126,4 +126,4 @@ void SurfelVolume::ToSurfelCloud(SurfelCloud &out) const {
   ToCloudKernel to_cloud_kernel(volume_, voxel_ids, out);
   Launch1DKernelCPU(to_cloud_kernel, voxel_ids.size(0));
 }
-}  // namespace fiontb
+}  // namespace slamtb

@@ -2,7 +2,7 @@
 
 #include <torch/csrc/utils/pybind.h>
 
-namespace fiontb {
+namespace slamtb {
 
 void Processing::RegisterPybind(pybind11::module &m) {
   pybind11::class_<Processing>(m, "Processing")
@@ -19,4 +19,4 @@ void Processing::RegisterPybind(pybind11::module &m) {
   py::enum_<DownsampleXYZMethod>(m, "DownsampleXYZMethod")
       .value("Nearest", DownsampleXYZMethod::kNearest);
 }
-}  // namespace fiontb
+}  // namespace slamtb

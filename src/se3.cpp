@@ -2,7 +2,7 @@
 
 #include <torch/csrc/utils/pybind.h>
 
-namespace fiontb {
+namespace slamtb {
 void ExpRtToMatrixOp::RegisterPybind(pybind11::module &m) {
   pybind11::class_<ExpRtToMatrixOp>(m, "ExpRtToMatrixOp")
       .def_static("forward", &ExpRtToMatrixOp::Forward)
@@ -14,4 +14,4 @@ void MatrixToExpRtOp::RegisterPybind(pybind11::module &m) {
       .def_static("forward", &MatrixToExpRtOp::Forward);
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

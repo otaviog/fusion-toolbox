@@ -10,7 +10,7 @@
 #include "math.hpp"
 #include "surfel_fusion_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 
 template <Device dev>
@@ -64,4 +64,4 @@ void SurfelFusionOp::Clean(MappedSurfelModel model, torch::Tensor model_indices,
     Launch1DKernelCPU(kernel, model_indices.size(0));
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

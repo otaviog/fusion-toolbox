@@ -5,7 +5,7 @@
 #include "math.hpp"
 #include "surfel_fusion_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 
 template <Device dev>
@@ -203,4 +203,4 @@ void ElasticFusionOp::Update(const IndexMap &model_indexmap,
                       model_indexmap.get_height());
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb

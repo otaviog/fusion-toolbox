@@ -7,7 +7,7 @@
 
 #include "correspondence.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 
 template <Device dev, typename scalar_t>
@@ -219,4 +219,4 @@ void FPCLMatcherOp::Backward(const torch::Tensor &target_features,
   }
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

@@ -6,7 +6,7 @@
 
 #include "camera.hpp"
 
-namespace fiontb {
+namespace slamtb {
 static int rand_int(int start, int end) {
   return start + std::rand() % (end - start);
 }
@@ -276,4 +276,4 @@ void SlamFeatOp::RegisterPybind(pybind11::module &m) {
       .def_readwrite("colors", &SFCrop::colors)
       .def_readwrite("depths", &SFCrop::depths);
 }
-}  // namespace fiontb
+}  // namespace slamtb

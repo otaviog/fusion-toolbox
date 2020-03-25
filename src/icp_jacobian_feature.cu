@@ -12,7 +12,7 @@
 #include "icp_jacobian_common.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 
 template <Device dev, typename scalar_t, typename JacobianType,
@@ -237,4 +237,4 @@ int ICPJacobian::EstimateFeatureSO3(
   return num_matches;
 }
 
-}  // namespace fiontb
+}  // namespace slamtb

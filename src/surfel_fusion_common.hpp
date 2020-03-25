@@ -5,7 +5,7 @@
 #include "accessor.hpp"
 #include "eigen_common.hpp"
 
-namespace fiontb {
+namespace slamtb {
 template <Device dev>
 struct SurfelModelAccessor {
   typename Accessor<dev, float, 2>::T points;
@@ -183,4 +183,4 @@ struct MergeMap<kCUDA> {
 };
 #endif
 
-}  // namespace fiontb
+}  // namespace slamtb

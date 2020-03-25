@@ -1,6 +1,6 @@
 include_directories(${PYTHON_INCLUDE_DIR})
 
-cuda_add_library(fiontb
+cuda_add_library(slamtb
   cuda_utils.cpp
   normals.cu
   bilateral_depth_filter.cu
@@ -48,24 +48,24 @@ cuda_add_library(fiontb
   slamfeat.cpp
   )
 
-target_include_directories(fiontb
+target_include_directories(slamtb
   PUBLIC
   $<BUILD_INTERFACE:${EIGEN3_INCLUDE_DIR}>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/fiontb>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/slamtb>
   )
 
-target_link_libraries(fiontb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX)
+target_link_libraries(slamtb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX)
 
-set_target_properties(fiontb
+set_target_properties(slamtb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-set_property(TARGET fiontb PROPERTY CXX_STANDARD 14)
+set_property(TARGET slamtb PROPERTY CXX_STANDARD 14)
 
-add_library(_cfiontb SHARED _cfiontb.cpp)
-set_property(TARGET _cfiontb PROPERTY CXX_STANDARD 14)
-set_target_properties(_cfiontb PROPERTIES PREFIX "")
-set_target_properties(_cfiontb PROPERTIES LIBRARY_OUTPUT_DIRECTORY
-  ${CMAKE_SOURCE_DIR}/fiontb)
-target_compile_options(_cfiontb PRIVATE -Wall -Wextra -pedantic)
-target_link_libraries(_cfiontb fiontb)
+add_library(_cslamtb SHARED _cslamtb.cpp)
+set_property(TARGET _cslamtb PROPERTY CXX_STANDARD 14)
+set_target_properties(_cslamtb PROPERTIES PREFIX "")
+set_target_properties(_cslamtb PROPERTIES LIBRARY_OUTPUT_DIRECTORY
+  ${CMAKE_SOURCE_DIR}/slamtb)
+target_compile_options(_cslamtb PRIVATE -Wall -Wextra -pedantic)
+target_link_libraries(_cslamtb slamtb)
 
 add_subdirectory(test)

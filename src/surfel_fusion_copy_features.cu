@@ -6,7 +6,7 @@
 #include "error.hpp"
 #include "kernel.hpp"
 
-namespace fiontb {
+namespace slamtb {
 namespace {
 template <Device dev>
 struct CopyFeaturesKernel {
@@ -56,4 +56,4 @@ void SurfelFusionOp::CopyFeatures(const torch::Tensor &indexmap,
     Launch2DKernelCPU(kernel, out_features.size(2), out_features.size(1));
   }
 }
-}  // namespace fiontb
+}  // namespace slamtb
