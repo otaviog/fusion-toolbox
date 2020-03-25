@@ -17,14 +17,3 @@ dependencies:
       numpy-quaternion>=1.81.1
       numba>=0.48.0
       natsort>=7.0.0
-
-
-
-
-
-
-
-
-
-
-
