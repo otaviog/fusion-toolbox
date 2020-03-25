@@ -178,15 +178,15 @@ class AutogradICP:
             spoints = transform_source_points[smask]
             if has_geom:
                 diff = tpoints - spoints
-
                 cost = torch.bmm(tnormals.view(
                     -1, 1, 3), diff.view(-1, 3, 1))
-
                 geom_loss = torch.pow(cost, 2).mean()
 
             if has_feat:
                 feat_diff = torch.norm(
                     tfeatures - source_feats[:, smask], 1, dim=0)
+                #import ipdb; ipdb.set_trace()
+                #feat_diff = feat_diff[feat_diff.pow(2) < self.feat_residual_thresh]
                 feat_loss = huber_loss(feat_diff)
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
@@ -293,7 +293,7 @@ class AutogradICP:
 
         matcher = PointCloudMatcher(
             target_pcl.points, target_pcl.normals, target_feats,
-            num_neighbors=5, distance_upper_bound=self.distance_threshold,
+            num_neighbors=8, distance_upper_bound=self.distance_threshold,
             normals_angle_thresh=self.normals_angle_thresh)
         return self._estimate(source_pcl.points, source_pcl.normals,
                               source_feats, matcher, transform)

@@ -2,6 +2,7 @@
 """
 
 from pathlib import Path
+import math
 
 import fire
 
@@ -9,14 +10,7 @@ from fiontb.data.ftb import load_ftb
 from fiontb.registration.autogradicp import (
     AutogradICP, MultiscaleAutogradICP,
     AGICPOptions)
-
-from fiontb.viz import geoshow
-from fiontb.camera import RTCamera
-from fiontb.metrics import (relative_rotational_error,
-                            relative_translational_error)
-from fiontb._utils import profile
-
-from fiontb.testing import ColorSpace, preprocess_frame
+from fiontb.testing import ColorSpace
 
 from .testing import (run_trajectory_test, run_pair_test,
                       run_pcl_pair_test)
@@ -28,7 +22,7 @@ _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 SYNTHETIC_FRAME_ARGS = dict(frame1_idx=5, color_space=ColorSpace.LAB,
                             blur=False, filter_depth=False)
 
-REAL_FRAME_ARGS = dict(frame1_idx=29,
+REAL_FRAME_ARGS = dict(frame1_idx=8,
                        color_space=ColorSpace.LAB,
                        blur=True, filter_depth=True)
 
@@ -61,7 +55,10 @@ class _Tests:
         """Use only RGB information of a real scene.
         """
         run_pair_test(
-            AutogradICP(500, geom_weight=0, feat_weight=1),
+            AutogradICP(600, learning_rate=0.1,
+                        geom_weight=0, feat_weight=1.0, huber_loss_alpha=4,
+                        distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                        feat_residual_thresh=0.005),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -182,7 +179,29 @@ class _Tests:
                             blur=False)
 
     @staticmethod
-    def pcl_rgbd_real():
+    def pcl_rgb_real():
+        """Test using sparse point cloud.
+        """
+
+        dataset = load_ftb(_TEST_DATA / "sample1")
+        icp = AutogradICP(
+            600, learning_rate=0.1,
+            geom_weight=0, feat_weight=1.0, huber_loss_alpha=2,
+            distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+            feat_residual_thresh=0.005)
+
+        run_pcl_pair_test(icp, dataset,
+                          profile_file=Path(__file__).parent /
+                          "pcl_rgbd_real.prof",
+                          filter_depth=True,
+                          blur=True,
+                          color_space=ColorSpace.LAB,
+                          frame0_idx=0,
+                          frame1_idx=8,
+                          device="cuda:0")
+
+    @staticmethod
+    def pcl_ms_rgbd_real():
         """Test using sparse point cloud.
         """
 
@@ -190,11 +209,17 @@ class _Tests:
 
         icp = MultiscaleAutogradICP(
             [AGICPOptions(-1, iters=600, learning_rate=0.1,
-                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4),
+                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
+                          distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                          feat_residual_thresh=0.005),
              AGICPOptions(0.025, 300, learning_rate=0.1,
-                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4),
+                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
+                          distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                          feat_residual_thresh=0.5),
              AGICPOptions(0.05, 300, learning_rate=0.1,
-                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4),
+                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
+                          distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                          feat_residual_thresh=0.5),
              ])
 
         run_pcl_pair_test(icp, dataset,

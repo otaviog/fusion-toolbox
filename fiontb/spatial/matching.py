@@ -146,14 +146,14 @@ class PointCloudMatcher:
 
         #if source_normals is not None:
         if False:
-            source_normals = source_normals[match_mask, :]
-            norms = (matched_normals * source_normals).sum(dim=1)
-            good_norms = norms >= self.normals_angle_thresh
+            with torch.no_grad():
+                source_normals = source_normals[match_mask, :]
+                norms = (matched_normals * source_normals).sum(dim=1)
+                good_norms = norms >= self.normals_angle_thresh
 
-            matched_points = matched_points[good_norms, :]
-            matched_normals = matched_normals[good_norms, :]
-            matched_features = matched_features[:, good_norms]
-
-            match_mask[~good_norms.nonzero().flatten()] = False
+                matched_points = matched_points[good_norms, :]
+                matched_normals = matched_normals[good_norms, :]
+                matched_features = matched_features[:, good_norms]
+                match_mask[(~good_norms).nonzero().flatten()] = False
 
         return matched_points, matched_normals, matched_features, match_mask

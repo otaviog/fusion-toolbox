@@ -117,8 +117,11 @@ fiontb.registration.autogradicp.ms-rgbd-synthetic:
 fiontb.registration.autogradicp.trajectory:
 	python3 -m fiontb.registration._test.test_autogradicp trajectory
 
-fiontb.registration.autogradicp.pcl-rgbd-real:
-	python3 -m fiontb.registration._test.test_autogradicp pcl-rgbd-real
+fiontb.registration.autogradicp.pcl-rgb-real:
+	python3 -m fiontb.registration._test.test_autogradicp pcl-rgb-real
+
+fiontb.registration.autogradicp.pcl-ms-rgbd-real:
+	python3 -m fiontb.registration._test.test_autogradicp pcl-ms-rgbd-real
 
 #########
 # Surfel

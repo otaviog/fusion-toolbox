@@ -26,19 +26,20 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
         'blur': blur,
         'color_space': color_space
     }
-    prev_frame, target_feats = preprocess_frame(
+
+    target_frame, target_feats = preprocess_frame(
         dataset[frame0_idx], **frame_args)
-    next_frame, source_feats = preprocess_frame(
+    source_frame, source_feats = preprocess_frame(
         dataset[frame1_idx], **frame_args)
 
-    prev_fpcl = FramePointCloud.from_frame(prev_frame).downsample(.5).to(device)
-    next_fpcl = FramePointCloud.from_frame(next_frame).downsample(.5).to(device)
+    target_fpcl = FramePointCloud.from_frame(target_frame).to(device)
+    source_fpcl = FramePointCloud.from_frame(source_frame).to(device)
 
     verifier = ICPVerifier()
     with _profile(Path(__file__).parent / str(profile_file),
                   profile_file is not None):
         for _ in range(1 if profile_file is None else 5):
-            result = icp.estimate_frame(next_frame, prev_frame,
+            result = icp.estimate_frame(source_frame, target_frame,
                                         source_feats=source_feats.to(
                                             device),
                                         target_feats=target_feats.to(
@@ -49,7 +50,7 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     if not verifier(result):
         print("Tracking failed")
 
-    gt_traj = {0: prev_fpcl.rt_cam, 1: next_fpcl.rt_cam}
+    gt_traj = {0: target_fpcl.rt_cam, 1: source_fpcl.rt_cam}
     pred_traj = {0: RTCamera(), 1: RTCamera(relative_rt)}
 
     print("Translational error: ", relative_translational_error(
@@ -57,15 +58,16 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     print("Rotational error: ", relative_rotational_error(
         gt_traj, pred_traj).item())
 
-    pcl0 = prev_fpcl.unordered_point_cloud(world_space=False)
-    pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-    pcl2 = pcl1.transform(relative_rt.to(device))
+    target_pcl = target_fpcl.unordered_point_cloud(world_space=False)
+    source_pcl = source_fpcl.unordered_point_cloud(world_space=False)
+    aligned_pcl = source_pcl.transform(relative_rt.to(device))
 
     print("Key 1 - toggle target PCL")
     print("Key 2 - toggle source PCL")
     print("Key 3 - toggle aligned source PCL")
 
-    geoshow([pcl0, pcl1, pcl2], title=icp.__class__.__name__, invert_y=True)
+    geoshow([target_pcl, source_pcl, aligned_pcl],
+            title=icp.__class__.__name__, invert_y=True)
 
 
 def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=True, blur=True,
@@ -74,21 +76,26 @@ def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=Tru
     """Run testing alignment using the `estimate_pcl` method.
     """
 
-    frame0, features0 = preprocess_frame(dataset[frame0_idx], color_space=color_space,
-                                         blur=blur, filter_depth=filter_depth)
-    frame1, features1 = preprocess_frame(dataset[frame1_idx], color_space=color_space,
-                                         blur=blur, filter_depth=filter_depth)
+    frame_args = {
+        'filter_depth': filter_depth,
+        'blur': blur,
+        'color_space': color_space
+    }
 
+    target_frame, target_features = preprocess_frame(dataset[frame0_idx], **frame_args)
+    source_frame, source_features = preprocess_frame(dataset[frame1_idx], **frame_args)
 
     device = "cuda:0"
 
-    pcl0 = SurfelCloud.from_frame(frame0, features=features0).to(device)
-    pcl1 = SurfelCloud.from_frame(frame1, features=features1).to(device)
+    target_pcl = SurfelCloud.from_frame(target_frame, features=target_features).to(device)
+    source_pcl = SurfelCloud.from_frame(source_frame, features=source_features).to(device)
 
     with _profile(profile_file):
-        result = registration.estimate_pcl(pcl0, pcl1)
+        result = registration.estimate_pcl(source_pcl, target_pcl,
+                                           source_feats=source_pcl.features,
+                                           target_feats=target_pcl.features)
 
-    gt_traj = {0: frame0.info.rt_cam, 1: frame1.info.rt_cam}
+    gt_traj = {0: target_frame.info.rt_cam, 1: source_frame.info.rt_cam}
     pred_traj = {0: RTCamera(), 1: RTCamera(result.transform)}
 
     print("Translational error: ", relative_translational_error(
@@ -100,8 +107,12 @@ def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=Tru
     print("Key 2 - toggle source PCL")
     print("Key 3 - toggle aligned source PCL")
 
-    pcl2 = pcl0.transform(result.transform)
-    geoshow([pcl1, pcl0, pcl2], invert_y=True, title=registration.__class__.__name__)
+    aligned_pcl = source_pcl.transform(result.transform)
+    geoshow([target_pcl.as_point_cloud(),
+             source_pcl.as_point_cloud(),
+             aligned_pcl.as_point_cloud()], invert_y=True,
+            title=registration.__class__.__name__)
+
 
 def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
                         color_space=ColorSpace.LAB):
