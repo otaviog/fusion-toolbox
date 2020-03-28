@@ -2,16 +2,13 @@
 """
 from pathlib import Path
 
-import torch
 import fire
 
 from slamtb.data import set_start_at_eye
 from slamtb.data.ftb import load_ftb
-from slamtb.frame import FramePointCloud
-from slamtb.registration.icp import (
-    ICPOdometry, MultiscaleICPOdometry, ICPVerifier, ICPOptions)
-from slamtb.testing import preprocess_frame, ColorSpace
-from slamtb.viz.show import geoshow
+from slamtb.processing import ColorSpace
+from slamtb.registration import MultiscaleRegistration
+from slamtb.registration.icp import ICPOdometry
 
 from .testing import run_trajectory_test, run_pair_test
 
@@ -91,10 +88,10 @@ class _Tests:
         """Use multiscale depth information of a real scene.
         """
         run_pair_test(
-            MultiscaleICPOdometry([
-                ICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
-                ICPOptions(0.5, 10, geom_weight=1, feat_weight=0),
-                ICPOptions(0.5, 5, geom_weight=1, feat_weight=0)]),
+            MultiscaleRegistration([
+                (1.0, ICPOdometry(15, geom_weight=1, feat_weight=0)),
+                (0.5, ICPOdometry(10, geom_weight=1, feat_weight=0)),
+                (0.5, ICPOdometry(5, geom_weight=1, feat_weight=0))]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -103,15 +100,11 @@ class _Tests:
         """Use multiscale depth information of a synthetic scene.
         """
         run_pair_test(
-            MultiscaleICPOdometry([
-                ICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
-                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0),
-                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0),
-                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0),
-                ICPOptions(0.5, 20, geom_weight=1, feat_weight=0)]),
-            #load_ftb(_TEST_DATA / "sample2"),
-            load_ftb(
-                "/home/otaviog/3drec/slam-feature/data/replica/replica-ftb/hotel_0"),
+            MultiscaleRegistration([
+                (1.0, ICPOdometry(15, geom_weight=1, feat_weight=0)),
+                (0.5, ICPOdometry(20, geom_weight=1, feat_weight=0)),
+                (0.5, ICPOdometry(20, geom_weight=1, feat_weight=0))]),
+            load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
     @staticmethod
@@ -119,10 +112,10 @@ class _Tests:
         """Use multiscale RGB information of a real scene.
         """
         run_pair_test(
-            MultiscaleICPOdometry([
-                ICPOptions(1.0, 20, geom_weight=0, feat_weight=1),
-                ICPOptions(0.5, 10, geom_weight=0, feat_weight=1),
-                ICPOptions(0.5, 5, geom_weight=0, feat_weight=1)]),
+            MultiscaleRegistration([
+                (1.0, ICPOdometry(20, geom_weight=0, feat_weight=1)),
+                (0.5, ICPOdometry(10, geom_weight=0, feat_weight=1)),
+                (0.5, ICPOdometry(5, geom_weight=0, feat_weight=1))]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -131,10 +124,10 @@ class _Tests:
         """Use multiscale RGB information of a synthetic scene.
         """
         run_pair_test(
-            MultiscaleICPOdometry([
-                ICPOptions(1.0, 20, geom_weight=0, feat_weight=1),
-                ICPOptions(0.5, 10, geom_weight=0, feat_weight=1),
-                ICPOptions(0.5, 5, geom_weight=0, feat_weight=1)]),
+            MultiscaleRegistration([
+                (1.0, ICPOdometry(20, geom_weight=0, feat_weight=1)),
+                (0.5, ICPOdometry(10, geom_weight=0, feat_weight=1)),
+                (0.5, ICPOdometry(5, geom_weight=0, feat_weight=1))]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -142,12 +135,12 @@ class _Tests:
     def ms_rgbd_real():
         """Use multiscale RGB+depth information of a real scene.
         """
+        print("HERE")
         run_pair_test(
-            MultiscaleICPOdometry([
-                ICPOptions(1.0, 20, geom_weight=10, feat_weight=1),
-                ICPOptions(0.5, 15, geom_weight=10, feat_weight=1),
-                ICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
-                # ICPOptions(1, 10, geom_weight=0, feat_weight=1, so3=True)
+            MultiscaleRegistration([
+                (1.0, ICPOdometry(20, geom_weight=1, feat_weight=1)),
+                (0.5, ICPOdometry(20, geom_weight=1, feat_weight=1)),
+                (0.5, ICPOdometry(30, geom_weight=1, feat_weight=1))
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
@@ -159,16 +152,15 @@ class _Tests:
         geom_weight = 10
         feat_weight = 0
         run_pair_test(
-            MultiscaleICPOdometry([
-                ICPOptions(1.0, 10, geom_weight=geom_weight,
-                          feat_weight=feat_weight),
-                ICPOptions(0.5, 20, geom_weight=geom_weight,
-                          feat_weight=feat_weight),
-                ICPOptions(0.5, 20, geom_weight=geom_weight,
-                          feat_weight=feat_weight),
-                ICPOptions(0.5, 30, geom_weight=geom_weight,
-                          feat_weight=feat_weight)
-            ]),
+            MultiscaleRegistration([
+                (1.0, ICPOdometry(10, geom_weight=geom_weight,
+                                  feat_weight=feat_weight)),
+                (0.5, ICPOdometry(20, geom_weight=geom_weight,
+                                  feat_weight=feat_weight)),
+                (0.5, ICPOdometry(20, geom_weight=geom_weight,
+                                  feat_weight=feat_weight)),
+                (0.5, ICPOdometry(30, geom_weight=geom_weight,
+                                  feat_weight=feat_weight))]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -182,41 +174,10 @@ class _Tests:
     def so3():
         """Test rotation only alignment.
         """
-        dataset = load_ftb(_TEST_DATA / "sample1")
-        dataset = set_start_at_eye(dataset)
-        device = "cuda:0"
-
-        icp_verifier = ICPVerifier()
-        frame, features0 = preprocess_frame(
-            dataset[0], scale=1, filter_depth=True, color_space=ColorSpace.RGB, blur=False)
-        next_frame, features1 = preprocess_frame(
-            dataset[6], scale=1, filter_depth=True, color_space=ColorSpace.RGB, blur=False)
-
-        fpcl = FramePointCloud.from_frame(frame).to(device)
-        next_fpcl = FramePointCloud.from_frame(next_frame).to(device)
-
-        init_transform = torch.eye(4, dtype=next_fpcl.rt_cam.matrix.dtype,
-                                   device=next_fpcl.device)
-        init_transform[: 3, 3] = -next_fpcl.rt_cam.center
-
-        icp = ICPOdometry(100, feat_weight=1.0, so3=True)
-        result = icp.estimate(next_fpcl.kcam, next_fpcl.points, next_fpcl.mask,
-                              source_feats=features1.to(
-                                  device),
-                              target_points=fpcl.points,
-                              target_normals=fpcl.normals,
-                              target_mask=fpcl.mask,
-                              target_feats=features0.to(
-                                  device), transform=init_transform)
-        relative_rt = result.transform
-        print("Tracking: ", icp_verifier(result))
-
-        pcl0 = fpcl.unordered_point_cloud(world_space=False)
-        pcl1 = next_fpcl.unordered_point_cloud(world_space=False)
-        pcl2 = pcl1.transform(relative_rt.to(device))
-        pcl1 = pcl1.transform(init_transform)
-
-        geoshow([pcl0, pcl1.transform(init_transform), pcl2])
+        run_pair_test(
+            ICPOdometry(20, geom_weight=10, feat_weight=1, so3=True),
+            load_ftb(_TEST_DATA / "sample2"),
+            **REAL_FRAME_ARGS)
 
     @staticmethod
     def trajectory():
@@ -224,12 +185,10 @@ class _Tests:
         """
 
         dataset = load_ftb(_TEST_DATA / "sample2")
-        icp = MultiscaleICPOdometry([
-            ICPOptions(1.0, 10, geom_weight=10, feat_weight=1),
-            ICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
-            ICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
-            #ICPOptions(1.0, 10, feat_weight=1, so3=True),
-        ])
+        icp = MultiscaleRegistration([
+            (1.0, ICPOdometry(10, geom_weight=10, feat_weight=1)),
+            (0.5, ICPOdometry(10, geom_weight=10, feat_weight=1)),
+            (0.5, ICPOdometry(10, geom_weight=10, feat_weight=1))])
         icp = ICPOdometry(25, geom_weight=1, feat_weight=0)
         run_trajectory_test(icp, dataset,
                             filter_depth=SYNTHETIC_FRAME_ARGS['filter_depth'],

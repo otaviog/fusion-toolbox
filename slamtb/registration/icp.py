@@ -5,18 +5,17 @@ import math
 import torch
 from tenviz.pose import SE3, SO3
 
-from slamtb.processing import DownsampleXYZMethod
 from slamtb.frame import FramePointCloud, Frame
 from slamtb._cslamtb import ICPJacobian as _ICPJacobian
 from slamtb._utils import empty_ensured_size
 
-from .result import RegistrationResult, RegistrationVerifier
-from .multiscale_optim import MultiscaleOptimization as _MultiscaleOptimization
+from .result import RegistrationResult
+
 
 # pylint: disable=invalid-name
 
 
-class _Step:
+class _JacobianStep:
     def __init__(self, geom, so3, distance_threshold, normals_angle_thresh, feat_residual_thresh):
         self.JtJ = None
         self.Jtr = None
@@ -58,20 +57,20 @@ class _Step:
             else:
                 match_count = _ICPJacobian.estimate_feature(
                     target_points, target_normals, target_feats,
-                    target_mask, source_points,
+                    target_mask, source_points, source_normals,
                     source_feats, source_mask, kcam, transform.to(dtype),
                     self.distance_threshold, self.normals_angle_thresh, self.feat_residual_thresh,
                     self.JtJ, self.Jtr, self.residual)
         else:
             match_count = _ICPJacobian.estimate_feature_so3(
                 target_points, target_normals, target_feats,
-                target_mask, source_points, source_feats,
-                source_mask, kcam, transform.to(dtype),
+                target_mask, source_points, source_normals,
+                source_feats, source_mask, kcam, transform.to(dtype),
                 self.distance_threshold, self.normals_angle_thresh, self.feat_residual_thresh,
                 self.JtJ, self.Jtr, self.residual)
 
-        Jtr = self.Jtr.double().sum(0)
-        JtJ = self.JtJ.double().sum(0)
+        Jtr = self.Jtr.sum(0)
+        JtJ = self.JtJ.sum(0)
         residual = self.residual.sum()
 
         return JtJ, Jtr, residual, match_count
@@ -104,17 +103,18 @@ class ICPOdometry:
     """
 
     def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False,
-                 distance_threshold=0.1, normals_angle_thresh=math.pi/8.0, feat_residual_thresh=0.5):
+                 distance_threshold=.1, normals_angle_thresh=math.pi/8,
+                 feat_residual_thresh=.5):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
         self.so3 = so3
 
-        self._geom_step = (_Step(True, so3, distance_threshold,
-                                 normals_angle_thresh, feat_residual_thresh)
+        self._geom_step = (_JacobianStep(True, so3, distance_threshold,
+                                         normals_angle_thresh, feat_residual_thresh)
                            if geom_weight > 0 and not so3 else None)
-        self._feature_step = (_Step(False, so3, distance_threshold,
-                                    normals_angle_thresh, feat_residual_thresh)
+        self._feature_step = (_JacobianStep(False, so3, distance_threshold,
+                                            normals_angle_thresh, feat_residual_thresh)
                               if feat_weight > 0 else None)
 
     def estimate(self, kcam, source_points, source_normals,
@@ -169,16 +169,12 @@ class ICPOdometry:
         source_normals = source_normals.view(-1, 3)
         source_mask = source_mask.view(-1)
 
-        geom_only = target_feats is None or source_feats is None
-
-        if not geom_only:
+        has_features = not None in (source_feats, target_feats,
+                                    self._feature_step)
+        if has_features:
             source_feats = source_feats.view(source_feats.size(0), -1)
 
         best_result = RegistrationResult()
-
-        has_features = (source_feats is not None
-                        and target_feats is not None
-                        and self._feature_step is not None)
         for _ in range(self.num_iters):
             JtJ = torch.zeros(6, 6, dtype=torch.double)
             Jr = torch.zeros(6, dtype=torch.double)
@@ -265,75 +261,14 @@ class ICPOdometry:
         if isinstance(target_frame, Frame):
             target_frame = FramePointCloud.from_frame(target_frame).to(device)
 
-        return self.estimate(source_frame.kcam, source_frame.points,
-                             source_frame.normals,
-                             source_frame.mask,
-                             source_feats=source_feats,
-                             target_points=target_frame.points,
-                             target_mask=target_frame.mask,
-                             target_normals=target_frame.normals,
-                             target_feats=target_feats,
-                             transform=transform)
-
-
-class ICPOptions:
-    """Options for the ICP algorithm.
-
-    Attributes:
-
-        scale (float): Resizing scale for inputs.
-
-        iters (int): Number of optimizer iterations.
-
-        geom_weight (float): Geometry term weighting, 0.0 to disable
-         use of depth data.
-
-        feat_weight (float): Feature term weighting, 0.0 to ignore
-         point features.
-
-        so3 (bool): SO3 optimization, i.e., rotation only.
-
-        distance_threshold (float): Maximum distance to match a pair
-         of source and target points.
-
-        normals_angle_thresh (float): Maximum angle in radians between
-         normals to match a pair of source and target points.
-
-    """
-
-    def __init__(self, scale, iters=30, geom_weight=1.0, feat_weight=1.0, so3=False,
-                 distance_threshold=0.1, normals_angle_thresh=math.pi/2.0):
-        self.scale = scale
-        self.iters = iters
-        self.geom_weight = geom_weight
-        self.feat_weight = feat_weight
-        self.so3 = so3
-        self.distance_threshold = distance_threshold
-        self.normals_angle_thresh = normals_angle_thresh
-
-
-class MultiscaleICPOdometry(_MultiscaleOptimization):
-    """Refines point-to-plane ICP by leveraging from lower resolution results.
-    """
-
-    def __init__(self, options, downsample_xyz_method=DownsampleXYZMethod.Nearest):
-        """Initialize the multiscale ICP.
-
-        Args:
-
-            options (List[:obj:`ICPOption`]): Each element contains a
-             scale specific ICP options. Options should be specified
-             with their scales from higher to lower. And they're applied
-             from lower to higher.
-
-            downsample_xyz_method
-             (:obj:`slamtb.downsample.DownsampleXYZMethod`): Which
-             method to interpolate the XYZ points and normals.
-
-        """
-
-        super().__init__(
-            [(opt.scale, ICPOdometry(
-                opt.iters, opt.geom_weight, opt.feat_weight, opt.so3))
-             for opt in options],
-            downsample_xyz_method)
+        return self.estimate(
+            source_frame.kcam,
+            source_frame.points,
+            source_frame.normals,
+            source_frame.mask,
+            source_feats=source_feats,
+            target_points=target_frame.points,
+            target_normals=target_frame.normals,
+            target_mask=target_frame.mask,
+            target_feats=target_feats,
+            transform=transform)

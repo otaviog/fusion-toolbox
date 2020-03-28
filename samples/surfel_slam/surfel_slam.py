@@ -13,10 +13,12 @@ from slamtb.data.ftb import load_ftb
 from slamtb.camera import RTCamera
 from slamtb.ui import FrameUI, SurfelReconstructionUI, RunMode
 from slamtb.frame import FramePointCloud
-from slamtb.processing import bilateral_depth_filter, estimate_normals
-from slamtb.registration.icp import (MultiscaleICPOdometry, ICPOptions)
+from slamtb.processing import (bilateral_depth_filter, estimate_normals,
+                               to_color_feature, ColorSpace)
+from slamtb.registration import MultiscaleRegistration
+from slamtb.registration.icp import ICPOdometry
+from slamtb.registration.autogradicp import AutogradICP
 from slamtb.registration.result import RegistrationVerifier
-
 from slamtb.surfel import SurfelModel
 from slamtb.fusion.surfel import SurfelFusion
 
@@ -37,11 +39,17 @@ def _main():
                         preset_intrinsics=PresetIntrinsics.ASUS_XTION)
     else:
         dataset = load_ftb(args.ftb)
-        sensor = DatasetSensor(dataset)
+        sensor = DatasetSensor(dataset, start_idx=66)
 
-    icp = MultiscaleICPOdometry([ICPOptions(1.0, 15),
-                                 ICPOptions(0.5, 10),
-                                 ICPOptions(0.25, 5)])
+    icp = MultiscaleRegistration([
+        (1.0, ICPOdometry(30, geom_weight=1.0, feat_weight=1.0)),
+        (0.5, ICPOdometry(30, geom_weight=1.0, feat_weight=1.0)),
+        (0.5, ICPOdometry(30, geom_weight=1.0, feat_weight=1.0))])
+
+    icp2 = MultiscaleRegistration([
+        (1.0, AutogradICP(100, 0.05, geom_weight=1, feat_weight=1)),
+        (0.5, AutogradICP(200, 0.05, geom_weight=1, feat_weight=1)),
+        (0.5, AutogradICP(300, 0.05, geom_weight=1, feat_weight=1))])
     icp_verifier = RegistrationVerifier()
 
     device = "cuda:0"
@@ -51,40 +59,46 @@ def _main():
     fusion_ctx = SurfelFusion(surfel_model)
 
     sensor_ui = FrameUI("Frame Control")
-    rec_ui = SurfelReconstructionUI(surfel_model, RunMode.PLAY, inverse=True)
+    rec_ui = SurfelReconstructionUI(surfel_model, RunMode.STEP, inverse=True)
 
     rt_cam = RTCamera(torch.eye(4, dtype=torch.float32))
     prev_fpcl = None
+    prev_features = None
 
-    for _ in rec_ui:
+    for frame_count, _ in enumerate(rec_ui):
         frame = sensor.next_frame()
         if frame is None:
             break
 
         live_fpcl = FramePointCloud.from_frame(frame).to(device)
 
-        filtered_depth_image = bilateral_depth_filter(
+        filtered_frame = frame.clone(shallow=True)
+        filtered_frame.depth_image = bilateral_depth_filter(
             torch.from_numpy(frame.depth_image).to(device),
-            live_fpcl.mask, depth_scale=frame.info.depth_scale)
+            live_fpcl.mask)
 
-        live_fpcl = FramePointCloud.from_frame(frame).to(device)
-        live_fpcl.normals = estimate_normals(filtered_depth_image, frame.info,
-                                             live_fpcl.mask)
-        frame.normal_image = live_fpcl.normals.cpu()
-
+        filtered_live_fpcl = FramePointCloud.from_frame(
+            filtered_frame).to(device)
+        frame.normal_image = filtered_live_fpcl.normals.cpu().numpy()
+        live_fpcl.normals = filtered_live_fpcl.normals
         sensor_ui.update(frame)
 
+        features = to_color_feature(
+            filtered_frame.rgb_image, ColorSpace.INTENSITY).to(device)
         if prev_fpcl is not None:
             icp_result = icp.estimate_frame(
-                live_fpcl, target_fpcl)
+                filtered_live_fpcl, prev_fpcl,
+                source_feats=features,
+                target_feats=prev_features)
             if not icp_verifier(icp_result):
-                print("Tracking error")
+                print("Tracking error at frame {}".format(frame_count))
             relative_transform = icp_result.transform
         else:
             relative_transform = torch.eye(4, dtype=torch.double)
 
         rt_cam = rt_cam.transform(relative_transform)
-        prev_fpcl = live_fpcl
+        prev_fpcl = filtered_live_fpcl
+        prev_features = features
 
         fusion_ctx.fuse(live_fpcl, rt_cam)
 

@@ -51,10 +51,10 @@ class FrameUI:
         self.frame = frame
         if frame.normal_image is not None:
             self.normal_image = convert_normals_to_rgb(
-                frame.normal_image.cpu())
+                frame.normal_image)
         self._update(0)
 
 
 def convert_normals_to_rgb(normal_image):
     normal_image = (normal_image + 1)*0.5*255
-    return normal_image.cpu().numpy().astype(np.uint8)
+    return normal_image.astype(np.uint8)

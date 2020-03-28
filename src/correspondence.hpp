@@ -79,7 +79,7 @@ struct RobustCorrespondence {
     if (tgt.empty(vi, ui)) return false;
 
     tgt_point = to_vec3<scalar_t>(tgt.points[vi][ui]);
-    if ((tgt_point - src_point).squaredNorm() > distance_thresh) return false;
+    if ((tgt_point - src_point).squaredNorm() > distance_thresh*distance_thresh) return false;
 
     tgt_normal = to_vec3<scalar_t>(tgt.normals[vi][ui]);
     const scalar_t angle = GetVectorsAngle(src_normal, tgt_normal);
@@ -97,6 +97,15 @@ struct RobustCorrespondence {
   }
 
   FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+                             const Vector<scalar_t, 3> &src_normal,
+                             scalar_t &u,
+                             scalar_t &v) const {
+    Vector<scalar_t, 3> tgt_point, tgt_normal;
+
+    return Match(src_point, src_normal, tgt_point, tgt_normal, u, v);
+  }
+  
+  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal, scalar_t &u,
                              scalar_t &v) const {
@@ -109,7 +118,7 @@ struct RobustCorrespondence {
     if (tgt.empty(vi, ui)) return false;
 
     tgt_point = to_vec3<scalar_t>(tgt.points[vi][ui]);
-    if ((tgt_point - src_point).squaredNorm() > distance_thresh) return false;
+    if ((tgt_point - src_point).squaredNorm() > distance_thresh*distance_thresh) return false;
 
     tgt_normal = to_vec3<scalar_t>(tgt.normals[vi][ui]);
     return true;

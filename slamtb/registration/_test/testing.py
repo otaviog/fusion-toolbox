@@ -9,7 +9,7 @@ from slamtb.metrics import (relative_rotational_error,
 from slamtb.frame import FramePointCloud
 from slamtb.surfel import SurfelCloud
 from slamtb.camera import RTCamera
-from slamtb.registration.icp import ICPVerifier
+from slamtb.registration import RegistrationVerifier
 from slamtb.viz import geoshow
 from slamtb.testing import preprocess_frame, ColorSpace
 from slamtb._utils import profile as _profile
@@ -35,7 +35,7 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     target_fpcl = FramePointCloud.from_frame(target_frame).to(device)
     source_fpcl = FramePointCloud.from_frame(source_frame).to(device)
 
-    verifier = ICPVerifier()
+    verifier = RegistrationVerifier()
     with _profile(Path(__file__).parent / str(profile_file),
                   profile_file is not None):
         for _ in range(1 if profile_file is None else 5):
@@ -120,7 +120,7 @@ def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
 
     device = "cuda:0"
 
-    verifier = ICPVerifier()
+    verifier = RegistrationVerifier()
 
     frame_args = {
         'filter_depth': filter_depth,

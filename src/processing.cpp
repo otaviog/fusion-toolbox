@@ -10,6 +10,7 @@ void Processing::RegisterPybind(pybind11::module &m) {
       .def_static("estimate_normals", &EstimateNormals)
       .def_static("downsample_xyz", &DownsampleXYZ)
       .def_static("downsample_mask", &DownsampleMask)
+      .def_static("downsample_features", &DownsampleFeatures)
       .def_static("erode_mask", &ErodeMask);
 
   py::enum_<EstimateNormalsMethod>(m, "EstimateNormalsMethod")

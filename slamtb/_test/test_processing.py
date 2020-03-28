@@ -8,7 +8,8 @@ import cv2
 import tenviz
 
 from slamtb.processing import (bilateral_depth_filter, erode_mask,
-                               estimate_normals, EstimateNormalsMethod)
+                               estimate_normals, EstimateNormalsMethod,
+                               feature_pyramid, to_color_feature)
 from slamtb.data.ftb import load_ftb
 from slamtb.camera import KCamera
 from slamtb.frame import FrameInfo, FramePointCloud
@@ -75,7 +76,8 @@ class TestFiltering(unittest.TestCase):
 
 
 class InteractiveTests:
-    def bilateral(self):
+    @staticmethod
+    def bilateral():
         """Uses bilateral_depth_filter on a sample image and compares with OpenCV.
         """
 
@@ -105,7 +107,8 @@ class InteractiveTests:
 
         plt.show()
 
-    def erode_mask(self):
+    @staticmethod
+    def erode_mask():
         depth = torch.from_numpy(cv2.imread(
             str(Path(__file__).parent / "assets" / "frame_depth.png"),
             cv2.IMREAD_ANYDEPTH).astype(np.int32))
@@ -122,7 +125,8 @@ class InteractiveTests:
 
         plt.show()
 
-    def normals(self):
+    @staticmethod
+    def normals():
         dataset = load_ftb(
             Path(__file__).parent /
             "../../test-data/rgbd/sample1")
@@ -142,7 +146,7 @@ class InteractiveTests:
         transform[1, 1] = -1
 
         with context.current():
-            points = tenviz.nodes.create_point_cloud(
+            points = tenviz.nodes.PointCloud(
                 pcl.points, pcl.colors.float()/255, point_size=8)
             points.transform = transform
             normals = tenviz.nodes.create_quiver(pcl.points, pcl.normals*.005,
@@ -150,6 +154,29 @@ class InteractiveTests:
             normals.transform = transform
         context.show([points, normals],
                      cam_manip=tenviz.CameraManipulator.WASD)
+
+    @staticmethod
+    def feature_pyramid():
+        """Tests the feature pyramid and downsample.
+        """
+        image = to_color_feature(cv2.cvtColor(
+            cv2.imread(str(Path(__file__).parent /
+                           "assets" / "frame_rgb.png")), cv2.COLOR_BGR2RGB))
+        pyramid = feature_pyramid(image, [1.0, 0.5, 0.5])
+
+        plt.figure()
+        plt.title("Scale 2")
+        plt.imshow(pyramid[0].permute(1, 2, 0).cpu())
+
+        plt.figure()
+        plt.title("Scale 1")
+        plt.imshow(pyramid[1].permute(1, 2, 0).cpu())
+
+        plt.figure()
+        plt.title("Scale 0")
+        plt.imshow(pyramid[2].permute(1, 2, 0).cpu())
+
+        plt.show()
 
 
 if __name__ == '__main__':

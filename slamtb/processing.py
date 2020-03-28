@@ -8,7 +8,6 @@ import torch.nn.functional
 from torchvision.transforms.functional import to_tensor
 import cv2
 
-
 from slamtb._cslamtb import (Processing as _Processing, EstimateNormalsMethod,
                              DownsampleXYZMethod)
 from slamtb._utils import ensure_torch, empty_ensured_size, depth_image_to_uvz
@@ -31,7 +30,7 @@ def bilateral_depth_filter(depth, mask=None, out_tensor=None, filter_width=6,
 
         filter_width (int): Bilateral filter size. Default is 6.
 
-        sigma_color (float): 
+        sigma_color (float):
 
         sigma_space (float):
 
@@ -125,40 +124,33 @@ def downsample_mask(mask, scale, dst=None):
     return dst
 
 
-class DownsampleMethod(Enum):
-    Nearest = 0
-
-
-def downsample(image, scale, method=DownsampleMethod.Nearest):
-    if False:
-        method_to_cv = {DownsampleMethod.Nearest: cv2.INTER_NEAREST}
-        device = image.device
-
-        height = int(image.size(0)*scale)
-        width = int(image.size(1)*scale)
-
-        image = cv2.resize(image.cpu().numpy(), (width, height),
-                           interpolation=method_to_cv[method])
-        image = torch.from_numpy(image).to(device)
-
-        return image
-    else:
-        method_to_torch = {DownsampleMethod.Nearest: 'nearest'}
-        return torch.nn.functional.interpolate(
-            image.unsqueeze(0), scale_factor=scale,
-            mode=method_to_torch[method]).squeeze()
+def downsample_features(feature_image, scale, dst=None):
+    """Downsam
+    """
+    dst = empty_ensured_size(dst,
+                             feature_image.size(0),
+                             int(feature_image.size(1)*scale),
+                             int(feature_image.size(2)*scale),
+                             dtype=feature_image.dtype,
+                             device=feature_image.device)
+    _Processing.downsample_features(feature_image, scale, dst)
+    return dst
 
 
 def feature_pyramid(feature_map, scales):
     pyramid = []
-    feature_map = feature_map.unsqueeze(0)
+    
+    from kornia.filters import GaussianBlur2d
+
+    blur = GaussianBlur2d((3, 3), (0.849, 0.849))
 
     for scale in scales:
         if scale < 1.0:
-            feature_map = torch.nn.functional.interpolate(
-                feature_map, scale_factor=scale, mode='bilinear',
-                align_corners=False)
-            pyramid.append(feature_map.squeeze(0))
+            feature_map = downsample_features(
+                #blur(feature_map.unsqueeze(0)).squeeze(0),
+                feature_map,
+                scale)
+        pyramid.append(feature_map)
 
     pyramid.reverse()
     return pyramid
@@ -185,6 +177,7 @@ class ColorSpace(Enum):
     """
     RGB = 0
     GRAY = 1
+    INTENSITY = 1
     LAB = 2
     HSV = 3
 
@@ -197,11 +190,14 @@ def to_color_feature(rgb_image, color_space=ColorSpace.RGB, blur=False):
     if blur:
         features = cv2.blur(features, (5, 5))
 
-    if color_space == ColorSpace.LAB:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2LAB)
-    elif color_space == ColorSpace.HSV:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2HSV)
-    elif color_space == ColorSpace.GRAY:
-        features = cv2.cvtColor(features, cv2.COLOR_RGB2GRAY)
+    stb2cv2 = {
+        ColorSpace.LAB: cv2.COLOR_RGB2LAB,
+        ColorSpace.HSV: cv2.COLOR_RGB2HSV,
+        ColorSpace.GRAY: cv2.COLOR_RGB2GRAY,
+        ColorSpace.INTENSITY: cv2.COLOR_RGB2GRAY
+    }
+
+    if color_space != ColorSpace.RGB:
+        features = cv2.cvtColor(features, stb2cv2[color_space])
 
     return to_tensor(features)

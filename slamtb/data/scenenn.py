@@ -147,6 +147,7 @@ def load_scenenn(oni_filepath, traj_filepath, k_cam_dev='asus',
     if mask_dirpath is not None:
         mask_file_list = natsort.natsorted(
             [str(filepath) for filepath in Path(mask_dirpath).glob("*.png")])
-
+        if len(mask_file_list) == 0:
+            mask_file_list = None
     return SceneNN(oni_filepath, trajectory, k_cams[k_cam_dev],
                    mask_file_list=mask_file_list)

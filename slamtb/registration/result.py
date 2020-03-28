@@ -30,7 +30,7 @@ class RegistrationResult:
         self.match_ratio = match_ratio
 
     def __str__(self):
-        return (f"ICPResult with: "
+        return (f"RegistrationResult with: "
                 + f"transform = {self.transform} "
                 + f"hessian = {self.hessian} "
                 + f"residual = {self.residual} "
@@ -67,22 +67,23 @@ class RegistrationVerifier:
         self.covariance_max_threshold = covariance_max_threshold
         self.residual_threshhold = residual_threshhold
 
-    def __call__(self, icp_result):
-        if icp_result.residual < self.residual_threshhold:
+    def __call__(self, result):
+
+        if result.residual < self.residual_threshhold:
             return True
 
-        if icp_result.hessian is not None:
-            covariance = icp_result.hessian.lu()[0].inverse()
+        if result.hessian is not None:
+            covariance = result.hessian.lu()[0].inverse()
             if torch.any(covariance > self.covariance_max_threshold):
                 return False
 
-        if icp_result.match_ratio < self.match_ratio_threshold:
+        if result.match_ratio < self.match_ratio_threshold:
             return False
 
         return True
 
     def __str__(self):
-        return (f"ICPVerifier with: match_ratio_threshold = {self.match_ratio_threshold} "
+        return (f"RegistrationVerifier with: match_ratio_threshold = {self.match_ratio_threshold} "
                 + f"covariance_max_threshold = {self.covariance_max_threshold}")
 
     def __repr__(self):

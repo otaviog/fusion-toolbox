@@ -31,6 +31,9 @@ struct Processing {
   static void DownsampleMask(const torch::Tensor &mask, float scale,
                              torch::Tensor dst);
 
+  static void DownsampleFeatures(const torch::Tensor &feature_image,
+                                float scale, torch::Tensor dst);
+  
   static void ErodeMask(const torch::Tensor &in_mask, torch::Tensor out_mask);
 
   static void RegisterPybind(pybind11::module &m);

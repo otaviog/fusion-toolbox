@@ -227,44 +227,6 @@ class Frame:
         return textwrap.dedent(s)
 
 
-class _DepthImagePointCloud:
-    def __init__(self, depth_image, finfo):
-        depth_image = ensure_torch(depth_image)
-        self.depth_image = (depth_image.float()*finfo.depth_scale +
-                            finfo.depth_bias)
-
-        self.mask = depth_image > 0
-        device = self.depth_image.device
-
-        self.kcam = finfo.kcam
-
-        ys, xs = torch.meshgrid(torch.arange(self.depth_image.size(0), dtype=torch.float),
-                                torch.arange(self.depth_image.size(1), dtype=torch.float))
-
-        self.image_points = torch.stack(
-            [xs.to(device), ys.to(device), self.depth_image], 2)
-
-        self._points = None
-
-    @property
-    def points(self):
-        """Points in the camera space.
-
-        Returns:
-            (:obj:`numpy.ndarray`): (H x W x 3] array of points in the
-             camera space.
-
-        """
-
-        if self._points is None:
-            if self.kcam is None:
-                raise RuntimeError("Frame doesn't have intrinsics camera")
-
-            self._points = self.kcam.backproject(
-                self.image_points.reshape(-1, 3)).reshape(self.image_points.shape)
-        return self._points
-
-
 class FramePointCloud:
     """A point cloud still embedded on its frame. This representation is
     useful for retrieving point cloud data by pixel coordinates.
@@ -320,8 +282,9 @@ class FramePointCloud:
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
-        mask = depth_image > 0
+        mask = (depth_image > 0) & (image_points[:, :, 2] < 4.0)
         mask = erode_mask(mask)
+
         if frame.seg_image is not None and ignore_seg_background:
             mask = torch.logical_and(
                 torch.from_numpy(frame.seg_image > 0), mask)
@@ -417,7 +380,7 @@ class FramePointCloud:
 
         return pcl
 
-    def downsample(self, scale, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+    def downsample(self, scale, downsample_xyz_method=DownsampleXYZMethod.Nearest, colored=True):
         """Downsample the point cloud.
 
         Args:
@@ -433,26 +396,28 @@ class FramePointCloud:
 
         points = downsample_xyz(self.points, self.mask, scale,
                                 method=downsample_xyz_method)
-        mask = downsample_mask(self.mask, scale)
-
         normals = None
         if self._normals is not None:
             normals = downsample_xyz(self._normals, self.mask, scale,
                                      normalize=True,
                                      method=downsample_xyz_method)
 
-        colors = self.colors.transpose(
-            1, 2).transpose(1, 0).unsqueeze(0).float()
-        colors = interpolate(colors, scale_factor=scale, mode='bilinear',
-                             align_corners=False)
-        colors = colors.squeeze().transpose(0, 1).transpose(2, 1).byte()
+        mask = downsample_mask(self.mask, scale)
+
+        colors = None
+        if colored:
+            colors = self.colors.permute(2, 0, 1).unsqueeze(0).float()
+            colors = interpolate(colors, scale_factor=scale, mode='bilinear',
+                                 align_corners=False)
+            colors = colors.squeeze(0).permute(1, 2, 0).byte()
         kcam = self.kcam.scaled(scale)
 
         return FramePointCloud(None, mask, kcam, rt_cam=self.rt_cam,
                                points=points, normals=normals,
                                colors=colors)
 
-    def pyramid(self, scales, downsample_xyz_method=DownsampleXYZMethod.Nearest):
+    def pyramid(self, scales, downsample_xyz_method=DownsampleXYZMethod.Nearest,
+                colored=False):
         """Create a multiple scale pyramid for this point cloud.
 
         Args:
@@ -475,7 +440,8 @@ class FramePointCloud:
         for scale in scales:
             if scale < 1.0:
                 curr = curr.downsample(
-                    scale, downsample_xyz_method=downsample_xyz_method)
+                    scale, downsample_xyz_method=downsample_xyz_method,
+                    colored=colored)
             pyramid.append(curr)
 
         pyramid.reverse()
@@ -548,21 +514,27 @@ class FramePointCloud:
 
         plt.figure()
         plt.subplot(2, 3, 1)
+        plt.title("X-values")
         plt.imshow(self.points[:, :, 0].cpu().numpy())
 
         plt.subplot(2, 3, 2)
+        plt.title("Y-values")
         plt.imshow(self.points[:, :, 1].cpu().numpy())
 
         plt.subplot(2, 3, 3)
+        plt.title("Z-values")
         plt.imshow(self.points[:, :, 2].cpu().numpy())
 
         plt.subplot(2, 3, 4)
+        plt.title("Mask")
         plt.imshow(self.mask.cpu().numpy())
 
         plt.subplot(2, 3, 5)
+        plt.title("Colors")
         plt.imshow(self.colors.cpu().numpy())
 
         plt.subplot(2, 3, 6)
+        plt.title("Normals")
         plt.imshow(self.normals.cpu().numpy())
 
         if show:

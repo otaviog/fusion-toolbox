@@ -134,10 +134,10 @@ struct ICPJacobian {
   static int EstimateFeature(
       const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
       const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
-      const torch::Tensor &src_points, const torch::Tensor &src_feats,
-      const torch::Tensor &src_mask, const torch::Tensor &kcam,
-      const torch::Tensor &rt_cam, float distance_thresh,
-      float normals_angle_thresh, float resdidual_thresh,
+      const torch::Tensor &src_points, const torch::Tensor &src_normals,
+      const torch::Tensor &src_feats, const torch::Tensor &src_mask,
+      const torch::Tensor &kcam, const torch::Tensor &rt_cam,
+      float distance_thresh, float normals_angle_thresh, float resdidual_thresh,
       torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
       torch::Tensor squared_residual);
 
@@ -197,10 +197,10 @@ struct ICPJacobian {
   static int EstimateFeatureSO3(
       const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
       const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
-      const torch::Tensor &src_points, const torch::Tensor &src_feats,
-      const torch::Tensor &src_mask, const torch::Tensor &kcam,
-      const torch::Tensor &rt_cam, float distance_thresh,
-      float normals_angle_thresh, float resdidual_thresh,
+      const torch::Tensor &src_points, const torch::Tensor &src_normals,
+      const torch::Tensor &src_feats, const torch::Tensor &src_mask,
+      const torch::Tensor &kcam, const torch::Tensor &rt_cam,
+      float distance_thresh, float normals_angle_thresh, float resdidual_thresh,
       torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
       torch::Tensor squared_residual);
 

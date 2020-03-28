@@ -7,12 +7,12 @@ import math
 import fire
 
 from slamtb.data.ftb import load_ftb
-from slamtb.registration.autogradicp import (
-    AutogradICP, MultiscaleAutogradICP,
-    AGICPOptions)
+from slamtb.registration import MultiscaleRegistration
+from slamtb.registration.autogradicp import AutogradICP
 from slamtb.testing import ColorSpace
 
-from .testing import (run_trajectory_test, run_pair_test,
+from .testing import (run_trajectory_test,
+                      run_pair_test,
                       run_pcl_pair_test)
 
 # pylint: disable=no-self-use
@@ -94,10 +94,10 @@ class _Tests:
         """Use multiscale depth information of a real scene.
         """
         run_pair_test(
-            MultiscaleAutogradICP([
-                AGICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
-                AGICPOptions(0.5, 10, geom_weight=1, feat_weight=0),
-                AGICPOptions(0.5, 5, geom_weight=1, feat_weight=0)]),
+            MultiscaleRegistration([
+                (1.0, AutogradICP(15, geom_weight=1, feat_weight=0)),
+                (0.5, AutogradICP(10, geom_weight=1, feat_weight=0)),
+                (0.5, AutogradICP(5, geom_weight=1, feat_weight=0))]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -106,10 +106,10 @@ class _Tests:
         """Use multiscale depth information of a synthetic scene.
         """
         run_pair_test(
-            MultiscaleAutogradICP([
-                AGICPOptions(1.0, 15, geom_weight=1, feat_weight=0),
-                AGICPOptions(0.5, 10, geom_weight=1, feat_weight=0),
-                AGICPOptions(0.5, 5, geom_weight=1, feat_weight=0)]),
+            MultiscaleRegistration([
+                (1.0, AutogradICP(15, geom_weight=1, feat_weight=0)),
+                (0.5, AutogradICP(10, geom_weight=1, feat_weight=0)),
+                (0.5, AutogradICP(5, geom_weight=1, feat_weight=0))]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -118,10 +118,10 @@ class _Tests:
         """Use multiscale RGB information of a real scene.
         """
         run_pair_test(
-            MultiscaleAutogradICP([
-                AGICPOptions(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOptions(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOptions(0.5, 5, 0.05, geom_weight=0, feat_weight=1)
+            MultiscaleRegistration([
+                (1.0, AutogradICP(20, 0.05, geom_weight=0, feat_weight=1)),
+                (0.5, AutogradICP(10, 0.05, geom_weight=0, feat_weight=1)),
+                (0.5, AutogradICP(5, 0.05, geom_weight=0, feat_weight=1))
             ]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
@@ -131,10 +131,10 @@ class _Tests:
         """Use multiscale RGB information of a synthetic scene.
         """
         run_pair_test(
-            MultiscaleAutogradICP([
-                AGICPOptions(1.0, 20, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOptions(0.5, 10, 0.05, geom_weight=0, feat_weight=1),
-                AGICPOptions(0.5, 5, 0.05, geom_weight=0, feat_weight=1)]),
+            MultiscaleRegistration([
+                (1.0, AutogradICP(20, 0.05, geom_weight=0, feat_weight=1)),
+                (0.5, AutogradICP(10, 0.05, geom_weight=0, feat_weight=1)),
+                (0.5, AutogradICP(5, 0.05, geom_weight=0, feat_weight=1))]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -143,11 +143,10 @@ class _Tests:
         """Use multiscale RGB+depth information of a real scene.
         """
         run_pair_test(
-            MultiscaleAutogradICP([
-                AGICPOptions(1.0, 20, 0.05, geom_weight=10, feat_weight=1),
-                AGICPOptions(0.5, 15, 0.05, geom_weight=10, feat_weight=1),
-                AGICPOptions(0.5, 10, 0.05, geom_weight=10, feat_weight=1),
-            ]),
+            MultiscaleRegistration([
+                (1.0, AutogradICP(20, 0.05, geom_weight=10, feat_weight=1)),
+                (0.5, AutogradICP(15, 0.05, geom_weight=10, feat_weight=1)),
+                (0.5, AutogradICP(10, 0.05, geom_weight=10, feat_weight=1))]),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -156,10 +155,10 @@ class _Tests:
         """Use multiscale RGB+depth information of a synthetic scene.
         """
         run_pair_test(
-            MultiscaleAutogradICP([
-                AGICPOptions(1.0, 10, geom_weight=10, feat_weight=1),
-                AGICPOptions(0.5, 10, geom_weight=10, feat_weight=1),
-                AGICPOptions(0.5, 10, geom_weight=10, feat_weight=1)]),
+            MultiscaleRegistration([
+                AutogradICP(1.0, 10, geom_weight=10, feat_weight=1),
+                AutogradICP(0.5, 10, geom_weight=10, feat_weight=1),
+                AutogradICP(0.5, 10, geom_weight=10, feat_weight=1)]),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -168,10 +167,10 @@ class _Tests:
         """Test mulstiscale RGB and depth alignment on a a synthetic trajectory.
         """
 
-        icp = MultiscaleAutogradICP([
-            AGICPOptions(1.0, 50, 0.05, geom_weight=1, feat_weight=0),
-            AGICPOptions(0.5, 50, 0.05, geom_weight=1, feat_weight=0),
-            AGICPOptions(0.5, 50, 0.05, geom_weight=1, feat_weight=0)
+        icp = MultiscaleRegistration([
+            (1.0, AutogradICP(50, 0.05, geom_weight=1, feat_weight=0)),
+            (0.5, AutogradICP(50, 0.05, geom_weight=1, feat_weight=0)),
+            (0.5, AutogradICP(50, 0.05, geom_weight=1, feat_weight=0))
         ])
 
         dataset = load_ftb(_TEST_DATA / "sample1")
@@ -207,20 +206,19 @@ class _Tests:
 
         dataset = load_ftb(_TEST_DATA / "sample1")
 
-        icp = MultiscaleAutogradICP(
-            [AGICPOptions(-1, iters=600, learning_rate=0.1,
-                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
-                          distance_threshold=0.1, normals_angle_thresh=math.pi/4,
-                          feat_residual_thresh=0.005),
-             AGICPOptions(0.025, 300, learning_rate=0.1,
-                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
-                          distance_threshold=0.1, normals_angle_thresh=math.pi/4,
-                          feat_residual_thresh=0.5),
-             AGICPOptions(0.05, 300, learning_rate=0.1,
-                          geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
-                          distance_threshold=0.1, normals_angle_thresh=math.pi/4,
-                          feat_residual_thresh=0.5),
-             ])
+        icp = MultiscaleRegistration(
+            [(-1, AutogradICP(600, learning_rate=0.1,
+                              geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
+                              distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                              feat_residual_thresh=0.005)),
+             (0.025, AutogradICP(300, learning_rate=0.1,
+                                 geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
+                                 distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                                 feat_residual_thresh=0.5)),
+             (0.05, AutogradICP(300, learning_rate=0.1,
+                                geom_weight=10, feat_weight=1.0, huber_loss_alpha=4,
+                                distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                                feat_residual_thresh=0.5))])
 
         run_pcl_pair_test(icp, dataset,
                           profile_file=Path(__file__).parent /
