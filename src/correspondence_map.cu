@@ -45,7 +45,7 @@ struct CorrespondenceMapKernel {
         rt_cam.TransformNormal(to_vec3<scalar_t>(source_normals[idx]));
 
     scalar_t u, v;
-    if (!corresp.Match(Tsrc_point, u, v)) {
+    if (!corresp.Match(Tsrc_point, Tsrc_normal, u, v)) {
       return;
     }
 

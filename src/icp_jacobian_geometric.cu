@@ -7,18 +7,23 @@
 #include "error.hpp"
 #include "icp_jacobian_common.hpp"
 #include "kernel.hpp"
+#include "merge_map.hpp"
 
 namespace slamtb {
 
 namespace {
-template <Device dev, typename scalar_t, typename Correspondence>
+template <Device dev, typename scalar_t>
 struct GeometricJacobianKernel {
-  const Correspondence corresp;
   const typename Accessor<dev, scalar_t, 2>::T src_points;
-  const typename Accessor<dev, scalar_t, 2>::T src_normals;
   const typename Accessor<dev, bool, 1>::T src_mask;
 
   const RigidTransform<scalar_t> rt_cam;
+
+  const typename Accessor<dev, float, 3>::T target_points;
+  const typename Accessor<dev, float, 3>::T target_normals;
+  const KCamera<dev, scalar_t> kcam;
+
+  MergeMapAccessor<dev> merge_map;
 
   typename Accessor<dev, scalar_t, 3>::T JtJ_partial;
   typename Accessor<dev, scalar_t, 2>::T Jtr_partial;
@@ -26,40 +31,51 @@ struct GeometricJacobianKernel {
 
   AtomicInt<dev> match_count;
 
-  GeometricJacobianKernel(Correspondence corresp,
-                          const torch::Tensor &src_points,
-                          const torch::Tensor &src_normals,
-                          const torch::Tensor &src_mask,
-                          const torch::Tensor &rt_cam,
-                          torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
-                          torch::Tensor squared_residual,
-                          AtomicInt<dev> match_count)
-      : corresp(corresp),
-        src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
-        src_normals(Accessor<dev, scalar_t, 2>::Get(src_normals)),
+  GeometricJacobianKernel(
+      const torch::Tensor &src_points, const torch::Tensor &src_mask,
+      const torch::Tensor &rt_cam, const torch::Tensor &target_points,
+      const torch::Tensor &target_normals, const torch::Tensor &kcam,
+      const torch::Tensor &merge_map, torch::Tensor JtJ_partial,
+      torch::Tensor Jtr_partial, torch::Tensor squared_residual,
+      AtomicInt<dev> match_count)
+      : src_points(Accessor<dev, scalar_t, 2>::Get(src_points)),
         src_mask(Accessor<dev, bool, 1>::Get(src_mask)),
         rt_cam(rt_cam),
+        target_points(Accessor<dev, float, 3>::Get(target_points)),
+        target_normals(Accessor<dev, float, 3>::Get(target_normals)),
+        kcam(kcam),
+        merge_map(merge_map),
         JtJ_partial(Accessor<dev, scalar_t, 3>::Get(JtJ_partial)),
         Jtr_partial(Accessor<dev, scalar_t, 2>::Get(Jtr_partial)),
         squared_residual(Accessor<dev, scalar_t, 1>::Get(squared_residual)),
         match_count(match_count) {}
-  
+
 #pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(int source_idx) {
-    SE3ICPJacobian<dev, scalar_t> jacobian(JtJ_partial[source_idx], Jtr_partial[source_idx]);
+    SE3ICPJacobian<dev, scalar_t> jacobian(JtJ_partial[source_idx],
+                                           Jtr_partial[source_idx]);
     squared_residual[source_idx] = 0;
     if (!src_mask[source_idx]) return;
 
     const Vector<scalar_t, 3> Tsrc_point =
         rt_cam.Transform(to_vec3<scalar_t>(src_points[source_idx]));
-    const Vector<scalar_t, 3> Tsrc_normal =
-        rt_cam.TransformNormal(to_vec3<scalar_t>(src_normals[source_idx]));
 
-    Vector<scalar_t, 3> tgt_point;
-    Vector<scalar_t, 3> tgt_normal;
-    if (!corresp.Match(Tsrc_point, Tsrc_normal, tgt_point, tgt_normal)) {
+    int ui, vi;
+    kcam.Projecti(Tsrc_point, ui, vi);
+    
+    if (ui < 0 || ui >= target_points.size(1) || vi < 0 ||
+        vi >= target_points.size(0))
+      return;
+
+    const int32_t target_index = merge_map(vi, ui);
+    if (target_index != source_idx) {
       return;
     }
+
+    const Vector<scalar_t, 3> tgt_point(
+        to_vec3<scalar_t>(target_points[vi][ui]));
+    const Vector<scalar_t, 3> tgt_normal(
+        to_vec3<scalar_t>(target_normals[vi][ui]));
 
     ++match_count;
 
@@ -72,23 +88,20 @@ struct GeometricJacobianKernel {
 }  // namespace
 
 int ICPJacobian::EstimateGeometric(
-    const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
-    const torch::Tensor &tgt_mask, const torch::Tensor &src_points,
-    const torch::Tensor &src_normals, const torch::Tensor &src_mask,
-    const torch::Tensor &kcam, const torch::Tensor &rt_cam,
-    float distance_thresh, float normals_angle_thresh,
-    torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
-    torch::Tensor squared_residual) {
+    const torch::Tensor &src_points, const torch::Tensor &src_mask,
+    const torch::Tensor &rt_cam, const torch::Tensor &tgt_points,
+    const torch::Tensor &tgt_normals, const torch::Tensor &kcam,
+    const torch::Tensor &merge_map, torch::Tensor JtJ_partial,
+    torch::Tensor Jr_partial, torch::Tensor squared_residual) {
   const auto reference_dev = src_points.device();
 
   FTB_CHECK_DEVICE(reference_dev, tgt_points);
   FTB_CHECK_DEVICE(reference_dev, tgt_normals);
-  FTB_CHECK_DEVICE(reference_dev, tgt_mask);
 
   FTB_CHECK_DEVICE(reference_dev, src_mask);
-  FTB_CHECK_DEVICE(reference_dev, src_normals);
   FTB_CHECK_DEVICE(reference_dev, kcam);
   FTB_CHECK_DEVICE(reference_dev, rt_cam);
+  FTB_CHECK_DEVICE(reference_dev, merge_map);
 
   FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
   FTB_CHECK_DEVICE(reference_dev, Jr_partial);
@@ -101,13 +114,10 @@ int ICPJacobian::EstimateGeometric(
         src_points.scalar_type(), "EstimateICPJacobian", [&] {
           ScopedAtomicInt<kCUDA> match_count;
 
-          typedef RobustCorrespondence<kCUDA, scalar_t> Correspondence;
-
-          GeometricJacobianKernel<kCUDA, scalar_t, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
-                             distance_thresh, normals_angle_thresh),
-              src_points, src_normals, src_mask, rt_cam, JtJ_partial,
-              Jr_partial, squared_residual, match_count.get());
+          GeometricJacobianKernel<kCUDA, scalar_t> kernel(
+              src_points, src_mask, rt_cam, tgt_points, tgt_normals, kcam,
+              merge_map, JtJ_partial, Jr_partial, squared_residual,
+              match_count.get());
 
           Launch1DKernelCUDA(kernel, src_points.size(0));
 
@@ -118,13 +128,10 @@ int ICPJacobian::EstimateGeometric(
         src_points.scalar_type(), "EstimateICPJacobian", [&] {
           ScopedAtomicInt<kCPU> match_count;
 
-          typedef RobustCorrespondence<kCPU, scalar_t> Correspondence;
-
-          GeometricJacobianKernel<kCPU, scalar_t, Correspondence> kernel(
-              Correspondence(tgt_points, tgt_normals, tgt_mask, kcam,
-                             distance_thresh, normals_angle_thresh),
-              src_points, src_normals, src_mask, rt_cam, JtJ_partial,
-              Jr_partial, squared_residual, match_count.get());
+          GeometricJacobianKernel<kCPU, scalar_t> kernel(
+              src_points, src_mask, rt_cam, tgt_points, tgt_normals, kcam,
+              merge_map, JtJ_partial, Jr_partial, squared_residual,
+              match_count.get());
           Launch1DKernelCPU(kernel, src_points.size(0));
 
           num_matches = match_count;

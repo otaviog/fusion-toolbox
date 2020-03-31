@@ -47,30 +47,28 @@ class _JacobianStep:
             self.residual, source_points.size(0),
             device=device, dtype=dtype)
 
+        corresp_map_func = CorrespondenceMap(self.distance_threshold,
+                                             self.normals_angle_thresh)
+        corresp_map = corresp_map_func(
+            source_points, source_normals, source_mask,
+            transform.to(dtype),
+            target_points, target_normals, target_mask,
+            kcam)
+
         if not self.so3:
             if self.geom:
-
                 match_count = _ICPJacobian.estimate_geometric(
-                    target_points, target_normals, target_mask,
-                    source_points, source_normals, source_mask,
-                    kcam, transform.to(dtype),
-                    self.distance_threshold, self.normals_angle_thresh,
+                    source_points, source_mask,
+                    transform.to(dtype),
+                    target_points, target_normals, kcam, corresp_map,
                     self.JtJ, self.Jtr, self.residual)
             else:
-                corresp_map_func = CorrespondenceMap(self.distance_threshold,
-                                                     self.normals_angle_thresh)
-                corresp_map = corresp_map_func(
-                    source_points, source_normals, source_mask,
-                    transform.to(dtype),
-                    target_points, target_normals, target_mask,
-                    kcam)
 
                 match_count = _ICPJacobian.estimate_feature(
                     source_points, source_feats, source_mask, transform.to(
                         dtype),
                     target_feats, kcam, corresp_map, self.feat_residual_thresh,
                     self.JtJ, self.Jtr, self.residual)
-                print(match_count)
         else:
             match_count = _ICPJacobian.estimate_feature_so3(
                 target_points, target_normals, target_feats,

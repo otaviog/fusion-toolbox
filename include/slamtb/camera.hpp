@@ -28,19 +28,6 @@ struct KCamera {
   KCamera(const torch::Tensor matrix)
       : matrix(Accessor<dev, scalar_t, 2>::Get(matrix)) {}
 
-  /**
-   * Forward project a 3D point into a 2D one, and round to integer.
-   *
-   * @param point The 3D point.
-   */
-  FTB_DEVICE_HOST Eigen::Vector2i Project(
-      const Vector<scalar_t, 3> point) const {
-    const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
-    const scalar_t img_y = matrix[1][1] * point[1] / point[2] + matrix[1][2];
-
-    return Eigen::Vector2i(round(img_x), round(img_y));
-  }
-
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif

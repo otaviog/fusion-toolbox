@@ -44,7 +44,7 @@ def preprocess_frame(frame, scale=1, filter_depth=True, color_space=ColorSpace.L
                 mask.to("cuda:0")).numpy()
 
         frame.normal_image = estimate_normals(normal_depth_image, frame.info,
-                                              mask)
+                                              mask).cpu().numpy()
 
     features = to_color_feature(
         frame.rgb_image, blur=blur, color_space=color_space)

@@ -15,13 +15,11 @@ from .testing import run_trajectory_test, run_pair_test
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=14, color_space=ColorSpace.GRAY,
-                            blur=False, filter_depth=False,
-                            #device="cuda:0"
-                            device="cpu"
-)
+                            blur=False, filter_depth=False, compute_normals=True,
+                            device="cuda:0")
 
 REAL_FRAME_ARGS = dict(frame1_idx=14, color_space=ColorSpace.LAB,
-                       blur=True, filter_depth=True)
+                       blur=True, filter_depth=True, compute_normals=True)
 
 
 class _Tests:
