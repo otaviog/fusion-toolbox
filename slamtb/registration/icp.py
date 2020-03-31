@@ -6,7 +6,9 @@ import torch
 from tenviz.pose import SE3, SO3
 
 from slamtb.frame import FramePointCloud, Frame
+from .correspondence_map import CorrespondenceMap
 from slamtb._cslamtb import ICPJacobian as _ICPJacobian
+
 from slamtb._utils import empty_ensured_size
 
 from .result import RegistrationResult
@@ -55,12 +57,20 @@ class _JacobianStep:
                     self.distance_threshold, self.normals_angle_thresh,
                     self.JtJ, self.Jtr, self.residual)
             else:
+                corresp_map_func = CorrespondenceMap(self.distance_threshold,
+                                                     self.normals_angle_thresh)
+                corresp_map = corresp_map_func(
+                    source_points, source_normals, source_mask,
+                    transform.to(dtype),
+                    target_points, target_normals, target_mask,
+                    kcam)
+
                 match_count = _ICPJacobian.estimate_feature(
-                    target_points, target_normals, target_feats,
-                    target_mask, source_points, source_normals,
-                    source_feats, source_mask, kcam, transform.to(dtype),
-                    self.distance_threshold, self.normals_angle_thresh, self.feat_residual_thresh,
+                    source_points, source_feats, source_mask, transform.to(
+                        dtype),
+                    target_feats, kcam, corresp_map, self.feat_residual_thresh,
                     self.JtJ, self.Jtr, self.residual)
+                print(match_count)
         else:
             match_count = _ICPJacobian.estimate_feature_so3(
                 target_points, target_normals, target_feats,
@@ -103,8 +113,8 @@ class ICPOdometry:
     """
 
     def __init__(self, num_iters, geom_weight=1.0, feat_weight=1.0, so3=False,
-                 distance_threshold=.1, normals_angle_thresh=math.pi/8,
-                 feat_residual_thresh=.5):
+                 distance_threshold=.5, normals_angle_thresh=math.pi/4,
+                 feat_residual_thresh=2.75):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight

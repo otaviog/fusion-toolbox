@@ -22,8 +22,12 @@ slamtb.spatial.trigoctree:
 slamtb.registration.se3:
 	python3 -m unittest slamtb.registration._test.test_se3
 
+slamtb.registration.correspondence_map:
+	python3 -m unittest slamtb.registration._test.test_correspondence_map
+
 slamtb.spatial.kdtreelayer:
 	python3 -m unittest slamtb.spatial._test.test_kdtree_layer
 
 slamtb.spatial.fpcl_matcher:
 	python3 -m unittest slamtb.spatial._test.test_fpcl_matcher
+

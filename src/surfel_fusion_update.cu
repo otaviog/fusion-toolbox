@@ -5,10 +5,11 @@
 #include "camera.hpp"
 #include "kernel.hpp"
 #include "math.hpp"
+#include "merge_map.hpp"
 #include "surfel_fusion_common.hpp"
 
 namespace slamtb {
-
+namespace {
 template <Device dev>
 struct FindMergeKernel {
   const IndexMapAccessor<dev> model_indexmap;
@@ -97,8 +98,7 @@ struct FindMergeKernel {
     }
 
     if (best_dist < NumericLimits<dev, float>::infinity()) {
-      merge_map.Set(best_row, best_col, int32_t(double(best_dist) * 1e15),
-                    live_index);
+      merge_map.Set(best_row, best_col, best_dist, live_index);
       new_surfels_map[live_index] = false;
     }
   }
@@ -109,7 +109,7 @@ struct UpdateKernel {
   const IndexMapAccessor<dev> model_indexmap;
   const SurfelCloudAccessor<dev> live_surfels;
 
-  typename Accessor<dev, int32_t, 3>::T model_merge_map;
+  MergeMapAccessor<dev> model_merge_map;
 
   const RigidTransform<float> rt_cam;
   const int time;
@@ -121,16 +121,16 @@ struct UpdateKernel {
                const torch::Tensor &rt_cam, int time, MappedSurfelModel model)
       : model_indexmap(model_indexmap),
         live_surfels(live_surfels),
-        model_merge_map(Accessor<dev, int32_t, 3>::Get(model_merge_map)),
+        model_merge_map(model_merge_map),
         rt_cam(rt_cam),
         time(time),
         model(model) {}
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
     if (model_indexmap.empty(row, col)) return;
-    const int32_t live_index = model_merge_map[row][col][1];
+    const int32_t live_index = model_merge_map(row, col);
 
-    if (live_index == INT_MAX) return;
+    if (live_index == 0x0fffffff) return;
 
     const int32_t model_target = model_indexmap.index(row, col);
 
@@ -138,43 +138,46 @@ struct UpdateKernel {
     const float model_conf = model.confidences[model_target];
     const float conf_total = live_conf + model_conf;
 
+    model.confidences[model_target] = conf_total;
+    model.times[model_target] = time;
+
     const float live_radius = live_surfels.radii[live_index];
     const float model_radius = model.radii[model_target];
 
-    if (live_radius < (1.0 + 0.5) * model_radius) {
-      const Vector<float, 3> live_pos(live_surfels.point(live_index));
-      const Vector<float, 3> live_world_pos = rt_cam.Transform(live_pos);
-      model.set_point(model_target,
-                         (model.point(model_target) * model_conf +
-                          live_world_pos * live_conf) /
-                             conf_total);
-      const Vector<float, 3> live_normal(live_surfels.normal(live_index));
-      const Vector<float, 3> live_world_normal =
-          rt_cam.TransformNormal(live_normal);
-      model.set_normal(model_target, (model.normal(model_target) * model_conf +
-                                      live_world_normal * live_conf) /
-                                         conf_total);
-
-      const Vector<float, 3> live_color(live_surfels.color(live_index));
-      model.set_color(model_target, (model.color(model_target) * model_conf +
-                                     live_color * live_conf) /
-                                        conf_total);
-      const int64_t feature_size =
-          min(model.features.size(0), live_surfels.features.size(0));
-      const int live_height = live_surfels.features.size(1);
-      for (int64_t i = 0; i < feature_size; ++i) {
-        const float model_feat_channel = model.features[i][model_target];
-        const float live_feat_channel = live_surfels.features[i][live_index];
-
-        model.features[i][model_target] =
-            (model_feat_channel * model_conf + live_feat_channel * live_conf) /
-            conf_total;
-      }
+    if (live_radius >= (1.0 + 0.5) * model_radius) {
+      return;
     }
-    model.confidences[model_target] = conf_total;
-    model.times[model_target] = time;
+
+    const Vector<float, 3> live_pos(live_surfels.point(live_index));
+    const Vector<float, 3> live_world_pos = rt_cam.Transform(live_pos);
+    model.set_point(model_target, (model.point(model_target) * model_conf +
+                                   live_world_pos * live_conf) /
+                    conf_total);
+    const Vector<float, 3> live_normal(live_surfels.normal(live_index));
+    const Vector<float, 3> live_world_normal =
+        rt_cam.TransformNormal(live_normal);
+    model.set_normal(model_target, (model.normal(model_target) * model_conf +
+                                    live_world_normal * live_conf) /
+                                       conf_total);
+
+    const Vector<float, 3> live_color(live_surfels.color(live_index));
+    model.set_color(model_target, (model.color(model_target) * model_conf +
+                                   live_color * live_conf) /
+                                      conf_total);
+    const int64_t feature_size =
+        min(model.features.size(0), live_surfels.features.size(0));
+    const int live_height = live_surfels.features.size(1);
+    for (int64_t i = 0; i < feature_size; ++i) {
+      const float model_feat_channel = model.features[i][model_target];
+      const float live_feat_channel = live_surfels.features[i][live_index];
+
+      model.features[i][model_target] =
+          (model_feat_channel * model_conf + live_feat_channel * live_conf) /
+          conf_total;
+    }
   }
 };
+}  // namespace
 
 void SurfelFusionOp::Update(const IndexMap &model_indexmap,
                             const SurfelCloud &live_surfels,

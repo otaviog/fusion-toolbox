@@ -5,8 +5,7 @@ import torch
 from slamtb._cslamtb import SurfelFusionOp, ElasticFusionOp
 from slamtb._utils import empty_ensured_size
 
-_INT_MAX = 2147483647
-
+from ._merge_map import create_merge_map
 
 class Update:
     def __init__(self, elastic_fusion=False,
@@ -24,9 +23,8 @@ class Update:
             self._new_surfels_map,
             live_surfels.size, dtype=torch.bool,
             device=ref_device)
-
-        model_merge_map = torch.full((model_indexmap.height, model_indexmap.width, 2),
-                                     _INT_MAX, dtype=torch.int32, device=ref_device)
+        #__import__("ipdb").set_trace()
+        model_merge_map = create_merge_map(model_indexmap.width, model_indexmap.height, ref_device)
         with surfel_model.gl_context.current():
             with surfel_model.map_as_tensors(ref_device) as mapped_model:
 

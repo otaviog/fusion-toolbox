@@ -28,7 +28,7 @@ static __global__ void Exec1DKernel(Kernel kern, int size) {
  * @param size the number of elements to process.
  */
 template <typename Kernel>
-inline void Launch1DKernelCUDA(Kernel kern, int size) {
+inline void Launch1DKernelCUDA(Kernel &kern, int size) {
   CudaKernelDims kl = Get1DKernelDims(size);
   Exec1DKernel<<<kl.grid, kl.block>>>(kern, size);
   CudaCheck();
@@ -46,7 +46,7 @@ static __global__ void Exec2DKernel(Kernel kern, int width, int height) {
 }
 
 template <typename Kernel>
-inline void Launch2DKernelCUDA(Kernel kern, int width, int height) {
+inline void Launch2DKernelCUDA(Kernel &kern, int width, int height) {
   CudaKernelDims kl = Get2DKernelDims(width, height);
   Exec2DKernel<<<kl.grid, kl.block>>>(kern, width, height);
   CudaCheck();
@@ -56,7 +56,7 @@ inline void Launch2DKernelCUDA(Kernel kern, int width, int height) {
 #endif
 
 template <typename Kernel>
-inline void Launch1DKernelCPU(Kernel kern, int size, bool sequential = false) {
+inline void Launch1DKernelCPU(Kernel &kern, int size, bool sequential = false) {
   if (!sequential) {
 #ifdef NDEBUG
 #pragma omp parallel for
@@ -72,7 +72,7 @@ inline void Launch1DKernelCPU(Kernel kern, int size, bool sequential = false) {
 }
 
 template <typename Kernel>
-inline void Launch2DKernelCPU(Kernel kern, int width, int height) {
+inline void Launch2DKernelCPU(Kernel &kern, int width, int height) {
 #ifdef NDEBUG
 #pragma omp parallel for
 #endif

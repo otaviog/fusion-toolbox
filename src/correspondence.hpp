@@ -59,8 +59,8 @@ struct RobustCorrespondence {
 
   RobustCorrespondence(const torch::Tensor &points,
                        const torch::Tensor &normals, const torch::Tensor &mask,
-                       const torch::Tensor &kcam, double distance_thresh = 0.1,
-                       double angle_thresh = 3.14159254 / 4)
+                       const torch::Tensor &kcam, double distance_thresh,
+                       double angle_thresh)
       : tgt(points, normals, mask),
         kcam(kcam),
         distance_thresh(distance_thresh * distance_thresh),

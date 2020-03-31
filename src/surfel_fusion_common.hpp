@@ -138,49 +138,4 @@ struct IndexMapAccessor {
   FTB_DEVICE_HOST inline int height() const { return point_confidence.size(0); }
 };
 
-template <Device dev>
-struct MergeMap {};
-
-template <>
-struct MergeMap<kCPU> {
-  torch::TensorAccessor<int32_t, 3> merge_map;
-  static std::mutex mutex_;  // Slowest, but easy to test.
-
-  MergeMap(torch::Tensor &merge_map)
-      : merge_map(merge_map.accessor<int32_t, 3>()) {}
-
-  inline void Set(int row, int col, int32_t dist, int32_t index) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const int32_t curr_dist = merge_map[row][col][0];
-
-    if (dist < curr_dist) {
-      merge_map[row][col][0] = dist;
-      merge_map[row][col][1] = index;
-    }
-  }
-};
-
-#ifdef __CUDACC__
-template <>
-struct MergeMap<kCUDA> {
-  torch::PackedTensorAccessor32<int32_t, 3, torch::RestrictPtrTraits> merge_map;
-
-  MergeMap(torch::Tensor merge_map)
-      : merge_map(
-            merge_map
-                .packed_accessor32<int32_t, 3, torch::RestrictPtrTraits>()) {}
-
-  __device__ inline void Set(int row, int col, int32_t dist, int32_t index) {
-    int32_t *dist_addr = &merge_map[row][col][0];
-    int32_t *index_addr = &merge_map[row][col][1];
-
-    atomicMin(dist_addr, dist);
-    int32_t curr_index = *index_addr;
-    if (*dist_addr == dist) {
-      atomicCAS(index_addr, curr_index, index);
-    }
-  }
-};
-#endif
-
 }  // namespace slamtb

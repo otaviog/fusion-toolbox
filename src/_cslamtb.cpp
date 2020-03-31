@@ -38,7 +38,8 @@ PYBIND11_MODULE(_cslamtb, m) {
   TriangleMeshOctree::RegisterPybind(m);
   FPCLMatcherOp::RegisterPybind(m);
   NearestNeighborsOp::RegisterPybind(m);
-
+  CorrespondenceMap::RegisterPybind(m);
+  
   // Surfel
   SurfelOp::RegisterPybind(m);
   SurfelAllocator::RegisterPybind(m);

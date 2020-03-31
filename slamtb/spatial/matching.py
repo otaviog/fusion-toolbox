@@ -157,3 +157,4 @@ class PointCloudMatcher:
                 match_mask[(~good_norms).nonzero().flatten()] = False
 
         return matched_points, matched_normals, matched_features, match_mask
+

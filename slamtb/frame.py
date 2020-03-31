@@ -282,7 +282,7 @@ class FramePointCloud:
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
-        mask = (depth_image > 0) & (image_points[:, :, 2] < 4.0)
+        mask = (depth_image > 0) # & (image_points[:, :, 2] < 4.0)
         mask = erode_mask(mask)
 
         if frame.seg_image is not None and ignore_seg_background:

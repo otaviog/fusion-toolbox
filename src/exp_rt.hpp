@@ -23,6 +23,7 @@ struct ExpRt {
     exp_rotation = Eigen::AngleAxis<scalar_t>(v.norm(), v.normalized());
   }
 #pragma nv_exec_check_disable
+#pragma hd_warning_disable  
   FTB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 1>::Ts acc) {
     translation = Vector3(acc[0], acc[1], acc[2]);
 
@@ -31,6 +32,7 @@ struct ExpRt {
   }
 
 #pragma nv_exec_check_disable
+#pragma hd_warning_disable  
   FTB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 2>::Ts matrix) {
     translation = Vector3(matrix[0][3], matrix[1][3], matrix[2][3]);
     Matrix33 R(to_matrix<scalar_t, 3, 3>(matrix));
@@ -38,11 +40,13 @@ struct ExpRt {
   }
 
 #pragma nv_exec_check_disable
+#pragma hd_warning_disable  
   inline FTB_DEVICE_HOST Vector3 Transform(const Vector3 &point) const {
     return exp_rotation * point + translation;
   }
 
 #pragma nv_exec_check_disable
+#pragma hd_warning_disable  
   inline FTB_DEVICE_HOST Matrix34 ToMatrix() const {
     Matrix34 matrix(Matrix34::Zero());
     Matrix33 rot_matrix = exp_rotation.toRotationMatrix();
@@ -59,7 +63,9 @@ struct ExpRt {
 
     return matrix;
   }
+
 #pragma nv_exec_check_disable
+#pragma hd_warning_disable
   /**
    * This code was based on the
    *

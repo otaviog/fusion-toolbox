@@ -132,14 +132,12 @@ struct ICPJacobian {
    * @return The number of matches.
    */
   static int EstimateFeature(
-      const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
-      const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
-      const torch::Tensor &src_points, const torch::Tensor &src_normals,
-      const torch::Tensor &src_feats, const torch::Tensor &src_mask,
-      const torch::Tensor &kcam, const torch::Tensor &rt_cam,
-      float distance_thresh, float normals_angle_thresh, float resdidual_thresh,
-      torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
-      torch::Tensor squared_residual);
+      const torch::Tensor &src_points, const torch::Tensor &src_feats,
+      const torch::Tensor &src_mask, const torch::Tensor &rt_cam,
+      const torch::Tensor &tgt_feats, const torch::Tensor &kcam,
+      const torch::Tensor merge_map, float residual_thresh,
+      torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+      torch::Tensor squared_residuals);
 
   /**
    * Computes the \f$\mathfrak{so}(3)\f$ jacobian of the feature
@@ -195,14 +193,12 @@ struct ICPJacobian {
    * @return The number of matches.
    */
   static int EstimateFeatureSO3(
-      const torch::Tensor &tgt_points, const torch::Tensor &tgt_normals,
-      const torch::Tensor &tgt_feat, const torch::Tensor &tgt_mask,
-      const torch::Tensor &src_points, const torch::Tensor &src_normals,
-      const torch::Tensor &src_feats, const torch::Tensor &src_mask,
-      const torch::Tensor &kcam, const torch::Tensor &rt_cam,
-      float distance_thresh, float normals_angle_thresh, float resdidual_thresh,
-      torch::Tensor JtJ_partial, torch::Tensor Jtr_partial,
-      torch::Tensor squared_residual);
+      const torch::Tensor &src_points, const torch::Tensor &src_feats,
+      const torch::Tensor &src_mask, const torch::Tensor &rt_cam,
+      const torch::Tensor &tgt_feats, const torch::Tensor &kcam,
+      const torch::Tensor merge_map, float residual_thresh,
+      torch::Tensor JtJ_partial, torch::Tensor Jr_partial,
+      torch::Tensor squared_residuals);
 
   /**
    * Register it in Pybind.

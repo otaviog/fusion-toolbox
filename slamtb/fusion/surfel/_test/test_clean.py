@@ -1,11 +1,14 @@
-from pathlib import Path
+"""Tests only the cleaning of old surfels part from surfel fusion.
+"""
+
 
 import torch
 import numpy as np
 import tenviz
 
-from slamtb.data.ftb import load_ftb
-from slamtb.data import set_cameras_to_start_at_eye
+
+from slamtb.testing import load_sample2_dataset
+from slamtb.data import set_start_at_eye
 from slamtb.viz.surfelrender import show_surfels
 from slamtb.surfel import SurfelModel, SurfelCloud
 
@@ -17,10 +20,7 @@ _CURRENT_TIME = 5
 
 
 def _test():
-    test_data = Path(__file__).parent / "../../../../test-data/rgbd"
-
-    dataset = load_ftb(test_data / "sample2")
-    set_cameras_to_start_at_eye(dataset)
+    dataset = set_start_at_eye(load_sample2_dataset())
 
     device = torch.device("cuda:0")
     gl_context = tenviz.Context()
@@ -49,8 +49,7 @@ def _test():
     with gl_context.current():
         indexmap = raster.to_indexmap(device)
 
-    clean(frame.info.kcam.to(device),
-          frame.info.rt_cam,
+    clean(frame.info.kcam, frame.info.rt_cam,
           indexmap, _CURRENT_TIME, surfel_model, update_gl=True)
 
     show_surfels(gl_context, [prev_model, surfel_model])

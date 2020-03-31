@@ -157,9 +157,6 @@ slamtb.fusion.surfel.merge:
 slamtb.fusion.surfel.carve_space:
 	python3 -m slamtb.fusion.surfel._test.test_carve_space
 
-slamtb.fusion.surfel.remove_unstable:
-	python3 -m slamtb.fusion.surfel._test.test_remove_unstable
-
 slamtb.fusion.surfel.clean:
 	python3 -m slamtb.fusion.surfel._test.test_clean
 
@@ -168,9 +165,6 @@ slamtb.fusion.surfel.fusion:
 
 slamtb.fusion.surfel.effusion:
 	python3 -m slamtb.fusion.surfel._test.test_effusion
-
-slamtb.fusion.surfel.model-tracking:
-	python3 -m slamtb.fusion.surfel._test.test_model_tracking
 
 slamtb.pipeline.surfel_slam.real-scene:
 	python3 -m slamtb.pipeline._test.test_surfel_slam real_scene

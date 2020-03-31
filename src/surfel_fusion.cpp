@@ -11,8 +11,6 @@ namespace py = pybind11;
 
 namespace slamtb {
 
-std::mutex MergeMap<kCPU>::mutex_;
-
 void IndexMap::Synchronize() { CudaSafeCall(cudaDeviceSynchronize()); }
 
 void IndexMap::RegisterPybind(py::module &m) {

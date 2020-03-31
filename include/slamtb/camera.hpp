@@ -110,6 +110,25 @@ struct ProjectOp {
 };
 
 template <typename scalar_t>
+void InverseTranspose(const Eigen::Matrix<scalar_t, 3, 4, Eigen::DontAlign> &A,
+                      Eigen::Matrix<scalar_t, 3, 3, Eigen::DontAlign> &result) {
+  scalar_t determinant = +A(0, 0) * (A(1, 1) * A(2, 2) - A(2, 1) * A(1, 2)) -
+                         A(0, 1) * (A(1, 0) * A(2, 2) - A(1, 2) * A(2, 0)) +
+                         A(0, 2) * (A(1, 0) * A(2, 1) - A(1, 1) * A(2, 0));
+
+  scalar_t invdet = 1 / determinant;
+  result(0, 0) = (A(1, 1) * A(2, 2) - A(2, 1) * A(1, 2)) * invdet;
+  result(1, 0) = -(A(0, 1) * A(2, 2) - A(0, 2) * A(2, 1)) * invdet;
+  result(2, 0) = (A(0, 1) * A(1, 2) - A(0, 2) * A(1, 1)) * invdet;
+  result(0, 1) = -(A(1, 0) * A(2, 2) - A(1, 2) * A(2, 0)) * invdet;
+  result(1, 1) = (A(0, 0) * A(2, 2) - A(0, 2) * A(2, 0)) * invdet;
+  result(2, 1) = -(A(0, 0) * A(1, 2) - A(1, 0) * A(0, 2)) * invdet;
+  result(0, 2) = (A(1, 0) * A(2, 1) - A(2, 0) * A(1, 1)) * invdet;
+  result(1, 2) = -(A(0, 0) * A(2, 1) - A(2, 0) * A(0, 1)) * invdet;
+  result(2, 2) = (A(0, 0) * A(1, 1) - A(1, 0) * A(0, 1)) * invdet;
+}
+
+template <typename scalar_t>
 struct RigidTransform {
   Eigen::Matrix<scalar_t, 3, 4, Eigen::DontAlign> rt_matrix;
   Eigen::Matrix<scalar_t, 3, 3, Eigen::DontAlign> normal_matrix;
@@ -118,7 +137,8 @@ struct RigidTransform {
     const auto cpu_matrix = matrix.cpu();
     rt_matrix = to_matrix<scalar_t, 3, 4>(cpu_matrix.accessor<scalar_t, 2>());
     const auto rot_cpu_matrix = rt_matrix.topLeftCorner(3, 3);
-    normal_matrix = rot_cpu_matrix.inverse().transpose();
+    InverseTranspose(rt_matrix, normal_matrix);
+    // normal_matrix = rot_cpu_matrix.inverse().transpose();
   }
 
 #ifdef __CUDACC__

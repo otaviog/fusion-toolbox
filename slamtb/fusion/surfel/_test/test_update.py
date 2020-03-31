@@ -1,23 +1,25 @@
-from pathlib import Path
+"""Tests only the update part of surfel fusion
+"""
+
 import math
 
 import fire
 import torch
 import tenviz
 
-from slamtb.data.ftb import load_ftb
 from slamtb.data import set_start_at_eye
 from slamtb.viz.surfelrender import show_surfels
 from slamtb.surfel import SurfelModel, SurfelCloud
+from slamtb.testing import load_sample2_dataset
 
-from ..indexmap import ModelIndexMapRaster, show_indexmap
+from ..indexmap import ModelIndexMapRaster
 from ..update import Update
 
 
-class Tests:
-    def _test(self, elastic_fusion):
-        dataset = set_start_at_eye(
-            load_ftb(Path(__file__).parent / "../../../../test-data/rgbd"))
+class _Tests:
+    @staticmethod
+    def _test(elastic_fusion):
+        dataset = set_start_at_eye(load_sample2_dataset())
 
         device = torch.device("cpu:0")
         gl_context = tenviz.Context()
@@ -31,7 +33,7 @@ class Tests:
             frame0, time=0, confidence_weight=0.8).to(device)
         model_surfels.itransform(frame0.info.rt_cam.cam_to_world.float())
         torch.manual_seed(10)
-        # model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
+        #model_surfels.radii = torch.rand_like(model_surfels.radii)*0.0025 + 0.002
         #model_surfels.radii *= 0.25
 
         model.add_surfels(model_surfels, update_gl=True)
@@ -65,14 +67,18 @@ class Tests:
         show_surfels(gl_context,
                      [prev_model, live_surfels.transform(rt_cam.cam_to_world.float()),
                       model],
-                     title="Update test")
+                     title="Update test", invert_y=True)
 
     def vanilla(self):
+        """Test the update of our version.
+        """
         self._test(False)
 
     def ef_like(self):
+        """Test the update of elastic fusion.
+        """
         self._test(True)
 
 
 if __name__ == '__main__':
-    fire.Fire(Tests)
+    fire.Fire(_Tests)

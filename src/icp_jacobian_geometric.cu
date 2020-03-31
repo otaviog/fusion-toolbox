@@ -43,7 +43,8 @@ struct GeometricJacobianKernel {
         Jtr_partial(Accessor<dev, scalar_t, 2>::Get(Jtr_partial)),
         squared_residual(Accessor<dev, scalar_t, 1>::Get(squared_residual)),
         match_count(match_count) {}
-
+  
+#pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(int source_idx) {
     SE3ICPJacobian<dev, scalar_t> jacobian(JtJ_partial[source_idx], Jtr_partial[source_idx]);
     squared_residual[source_idx] = 0;

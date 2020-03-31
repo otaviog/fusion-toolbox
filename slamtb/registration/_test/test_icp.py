@@ -15,7 +15,10 @@ from .testing import run_trajectory_test, run_pair_test
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=14, color_space=ColorSpace.GRAY,
-                            blur=False, filter_depth=False)
+                            blur=False, filter_depth=False,
+                            #device="cuda:0"
+                            device="cpu"
+)
 
 REAL_FRAME_ARGS = dict(frame1_idx=14, color_space=ColorSpace.LAB,
                        blur=True, filter_depth=True)
@@ -50,7 +53,7 @@ class _Tests:
         """Use only RGB information of a real scene.
         """
         run_pair_test(
-            ICPOdometry(300, geom_weight=0, feat_weight=1),
+            ICPOdometry(30, geom_weight=0, feat_weight=1),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -59,7 +62,9 @@ class _Tests:
         """Use only RGB information of a synthetic scene.
         """
         run_pair_test(
-            ICPOdometry(300, geom_weight=0, feat_weight=1),
+            ICPOdometry(30, geom_weight=0, feat_weight=1,
+                        #distance_threshold=100, feat_residual_thresh=100
+            ),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 

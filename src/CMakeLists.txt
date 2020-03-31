@@ -14,6 +14,9 @@ cuda_add_library(slamtb
   icp_jacobian_geometric.cu
   icp_jacobian_feature.cu
   icp_jacobian.cpp
+
+  correspondence_map.cu
+  merge_map.cpp
   
   exp_rt_to_matrix.cu
   matrix_to_exp_rt.cu
@@ -26,6 +29,7 @@ cuda_add_library(slamtb
   nearest_neighbors.cu
   nearest_neighbors.cpp
   fpcl_matcher.cu
+  
   matching.cpp
   
   surfel.cu

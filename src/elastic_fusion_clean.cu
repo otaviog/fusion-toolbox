@@ -1,10 +1,12 @@
+#include <cuda_runtime.h>
+#include "eigen_common.hpp"
 #include "elastic_fusion.hpp"
 
 #include <torch/torch.h>
 
 #include "camera.hpp"
 #include "cuda_utils.hpp"
-#include "eigen_common.hpp"
+
 #include "error.hpp"
 #include "kernel.hpp"
 #include "math.hpp"
