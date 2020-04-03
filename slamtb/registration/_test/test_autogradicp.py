@@ -4,6 +4,7 @@
 from pathlib import Path
 import math
 
+import numpy as np
 import fire
 
 from slamtb.data.ftb import load_ftb
@@ -19,8 +20,13 @@ from .testing import (run_trajectory_test,
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame1_idx=5, color_space=ColorSpace.LAB,
-                            blur=False, filter_depth=False)
+SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=3, color_space=ColorSpace.GRAY,
+                            blur=False, filter_depth=False,
+                            view_matrix=np.array(
+                                [[-0.997461, 0, -0.0712193, 0.612169],
+                                 [-0.0168819, 0.971499, 0.23644, -1.29119],
+                                 [0.0691895, 0.237042, -0.969033, -0.336442],
+                                 [0, 0, 0, 1]]))
 
 REAL_FRAME_ARGS = dict(frame1_idx=8,
                        color_space=ColorSpace.LAB,
@@ -37,7 +43,8 @@ class _Tests:
         """
         run_pair_test(
             AutogradICP(100, geom_weight=1, feat_weight=0,
-                        distance_threshold=10, normals_angle_thresh=math.pi/2),
+                        distance_threshold=10,
+                        normals_angle_thresh=math.pi),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -46,7 +53,9 @@ class _Tests:
         """Use only depth information of a synthetic scene.
         """
         run_pair_test(
-            AutogradICP(50, geom_weight=1, feat_weight=0),
+            AutogradICP(100, geom_weight=1, feat_weight=0,
+                        learning_rate=.05,
+                        ),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 

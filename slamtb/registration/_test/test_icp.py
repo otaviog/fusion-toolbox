@@ -2,6 +2,7 @@
 """
 from pathlib import Path
 
+import numpy as np
 import fire
 
 from slamtb.data import set_start_at_eye
@@ -14,12 +15,18 @@ from .testing import run_trajectory_test, run_pair_test
 
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
-SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=14, color_space=ColorSpace.GRAY,
-                            blur=False, filter_depth=False, compute_normals=True,
-                            device="cuda:0")
+SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=3, color_space=ColorSpace.GRAY,
+                            blur=False, filter_depth=False,
+                            view_matrix=np.array(
+                                [[-0.997461, 0, -0.0712193, 0.612169],
+                                 [-0.0168819, 0.971499, 0.23644, -1.29119],
+                                 [0.0691895, 0.237042, -0.969033, -0.336442],
+                                 [0, 0, 0, 1]]),
+                            device="cuda:0",
+                            )
 
 REAL_FRAME_ARGS = dict(frame1_idx=14, color_space=ColorSpace.LAB,
-                       blur=True, filter_depth=True, compute_normals=True)
+                       blur=True, filter_depth=True)
 
 
 class _Tests:
@@ -34,8 +41,7 @@ class _Tests:
             ICPOdometry(15, geom_weight=1, feat_weight=0,
                         distance_threshold=10, normals_angle_thresh=2),
             set_start_at_eye(load_ftb(_TEST_DATA / "sample1")),
-            **REAL_FRAME_ARGS,
-            device="cpu")
+            **REAL_FRAME_ARGS)
 
     @staticmethod
     def depth_synthetic():
@@ -61,8 +67,8 @@ class _Tests:
         """
         run_pair_test(
             ICPOdometry(30, geom_weight=0, feat_weight=1,
-                        #distance_threshold=100, feat_residual_thresh=100
-            ),
+                        # distance_threshold=100, feat_residual_thresh=100
+                        ),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 

@@ -155,10 +155,10 @@ class AutogradICP:
         has_geom = self.geom_weight > 0
         has_feat = (self.feat_weight > 0
                     and source_feats is not None)
-        torch.set_printoptions(precision=10)
 
         huber_loss = _HuberLoss(self.huber_loss_alpha)
 
+        __import__("ipdb").set_trace()
         def _closure():
             nonlocal loss
             if exp_rt.grad is not None:
@@ -168,24 +168,27 @@ class AutogradICP:
             feat_loss = 0
 
             transform = ExpRtToMatrix.apply(exp_rt.cpu()).squeeze().to(device)
-            transform_source_points = RigidTransform(transform) @ source_points
+            print(transform)
+            rigid_transform = RigidTransform(transform)
+            transform_source_points = rigid_transform @ source_points
 
             tpoints, tnormals, tfeatures, smask = target_matcher.find_correspondences(
-                transform_source_points, RigidTransform(transform).transform_normals(
-                    source_normals))
+                transform_source_points,
+                rigid_transform.transform_normals(source_normals))
 
-            spoints = transform_source_points[smask]
             if has_geom:
-                diff = tpoints - spoints
-                cost = torch.bmm(tnormals.view(
-                    -1, 1, 3), diff.view(-1, 3, 1))
+                diff = tpoints - transform_source_points[smask]
+                cost = torch.bmm(diff.view(-1, 3, 1), tnormals.view(
+                    -1, 1, 3)).squeeze()
                 geom_loss = torch.pow(cost, 2).mean()
+                #geom_loss = cost.mean()
 
             if has_feat:
                 feat_diff = torch.norm(
                     tfeatures - source_feats[:, smask], 1, dim=0)
-                #import ipdb; ipdb.set_trace()
-                #feat_diff = feat_diff[feat_diff.pow(2) < self.feat_residual_thresh]
+                if self.feat_residual_thresh > 0:
+                    feat_diff = feat_diff[feat_diff.pow(
+                        2) < self.feat_residual_thresh*self.feat_residual_thresh]
                 feat_loss = huber_loss(feat_diff)
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight

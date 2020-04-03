@@ -6,6 +6,7 @@ from enum import Enum
 import torch
 import torch.nn.functional
 from torchvision.transforms.functional import to_tensor
+from kornia.filters import GaussianBlur2d
 import cv2
 
 from slamtb._cslamtb import (Processing as _Processing, EstimateNormalsMethod,
@@ -138,17 +139,19 @@ def downsample_features(feature_image, scale, dst=None):
 
 
 def feature_pyramid(feature_map, scales):
+    """Build a gaussian pyramid for featuremaps.
+
+    """
+
     pyramid = []
-    
-    from kornia.filters import GaussianBlur2d
 
     blur = GaussianBlur2d((3, 3), (0.849, 0.849))
 
     for scale in scales:
         if scale < 1.0:
             feature_map = downsample_features(
-                #blur(feature_map.unsqueeze(0)).squeeze(0),
-                feature_map,
+                blur(feature_map.unsqueeze(0)).squeeze(0),
+                # feature_map,
                 scale)
         pyramid.append(feature_map)
 

@@ -49,8 +49,7 @@ cuda_add_library(slamtb
   elastic_fusion_clean.cu
   elastic_fusion.cpp
   
-  slamfeat.cpp
-  )
+  slamfeat.cpp)
 
 target_include_directories(slamtb
   PUBLIC
@@ -60,12 +59,13 @@ target_include_directories(slamtb
 
 target_link_libraries(slamtb "${TORCH_LIBRARIES}" OpenMP::OpenMP_CXX)
 
+set_property(TARGET slamtb PROPERTY CXX_STANDARD 17)
+
 set_target_properties(slamtb
   PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-set_property(TARGET slamtb PROPERTY CXX_STANDARD 14)
 
 add_library(_cslamtb SHARED _cslamtb.cpp)
-set_property(TARGET _cslamtb PROPERTY CXX_STANDARD 14)
+set_property(TARGET _cslamtb PROPERTY CXX_STANDARD 17)
 set_target_properties(_cslamtb PROPERTIES PREFIX "")
 set_target_properties(_cslamtb PROPERTIES LIBRARY_OUTPUT_DIRECTORY
   ${CMAKE_SOURCE_DIR}/slamtb)

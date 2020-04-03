@@ -17,6 +17,7 @@ from slamtb._utils import profile as _profile
 
 def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
                   color_space=ColorSpace.LAB, frame0_idx=0, frame1_idx=8,
+                  view_matrix=None,
                   device="cuda:0"):
     """Test with two frames.
     """
@@ -67,33 +68,42 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     print("Key 3 - toggle aligned source PCL")
 
     geoshow([target_pcl, source_pcl, aligned_pcl],
-            title=icp.__class__.__name__, invert_y=True)
+            title=icp.__class__.__name__, invert_y=True,
+            view_matrix=view_matrix)
 
 
 def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=True, blur=True,
                       color_space=ColorSpace.LAB, frame0_idx=0, frame1_idx=8,
-                      device="cuda:0"):
+                      view_matrix=None, device="cuda:0"):
     """Run testing alignment using the `estimate_pcl` method.
     """
 
     frame_args = {
         'filter_depth': filter_depth,
         'blur': blur,
-        'color_space': color_space
+        'color_space': color_space,
+        'compute_normals': True
     }
 
-    target_frame, target_features = preprocess_frame(dataset[frame0_idx], **frame_args)
-    source_frame, source_features = preprocess_frame(dataset[frame1_idx], **frame_args)
+    target_frame, target_features = preprocess_frame(
+        dataset[frame0_idx], **frame_args)
+    source_frame, source_features = preprocess_frame(
+        dataset[frame1_idx], **frame_args)
 
     device = "cuda:0"
 
-    target_pcl = SurfelCloud.from_frame(target_frame, features=target_features).to(device)
-    source_pcl = SurfelCloud.from_frame(source_frame, features=source_features).to(device)
+    target_pcl = SurfelCloud.from_frame(
+        target_frame, features=target_features).to(device)
+    source_pcl = SurfelCloud.from_frame(
+        source_frame, features=source_features).to(device)
 
     with _profile(profile_file):
         result = registration.estimate_pcl(source_pcl, target_pcl,
                                            source_feats=source_pcl.features,
                                            target_feats=target_pcl.features)
+
+    if not RegistrationVerifier()(result):
+        print("!!Registration failed")
 
     gt_traj = {0: target_frame.info.rt_cam, 1: source_frame.info.rt_cam}
     pred_traj = {0: RTCamera(), 1: RTCamera(result.transform)}
@@ -111,7 +121,8 @@ def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=Tru
     geoshow([target_pcl.as_point_cloud(),
              source_pcl.as_point_cloud(),
              aligned_pcl.as_point_cloud()], invert_y=True,
-            title=registration.__class__.__name__)
+            title=registration.__class__.__name__,
+            view_matrix=view_matrix)
 
 
 def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,

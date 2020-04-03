@@ -195,7 +195,7 @@ class ICPOdometry:
                     target_mask, source_points, source_normals, source_feats,
                     source_mask, kcam, transform)
                 JtJ = feat_JtJ.cpu().double()*self.feat_weight*self.feat_weight
-                Jr = -feat_Jr.cpu().double()*self.feat_weight
+                Jr = feat_Jr.cpu().double()*-self.feat_weight
                 residual = feat_residual*self.feat_weight
                 match_count = feat_count
 

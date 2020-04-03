@@ -83,9 +83,9 @@ class FramePointCloudMatcher:
         """
         Args:
 
-            target_features (:obj:`torch.Tensor`): 
+            target_features (:obj:`torch.Tensor`):
 
-            target_normals (:obj:`torch.Tensor`): 
+            target_normals (:obj:`torch.Tensor`):
 
             target_mask (:obj:`torch.Tensor`):
 
@@ -144,8 +144,8 @@ class PointCloudMatcher:
         matched_features = self.kdtree_op(self.target_features, source_points)
         matched_features = matched_features[:, match_mask]
 
-        #if source_normals is not None:
-        if False:
+
+        if source_normals is not None:
             with torch.no_grad():
                 source_normals = source_normals[match_mask, :]
                 norms = (matched_normals * source_normals).sum(dim=1)
@@ -157,4 +157,3 @@ class PointCloudMatcher:
                 match_mask[(~good_norms).nonzero().flatten()] = False
 
         return matched_points, matched_normals, matched_features, match_mask
-

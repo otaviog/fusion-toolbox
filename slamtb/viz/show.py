@@ -11,7 +11,8 @@ from .surfelrender import SurfelRender
 
 
 def geoshow(geometries, width=640, height=480, point_size=3,
-            title="slamtb.viz.geoshow", invert_y=False):
+            title="slamtb.viz.geoshow", invert_y=False,
+            view_matrix=None):
     """Show Fusion Toolbox geometry data types.
 
     The geometries display can be toggle using number keys starting at '1'.
@@ -74,6 +75,9 @@ def geoshow(geometries, width=640, height=480, point_size=3,
     viewer = ctx.viewer(scene, tenviz.CameraManipulator.WASD)
     viewer.title = title
     viewer.reset_view()
+
+    if view_matrix is not None:
+        viewer.view_matrix = view_matrix
 
     while True:
         key = viewer.wait_key(1)
