@@ -42,7 +42,8 @@ class _Tests:
         """Use only depth information of a real scene.
         """
         run_pair_test(
-            AutogradICP(100, geom_weight=1, feat_weight=0,
+            AutogradICP(600, geom_weight=1, feat_weight=0,
+                        learning_rate=0.01,
                         distance_threshold=10,
                         normals_angle_thresh=math.pi),
             load_ftb(_TEST_DATA / "sample1"),

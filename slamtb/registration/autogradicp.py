@@ -202,6 +202,7 @@ class AutogradICP:
         opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
                                           method='BFGS', jac=True, tol=0.000000001,
                                           options=dict(disp=False, maxiter=self.num_iters))
+        __import__("ipdb").set_trace()
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 
