@@ -53,7 +53,7 @@ class _ClosureBox:
 
         loss.backward()
         grad = self.x.grad.cpu().numpy()
-        grad = grad.transpose().flatten()
+
         return value, grad
 
 
@@ -72,11 +72,11 @@ class _HuberLoss(torch.nn.Module):
         """Module forward
         """
         loss1 = residual[residual < self.alpha]
-        loss1 = torch.pow(loss1, 2)
+        #loss1 = torch.pow(loss1, 2)
 
         loss2 = residual[residual >= self.alpha]
-        loss2 = (2.0*self.alpha*torch.abs(loss2)
-                 - self.alpha**2)
+        loss2 = (self.alpha*torch.abs(loss2)
+                 - self.alpha)
 
         loss = 0
 
@@ -144,7 +144,8 @@ class AutogradICP:
 
         if transform is None:
             exp_rt = torch.zeros(
-                6, requires_grad=True, device=device, dtype=dtype)
+                6, requires_grad=True, device=device,
+                dtype=dtype)
         else:
             exp_rt = MatrixToExpRt.apply(
                 transform[:3, :4]).to(device).to(dtype)
@@ -158,9 +159,9 @@ class AutogradICP:
 
         huber_loss = _HuberLoss(self.huber_loss_alpha)
 
-        __import__("ipdb").set_trace()
         def _closure():
             nonlocal loss
+            nonlocal exp_rt
             if exp_rt.grad is not None:
                 exp_rt.grad.zero_()
 
@@ -168,7 +169,6 @@ class AutogradICP:
             feat_loss = 0
 
             transform = ExpRtToMatrix.apply(exp_rt.cpu()).squeeze().to(device)
-            print(transform)
             rigid_transform = RigidTransform(transform)
             transform_source_points = rigid_transform @ source_points
 
@@ -178,21 +178,24 @@ class AutogradICP:
 
             if has_geom:
                 diff = tpoints - transform_source_points[smask]
-                cost = torch.bmm(diff.view(-1, 3, 1), tnormals.view(
-                    -1, 1, 3)).squeeze()
+                cost = torch.bmm(tnormals.view(-1, 1, 3),
+                                 diff.view(-1, 3, 1)).squeeze()
                 geom_loss = torch.pow(cost, 2).mean()
-                #geom_loss = cost.mean()
 
             if has_feat:
                 feat_diff = torch.norm(
-                    tfeatures - source_feats[:, smask], 1, dim=0)
+                    tfeatures - source_feats[:, smask], 2, dim=0)
                 if self.feat_residual_thresh > 0:
                     feat_diff = feat_diff[feat_diff.pow(
                         2) < self.feat_residual_thresh*self.feat_residual_thresh]
-                feat_loss = huber_loss(feat_diff)
+
+                if self.huber_loss_alpha > 0:
+                    feat_loss = huber_loss(feat_diff)
+                else:
+                    feat_loss = feat_diff.mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
-
+            print(loss.item())
             if torch.isnan(loss):
                 return loss
 
@@ -202,7 +205,7 @@ class AutogradICP:
         opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
                                           method='BFGS', jac=True, tol=0.000000001,
                                           options=dict(disp=False, maxiter=self.num_iters))
-        __import__("ipdb").set_trace()
+
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 

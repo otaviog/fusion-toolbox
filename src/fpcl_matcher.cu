@@ -50,7 +50,8 @@ struct ForwardKernel {
         to_vec3<scalar_t>(source_normals[idx]);
     Vector<scalar_t, 3> tgt_point, tgt_normal;
     scalar_t u, v;
-    if (!corresp.Match(src_point, src_normal, tgt_point, tgt_normal, u, v))
+    if (!corresp.Match(src_point, src_normal,
+					   tgt_point, tgt_normal, u, v))
       return;
 
     match_mask[idx] = true;

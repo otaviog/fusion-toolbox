@@ -54,9 +54,9 @@ class _Tests:
         """Use only depth information of a synthetic scene.
         """
         run_pair_test(
-            AutogradICP(100, geom_weight=1, feat_weight=0,
-                        learning_rate=.05,
-                        ),
+            AutogradICP(500, learning_rate=0.1, geom_weight=1, feat_weight=0,
+                        distance_threshold=0.1,
+                        normals_angle_thresh=math.pi/4.0),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 
@@ -66,9 +66,8 @@ class _Tests:
         """
         run_pair_test(
             AutogradICP(600, learning_rate=0.1,
-                        geom_weight=0, feat_weight=1.0, huber_loss_alpha=4,
-                        distance_threshold=0.1, normals_angle_thresh=math.pi/4,
-                        feat_residual_thresh=0.005),
+                        geom_weight=0, feat_weight=1.0,
+                        distance_threshold=0.1, normals_angle_thresh=math.pi/4),
             load_ftb(_TEST_DATA / "sample1"),
             **REAL_FRAME_ARGS)
 
@@ -77,7 +76,10 @@ class _Tests:
         """Use only RGB information of a synthetic scene.
         """
         run_pair_test(
-            AutogradICP(50, geom_weight=0, feat_weight=1),
+            AutogradICP(50, geom_weight=0, feat_weight=1,
+                        huber_loss_alpha=2,
+                        distance_threshold=0.1, normals_angle_thresh=math.pi/4,
+                        feat_residual_thresh=-0.005),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 

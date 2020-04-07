@@ -47,8 +47,12 @@ class _Tests:
     def depth_synthetic():
         """Use only depth information of a synthetic scene.
         """
+
+        import math
         run_pair_test(
-            ICPOdometry(15, geom_weight=1, feat_weight=0),
+            ICPOdometry(15, geom_weight=1, feat_weight=0,
+                        distance_threshold=0.1,
+                        normals_angle_thresh=math.pi/4.0),
             load_ftb(_TEST_DATA / "sample2"),
             **SYNTHETIC_FRAME_ARGS)
 

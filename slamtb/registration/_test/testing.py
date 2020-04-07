@@ -59,7 +59,6 @@ def run_pair_test(icp, dataset, profile_file=None, filter_depth=True, blur=True,
     print("Rotational error: ", relative_rotational_error(
         gt_traj, pred_traj).item())
 
-    __import__("ipdb").set_trace()
     target_pcl = target_fpcl.unordered_point_cloud(world_space=False)
     source_pcl = source_fpcl.unordered_point_cloud(world_space=False)
     aligned_pcl = source_pcl.transform(relative_rt.to(device))
