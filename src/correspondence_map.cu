@@ -37,7 +37,8 @@ struct CorrespondenceMapKernel {
 
 #pragma nv_exec_check_disable
   FTB_DEVICE_HOST void operator()(int idx) {
-    if (!source_mask[idx]) return;
+	if (source_mask.size(0) == source_points.size(0)
+		&& !source_mask[idx]) return;
 
     const Vector<scalar_t, 3> Tsrc_point =
         rt_cam.Transform(to_vec3<scalar_t>(source_points[idx]));

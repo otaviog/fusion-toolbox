@@ -126,7 +126,7 @@ def run_pcl_pair_test(registration, dataset, profile_file=None, filter_depth=Tru
 
 
 def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
-                        color_space=ColorSpace.LAB):
+                        color_space=ColorSpace.LAB, profile_file=None):
     """Trajectory test."""
 
     device = "cuda:0"
@@ -148,30 +148,32 @@ def run_trajectory_test(icp, dataset, filter_depth=True, blur=True,
     pred_traj = {0: pose_accum}
     gt_traj = {0: prev_frame.info.rt_cam}
 
-    for i in tqdm(range(1, len(dataset))):
-        next_frame, next_features = preprocess_frame(
-            dataset[i], **frame_args)
+    with _profile(Path(__file__).parent / str(profile_file),
+                  profile_file is not None):
+        for i in tqdm(range(1, len(dataset))):
+            next_frame, next_features = preprocess_frame(
+                dataset[i], **frame_args)
 
-        result = icp.estimate_frame(next_frame, prev_frame,
-                                    source_feats=next_features.to(
-                                        device),
-                                    target_feats=prev_features.to(
-                                        device),
-                                    device=device)
-        if not verifier(result):
-            print("{} tracking fail".format(i))
+            result = icp.estimate_frame(next_frame, prev_frame,
+                                        source_feats=next_features.to(
+                                            device),
+                                        target_feats=prev_features.to(
+                                            device),
+                                        device=device)
+            if not verifier(result):
+                print("{} tracking fail".format(i))
 
-        pose_accum = pose_accum.transform(
-            result.transform.cpu().double())
-        pred_traj[i] = pose_accum
-        gt_traj[i] = next_frame.info.rt_cam
+            pose_accum = pose_accum.transform(
+                result.transform.cpu().double())
+            pred_traj[i] = pose_accum
+            gt_traj[i] = next_frame.info.rt_cam
 
-        pcl = FramePointCloud.from_frame(
-            next_frame).unordered_point_cloud(world_space=False)
-        pcl = pcl.transform(pose_accum.matrix.float())
-        pcls.append(pcl)
+            pcl = FramePointCloud.from_frame(
+                next_frame).unordered_point_cloud(world_space=False)
+            pcl = pcl.transform(pose_accum.matrix.float())
+            pcls.append(pcl)
 
-        prev_frame, prev_features = next_frame, next_features
+            prev_frame, prev_features = next_frame, next_features
 
     print("Translational error: ", relative_translational_error(
         gt_traj, pred_traj).mean().item())

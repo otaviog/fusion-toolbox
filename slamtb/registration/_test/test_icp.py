@@ -1,6 +1,7 @@
 """Interactive testing of ICPOdometry.
 """
 from pathlib import Path
+import math
 
 import numpy as np
 import fire
@@ -48,7 +49,6 @@ class _Tests:
         """Use only depth information of a synthetic scene.
         """
 
-        import math
         run_pair_test(
             ICPOdometry(15, geom_weight=1, feat_weight=0,
                         distance_threshold=0.1,
@@ -197,16 +197,16 @@ class _Tests:
         """Test mulstiscale RGB and depth alignment on a a synthetic trajectory.
         """
 
-        dataset = load_ftb(_TEST_DATA / "sample2")
+        dataset = load_ftb(_TEST_DATA / "sample1")
         icp = MultiscaleRegistration([
             (1.0, ICPOdometry(10, geom_weight=10, feat_weight=1)),
             (0.5, ICPOdometry(10, geom_weight=10, feat_weight=1)),
             (0.5, ICPOdometry(10, geom_weight=10, feat_weight=1))])
-        icp = ICPOdometry(25, geom_weight=1, feat_weight=0)
         run_trajectory_test(icp, dataset,
                             filter_depth=SYNTHETIC_FRAME_ARGS['filter_depth'],
                             blur=SYNTHETIC_FRAME_ARGS['blur'],
-                            color_space=SYNTHETIC_FRAME_ARGS['color_space'])
+                            color_space=SYNTHETIC_FRAME_ARGS['color_space'],
+                            profile_file="ms-rgbd-icp-trajectory.cprof")
 
 
 if __name__ == '__main__':

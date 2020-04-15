@@ -8,7 +8,6 @@ from tenviz.pose import SE3, SO3
 from slamtb.frame import FramePointCloud, Frame
 from .correspondence_map import CorrespondenceMap
 from slamtb._cslamtb import ICPJacobian as _ICPJacobian
-
 from slamtb._utils import empty_ensured_size
 
 from .result import RegistrationResult
@@ -63,7 +62,6 @@ class _JacobianStep:
                     target_points, target_normals, kcam, corresp_map,
                     self.JtJ, self.Jtr, self.residual)
             else:
-
                 match_count = _ICPJacobian.estimate_feature(
                     source_points, source_feats, source_mask, transform.to(
                         dtype),
@@ -209,7 +207,6 @@ class ICPOdometry:
                 Jr += geom_Jr.cpu().double()*self.geom_weight
                 residual += geom_residual*self.geom_weight
                 match_count = max(geom_count, match_count)
-
             try:
                 upper_JtJ = torch.cholesky(JtJ)
                 Jr = Jr.cpu().view(-1, 1).double()
@@ -228,7 +225,6 @@ class ICPOdometry:
                 transform = update_matrix @ transform
 
             residual = residual.item() / match_count
-            print(residual)
             best_result = RegistrationResult(
                 transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 

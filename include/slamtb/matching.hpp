@@ -19,17 +19,15 @@ struct CorrespondenceMap {
 
   static void RegisterPybind(pybind11::module &m);
 };
+
 struct FPCLMatcherOp {
   static void Forward(const torch::Tensor &target_points,
                       const torch::Tensor &target_normals,
-                      const torch::Tensor &target_mask,
                       const torch::Tensor &target_features,
                       const torch::Tensor &source_points,
-                      const torch::Tensor &source_normals,
-                      const torch::Tensor &kcam, float distance_thresh,
-                      float normals_angle_thresh, torch::Tensor out_points,
-                      torch::Tensor out_normals, torch::Tensor out_features,
-                      torch::Tensor match_mask);
+                      const torch::Tensor &kcam, const torch::Tensor &merge_map,
+                      torch::Tensor out_points, torch::Tensor out_normals,
+                      torch::Tensor out_features, torch::Tensor match_mask);
 
   static void Backward(const torch::Tensor &target_features,
                        const torch::Tensor &source_points,

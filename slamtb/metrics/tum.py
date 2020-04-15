@@ -6,9 +6,9 @@ import slamtb.thirdparty.tumrgbd as _tumrgbd
 
 
 def align_trajectories(trajectory_true, trajectory_pred, scale=1):
-    xyz_true = numpy.matrix([rt_cam.center.cpu().numpy()
+    xyz_true = numpy.matrix([numpy.array(rt_cam.center)
                              for rt_cam in trajectory_true.values()]).transpose()
-    xyz_pred = numpy.matrix([rt_cam.center.cpu().numpy()*scale
+    xyz_pred = numpy.matrix([numpy.array(rt_cam.center)*scale
                              for rt_cam in trajectory_pred.values()]).transpose()
     rot, trans, _ = _tumrgbd.align(xyz_true, xyz_pred)
 

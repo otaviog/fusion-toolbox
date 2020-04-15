@@ -25,7 +25,7 @@ struct KCamera {
    * @param matrix The [3x3] intrinsic camera matrix. Must be in the
    * same device kind as the `dev` template argument.
    */
-  KCamera(const torch::Tensor matrix)
+  KCamera(const torch::Tensor &matrix)
       : matrix(Accessor<dev, scalar_t, 2>::Get(matrix)) {}
 
 #ifdef __CUDACC__

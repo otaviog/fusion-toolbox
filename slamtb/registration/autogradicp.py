@@ -195,7 +195,6 @@ class AutogradICP:
                     feat_loss = feat_diff.mean()
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
-            print(loss.item())
             if torch.isnan(loss):
                 return loss
 

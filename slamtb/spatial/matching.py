@@ -35,19 +35,33 @@ class FPCLMatcherOp(torch.autograd.Function):
 
         size = source_points.size(0)
 
+        kcam = target.kcam.matrix.to(device)
+
+        from slamtb.registration.correspondence_map import CorrespondenceMap
+        corresp_map_func = CorrespondenceMap(target.distance_threshold,
+                                             target.normals_angle_thresh)
+
+
+        corresp_map = corresp_map_func(
+            source_points, source_normals, torch.ones(
+                1, dtype=torch.bool, device=device),
+            torch.eye(4, dtype=dtype, device=device),
+            target.points, target.normals, target.mask,
+            kcam)
+
         match.points = torch.empty(size, 3, device=device, dtype=dtype)
         match.normals = torch.empty(size, 3, device=device, dtype=dtype)
         match.features = torch.empty(
             target.features.size(0), size, device=device, dtype=dtype)
         match.mask = torch.empty(size, device=device, dtype=torch.bool)
 
-        _FPCLMatcherOp.forward(target.points, target.normals, target.mask,
-                               target.features, source_points, source_normals,
-                               target.kcam.matrix.to(device),
-                               target.distance_threshold, target.normals_angle_thresh,
-                               match.points, match.normals, match.features,
+        _FPCLMatcherOp.forward(target.points, target.normals,
+                               target.features, source_points,
+                               kcam,
+                               corresp_map, match.points, match.normals, match.features,
                                match.mask)
 
+        print(match.mask.sum())
         ctx.target = target
         ctx.source_points = source_points
         ctx.match_mask = match.mask
@@ -106,6 +120,7 @@ class FramePointCloudMatcher:
 
     def find_correspondences(self, source_points, source_normals):
         match = FPCLMatcherOp.Match()
+
         FPCLMatcherOp.apply(source_points, source_normals, self.target, match)
         return (match.points[match.mask, :], match.normals[match.mask, :],
                 match.features[:, match.mask], match.mask)
@@ -143,7 +158,6 @@ class PointCloudMatcher:
 
         matched_features = self.kdtree_op(self.target_features, source_points)
         matched_features = matched_features[:, match_mask]
-
 
         if source_normals is not None:
             with torch.no_grad():
