@@ -61,7 +61,6 @@ class FPCLMatcherOp(torch.autograd.Function):
                                corresp_map, match.points, match.normals, match.features,
                                match.mask)
 
-        print(match.mask.sum())
         ctx.target = target
         ctx.source_points = source_points
         ctx.match_mask = match.mask

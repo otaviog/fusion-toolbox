@@ -21,7 +21,7 @@ from .testing import (run_trajectory_test,
 _TEST_DATA = Path(__file__).parent / "../../../test-data/rgbd"
 
 SYNTHETIC_FRAME_ARGS = dict(frame0_idx=0, frame1_idx=3, color_space=ColorSpace.GRAY,
-                            blur=False, filter_depth=False,
+                            blur=False, filter_depth=False, device="cuda:0",
                             view_matrix=np.array(
                                 [[-0.997461, 0, -0.0712193, 0.612169],
                                  [-0.0168819, 0.971499, 0.23644, -1.29119],

@@ -4,6 +4,7 @@
 import math
 
 import torch
+import torch.optim
 import scipy.optimize
 
 from slamtb.frame import Frame, FramePointCloud
@@ -88,6 +89,8 @@ class _HuberLoss(torch.nn.Module):
 
         return loss
 
+#class Optimizer(Enum):
+    
 
 class AutogradICP:
     """ICP using PyTorch's autograd for estimating 6D gradient
@@ -158,13 +161,12 @@ class AutogradICP:
                     and source_feats is not None)
 
         huber_loss = _HuberLoss(self.huber_loss_alpha)
-
+        
         def _closure():
             nonlocal loss
             nonlocal exp_rt
             if exp_rt.grad is not None:
                 exp_rt.grad.zero_()
-
             geom_loss = 0
             feat_loss = 0
 
@@ -193,23 +195,36 @@ class AutogradICP:
                     feat_loss = huber_loss(feat_diff)
                 else:
                     feat_loss = feat_diff.mean()
-
+            print(geom_loss.item())
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
             if torch.isnan(loss):
                 return loss
 
             return loss*self.learning_rate
 
-        box = _ClosureBox(_closure, exp_rt)
-        opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
-                                          method='BFGS', jac=True, tol=0.000000001,
-                                          options=dict(disp=False, maxiter=self.num_iters))
+
+        if True:
+            box = _ClosureBox(_closure, exp_rt)
+            opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
+                                              method='BFGS', jac=True, tol=0.000000001,
+                                              options=dict(disp=False, maxiter=self.num_iters))
+
+        print("==============")
+        opt = torch.optim.SGD([exp_rt], 0.1)
+        opt_res = None
+        for _ in range(100):
+            opt.zero_grad()
+            _closure()
+            loss.backward()
+            opt.step()
 
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)
 
-        return RegistrationResult(transform,
-                                  torch.from_numpy(opt_res.hess_inv).float(), loss, 1.0)
+        return RegistrationResult(
+            transform,
+            torch.from_numpy(opt_res.hess_inv).float() if opt_res is not None else None,
+            loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,
                  target_points=None, target_mask=None, target_normals=None,

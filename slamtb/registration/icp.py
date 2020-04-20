@@ -225,6 +225,7 @@ class ICPOdometry:
                 transform = update_matrix @ transform
 
             residual = residual.item() / match_count
+            print(residual)
             best_result = RegistrationResult(
                 transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 

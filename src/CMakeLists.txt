@@ -47,9 +47,7 @@ cuda_add_library(slamtb
   
   elastic_fusion_update.cu
   elastic_fusion_clean.cu
-  elastic_fusion.cpp
-  
-  slamfeat.cpp)
+  elastic_fusion.cpp)
 
 target_include_directories(slamtb
   PUBLIC

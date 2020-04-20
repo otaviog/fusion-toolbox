@@ -22,6 +22,7 @@ test_slamtb
 *.out
 *.link
 *.prof
+*.cprof
 out-*
 .ipynb_checkpoints
 doc/cpp

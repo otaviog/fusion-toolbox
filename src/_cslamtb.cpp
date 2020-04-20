@@ -10,7 +10,6 @@
 #include "nearest_neighbors.hpp"
 #include "processing.hpp"
 #include "se3.hpp"
-#include "slamfeat.hpp"
 #include "surfel.hpp"
 #include "surfel_fusion.hpp"
 #include "surfel_volume.hpp"
@@ -49,7 +48,4 @@ PYBIND11_MODULE(_cslamtb, m) {
   ElasticFusionOp::RegisterPybind(m);
   SurfelFusionOp::RegisterPybind(m);
   SurfelVolume::RegisterPybind(m);
-
-  // etc
-  SlamFeatOp::RegisterPybind(m);
 }
