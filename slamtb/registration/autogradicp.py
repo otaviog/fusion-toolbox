@@ -195,8 +195,10 @@ class AutogradICP:
                     feat_loss = huber_loss(feat_diff)
                 else:
                     feat_loss = feat_diff.mean()
-            print(geom_loss.item())
+
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
+
+            print(loss.item())
             if torch.isnan(loss):
                 return loss
 
@@ -210,13 +212,14 @@ class AutogradICP:
                                               options=dict(disp=False, maxiter=self.num_iters))
 
         print("==============")
-        opt = torch.optim.SGD([exp_rt], 0.1)
-        opt_res = None
-        for _ in range(100):
-            opt.zero_grad()
-            _closure()
-            loss.backward()
-            opt.step()
+        if True:
+            opt = torch.optim.SGD([exp_rt], 0.1)
+            opt_res = None
+            for _ in range(100):
+                opt.zero_grad()
+                _closure()
+                loss.backward()
+                opt.step()
 
         transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
         transform = _to_4x4(transform)

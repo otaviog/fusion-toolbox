@@ -15,8 +15,8 @@ from slamtb.ui import FrameUI, SurfelReconstructionUI, RunMode
 from slamtb.frame import FramePointCloud
 from slamtb.processing import (bilateral_depth_filter, estimate_normals,
                                to_color_feature, ColorSpace)
+from slamtb.registration.preset import create_multiscale_odometry
 from slamtb.registration import MultiscaleRegistration
-from slamtb.registration.icp import ICPOdometry
 from slamtb.registration.autogradicp import AutogradICP
 from slamtb.registration.result import RegistrationVerifier
 from slamtb.surfel import SurfelModel
@@ -41,10 +41,7 @@ def _main():
         dataset = load_ftb(args.ftb)
         sensor = DatasetSensor(dataset, start_idx=66)
 
-    icp = MultiscaleRegistration([
-        (1.0, ICPOdometry(30, geom_weight=1.0, feat_weight=1.0)),
-        (0.5, ICPOdometry(30, geom_weight=1.0, feat_weight=1.0)),
-        (0.5, ICPOdometry(30, geom_weight=1.0, feat_weight=1.0))])
+    iccp = create_multiscale_odometry()
 
     icp2 = MultiscaleRegistration([
         (1.0, AutogradICP(100, 0.05, geom_weight=1, feat_weight=1)),

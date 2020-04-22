@@ -41,7 +41,6 @@ class FPCLMatcherOp(torch.autograd.Function):
         corresp_map_func = CorrespondenceMap(target.distance_threshold,
                                              target.normals_angle_thresh)
 
-
         corresp_map = corresp_map_func(
             source_points, source_normals, torch.ones(
                 1, dtype=torch.bool, device=device),
@@ -158,7 +157,8 @@ class PointCloudMatcher:
         matched_features = self.kdtree_op(self.target_features, source_points)
         matched_features = matched_features[:, match_mask]
 
-        if source_normals is not None:
+        #if source_normals is not None:
+        if False:
             with torch.no_grad():
                 source_normals = source_normals[match_mask, :]
                 norms = (matched_normals * source_normals).sum(dim=1)

@@ -67,10 +67,12 @@ class MultiscaleRegistration:
         return curr_result
 
     def estimate_pcl(self, source_pcl, target_pcl, transform=None,
-                     device="cpu"):
+                     device=None):
         """Registration for surfel or point clouds alignment.
         """
 
+        if device is None:
+            device = source_pcl.device
         if transform is not None:
             transform = transform.cpu()
         for scale, estimator in self.estimators[::-1]:

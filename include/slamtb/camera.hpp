@@ -151,7 +151,7 @@ struct RigidTransform {
       const Eigen::Matrix<scalar_t, 3, 1> &normal) const {
     const scalar_t nx = normal_matrix(0, 0) * normal[0] +
                         normal_matrix(0, 1) * normal[1] +
-                        normal(0, 2) * normal[2];
+                        normal_matrix(0, 2) * normal[2];
 
     const scalar_t ny = normal_matrix(1, 0) * normal[0] +
                         normal_matrix(1, 1) * normal[1] +
