@@ -18,7 +18,7 @@ class Merge:
         self._merge_map = None
 
     def __call__(self, model_indexmap, model, update_gl=False):
-        ref_device = model_indexmap.position_confidence.device
+        ref_device = model_indexmap.point_confidence.device
 
         self._merge_map = empty_ensured_size(self._merge_map,
                                              model_indexmap.height,

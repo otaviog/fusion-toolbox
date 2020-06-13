@@ -21,8 +21,9 @@ class SurfelFusion:
         self.model_raster = ModelIndexMapRaster(model)
 
         self._update = Update(
-            elastic_fusion=False, max_normal_angle=normal_max_angle,
-            search_size=search_size)
+            max_normal_angle=normal_max_angle,
+            search_size=search_size,
+            elastic_fusion=False)
 
         self._carve = CarveSpace(stable_conf_thresh=stable_conf_thresh,
                                  stable_time_thresh=stable_time_thresh,
@@ -69,17 +70,19 @@ class SurfelFusion:
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
 
+        stats.removed_count = self._clean(
+            frame_pcl.kcam, frame_pcl.rt_cam,
+            model_indexmap, self._time, self.model, update_gl=True)
+
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
         model_indexmap.synchronize()
 
-        # self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap, self._time,
-        #            self.model)
+        stats.merged_count = self._merge(model_indexmap, self.model, update_gl=True)
 
-        stats.removed_count += self._clean(
-            frame_pcl.kcam, frame_pcl.rt_cam,
-            model_indexmap, self._time, self.model, update_gl=True)
+        #stats.removed_count += self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap,
+        #                                   self._time, self.model)
 
         self._time += 1
         self.model.max_time = self._time

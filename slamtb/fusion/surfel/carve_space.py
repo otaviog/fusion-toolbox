@@ -20,7 +20,7 @@ class CarveSpace:
         self._free_map = None
 
     def __call__(self, kcam, rt_cam, indexmap, time, model, update_gl=False):
-        ref_device = kcam.device
+        ref_device = indexmap.point_confidence.device
         alloc_indices = model.allocated_indices().to(ref_device)
 
         if alloc_indices.size(0) == 0:
@@ -32,8 +32,8 @@ class CarveSpace:
         with model.gl_context.current():
             with model.map_as_tensors(ref_device) as mapped_model:
                 _SurfelFusionOp.carve_space(mapped_model, alloc_indices,
-                                            indexmap, kcam.matrix,
-                                            rt_cam.world_to_cam,
+                                            indexmap, kcam.matrix.to(ref_device),
+                                            rt_cam.world_to_cam.float().to(ref_device),
                                             time, 2, self.stable_conf_thresh,
                                             self.stable_time_thresh,
                                             remove_mask)

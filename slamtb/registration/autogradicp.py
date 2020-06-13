@@ -212,6 +212,8 @@ class AutogradICP:
                                               options=dict(disp=False, maxiter=self.num_iters))
 
         print("==============")
+        best_exp_rt = exp_rt.detach().clone().cpu()
+        best_loss = 5555
         if True:
             opt = torch.optim.SGD([exp_rt], 0.1)
             opt_res = None
@@ -219,9 +221,16 @@ class AutogradICP:
                 opt.zero_grad()
                 _closure()
                 loss.backward()
+
+                tmp = loss.cpu().item()
+
+                if tmp < best_loss:
+                    best_loss = tmp
+                    best_exp_rt = exp_rt.detach().clone().cpu()
+                    
                 opt.step()
 
-        transform = ExpRtToMatrix.apply(exp_rt.detach().cpu()).squeeze(0)
+        transform = ExpRtToMatrix.apply(best_exp_rt).squeeze(0)
         transform = _to_4x4(transform)
 
         return RegistrationResult(

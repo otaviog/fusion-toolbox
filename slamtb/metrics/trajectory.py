@@ -20,7 +20,7 @@ def translational_difference(diff_matrix):
 
         diff_matrix (obj:`torch.Tensor`): [3x4] or [4x4] matrix.
     """
-    return (diff_matrix[:3, 3]).norm(2)
+    return (diff_matrix[:3, 3]).norm(2).item()
 
 
 def rotational_difference(diff_matrix):
@@ -40,6 +40,25 @@ def _ensure_matrix(cam_or_matrix):
         return cam_or_matrix.matrix
 
     return cam_or_matrix
+
+
+def get_absolute_residual(matrix_true, matrix_pred):
+    """Computes the abosulute resitual transformation of a ground truth
+    pose and a prediction.
+
+    Args:
+
+        matrix_true (:obj:`torch.Tensor`): Ground truth pose
+         matrix. Must be invertible.
+
+        matrix_pred (:obj:`torch.Tensor`): Predicted pose matrix.
+
+    Returns: (:obj:`torch.Tensor`):
+        Residual transformation matrix.
+
+    """
+
+    return matrix_true.inverse() @ matrix_pred
 
 
 def absolute_translational_error(trajectory_true, trajectory_pred):
@@ -67,7 +86,8 @@ def absolute_translational_error(trajectory_true, trajectory_pred):
         cam_pred = _ensure_matrix(trajectory_pred[k])
         cam_true = _ensure_matrix(cam_true)
 
-        diff = translational_difference(cam_true.inverse() @ cam_pred)
+        diff = translational_difference(
+            get_absolute_residual(cam_true, cam_pred))
         traj_errors.append(diff)
 
     return torch.tensor(traj_errors)
@@ -105,11 +125,43 @@ def absolute_rotational_error(trajectory_true, trajectory_pred):
     return torch.tensor(traj_errors)
 
 
+def get_relative_residual(matrix_i_true, matrix_j_true,
+                          matrix_i_pred, matrix_j_pred):
+    """Computes the residual transformation relative to absolute
+    poses. Its output can be used with
+    :func:`translational_difference` and :func:`rotational_difference`.
+
+    Definition in Sturm, Jürgen, Nikolas Engelhard, Felix Endres, Wolfram
+    Burgard, and Daniel Cremers. "A benchmark for the evaluation of
+    RGB-D SLAM systems." In 2012 IEEE/RSJ International Conference on
+    Intelligent Robots and Systems, pp. 573-580. IEEE, 2012.
+
+    Args:
+
+        matrix_i_true (:obj:`torch.Tensor`): Ground truth matrix of
+         the first frame. Must be invertible.
+
+        matrix_j_true (:obj:`torch.Tensor`): Ground truth matrix of
+         the second frame. Must be invertible.
+
+        matrix_i_pred (:obj:`torch.Tensor`): Predicted matrix of the
+         first frame. Must be invertible.
+
+        matrix_j_pred (:obj:`torch.Tensor`): Predicted matrix of the
+         second frame.
+
+    Returns: (:obj:`torch.Tensor`): The residual matrix.
+
+    """
+    return ((matrix_i_true.inverse() @ matrix_j_true).inverse()
+            @ (matrix_i_pred.inverse() @ matrix_j_pred))
+
+
 def _get_relative_matrices(trajectory_true, trajectory_pred):
     keys = list(trajectory_true.keys())
     diff_matrices = []
 
-    for k in range(0, len(keys) - 1):
+    for k in range(len(keys) - 1):
         i = keys[k]
         j = keys[k + 1]
 
@@ -119,9 +171,8 @@ def _get_relative_matrices(trajectory_true, trajectory_pred):
         cam_true_j = _ensure_matrix(trajectory_true[j])
         cam_pred_j = _ensure_matrix(trajectory_pred[j])
 
-        diff_matrix = ((cam_true_i.inverse() @ cam_true_j).inverse()
-                       @ (cam_pred_i.inverse() @ cam_pred_j))
-
+        diff_matrix = get_relative_residual(cam_true_i, cam_true_j,
+                                            cam_pred_i, cam_pred_j)
         diff_matrices.append(diff_matrix)
 
     return diff_matrices

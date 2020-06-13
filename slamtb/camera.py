@@ -174,8 +174,11 @@ class KCamera:
         Returns intrinsic parameters adjusted for a new size scale.
 
         Args:
-            xscale (float):  Horizontal scaling factor. Global scale if yscale is not specified.
-            yscale (float, optional): Vertical scaling factor, if not specified, then the same scale of `xscale` is used.
+            xscale (float):  Horizontal scaling factor. Global scale 
+             if yscale is not specified.
+
+            yscale (float, optional): Vertical scaling factor, 
+             if not specified, then the same scale of `xscale` is used.
 
         Returns:
             (:obj:`KCamera`): Scaled intrinsic parameters.
@@ -584,7 +587,7 @@ class RTCamera:
         Returns:
             ((float, float, float)): X, Y and Z camera position.
         """
-        return (self.matrix[0, 3].item(), self.matrix[0, 3].item(), self.matrix[0, 3].item())
+        return (self.matrix[0, 3].item(), self.matrix[1, 3].item(), self.matrix[2, 3].item())
 
     def clone(self):
         """

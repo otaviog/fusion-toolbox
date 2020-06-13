@@ -161,11 +161,16 @@ class Frame:
             (:obj:`Frame`): Frame copy.
         """
 
+        def _clone(tensor):
+            if torch.is_tensor(tensor):
+                return tensor.cpu().clone().numpy()
+            return tensor.copy()
+        
         if not shallow:
             return Frame(self.info.clone(), self.depth_image.copy(),
                          None if self.rgb_image is None else self.rgb_image.copy(),
                          None if self.seg_image is None else self.seg_image.copy(),
-                         None if self.normal_image is None else self.normal_image.copy())
+                         None if self.normal_image is None else _clone(self.normal_image))
 
         return Frame(self.info, self.depth_image,
                      self.rgb_image, self.seg_image, self.normal_image)
@@ -282,7 +287,7 @@ class FramePointCloud:
 
         image_points = depth_image_to_uvz(depth_image, frame.info)
 
-        mask = (depth_image > 0) # & (image_points[:, :, 2] < 4.0)
+        mask = (depth_image > 0)
         mask = erode_mask(mask)
 
         if frame.seg_image is not None and ignore_seg_background:

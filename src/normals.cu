@@ -13,7 +13,7 @@ namespace slamtb {
 
 template <Device dev, typename scalar_t>
 struct CentralDifferencesKernel {
-  // TODO: Code taken from Bad-SLAM? Verify the license before open-source
+  // TODO: Code taken from Bad-SLAM. Verify the license before open-source
   const typename Accessor<dev, scalar_t, 3>::T xyz;
   const typename Accessor<dev, bool, 2>::T mask;
   typename Accessor<dev, scalar_t, 3>::T out_normal;

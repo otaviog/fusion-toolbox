@@ -85,7 +85,7 @@ struct FindMergeKernel {
     }
 
     if (best_dist < NumericLimits<dev, float>::infinity()) {
-      merge_map.Set(best_row, best_col, int32_t(double(best_dist) * 1e15),
+      merge_map.Set(best_row, best_col, best_dist,
                     live_index);
       new_surfel_map[live_index] = false;
     }
@@ -117,6 +117,7 @@ struct UpdateKernel {
   FTB_DEVICE_HOST void operator()(int row, int col) {
     if (model_indexmap.empty(row, col)) return;
     const int32_t live_index = model_merge_map(row, col);
+
     if (live_index == 0x0fffffff) return;
 
     const int32_t model_target = model_indexmap.index(row, col);
