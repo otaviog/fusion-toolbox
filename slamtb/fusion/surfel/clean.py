@@ -32,10 +32,8 @@ class Clean:
                                           remove_mask)
                 else:
                     SurfelFusionOp.clean(mapped_model, alloc_indices,
-                                         indexmap, kcam.matrix.float().to(ref_device),
-                                         rt_cam.world_to_cam.float().to(ref_device),
                                          time, self.stable_time_thresh,
-                                         2, self.stable_conf_thresh,
+                                         self.stable_conf_thresh,
                                          remove_mask)
 
         remove_idxs = alloc_indices[remove_mask]

@@ -30,7 +30,7 @@ def rotational_difference(diff_matrix):
 
         diff_matrix (obj:`torch.Tensor`): [3x4] or [4x4] matrix.
 
-    Returns: (float): Rotation angle.
+    Returns: (float): Rotation angle in radians.
     """
     return math.acos(min(1.0, max(-1.0, (torch.trace(diff_matrix[0:3, 0:3]) - 1.0)/2.0)))
 

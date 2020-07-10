@@ -11,8 +11,6 @@
 namespace slamtb {
 namespace {
 
-const int MAX_MERGE_VIOLATIONS = 1;
-
 template <Device dev>
 struct FindMergesKernel {
   const IndexMapAccessor<dev> model;
@@ -78,7 +76,7 @@ struct FindMergesKernel {
       }
     }
 
-    if (count >= MAX_MERGE_VIOLATIONS) {
+    if (nearest_local_surfel_idx > -1) {
       merge_map[row][col] = nearest_local_surfel_idx;
     }
   }

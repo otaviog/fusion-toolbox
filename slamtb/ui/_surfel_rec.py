@@ -140,20 +140,23 @@ class SurfelReconstructionUI:
 
         while not self._quit_flag:
             if self._read_next_frame:
-                yield True
+                try:
+                    yield True
+                except StopIteration:
+                    break
+
                 self._read_next_frame = self.run_mode != RunMode.STEP
                 self.frame_count += 1
 
                 with self.surfel_model.gl_context.current():
                     self.surfel_render.set_max_confidence(
-                        #self.surfel_model.max_confidence
+                        # self.surfel_model.max_confidence
                         self.stable_conf_thresh
                     )
                     self.surfel_render.set_max_time(self.surfel_model.max_time)
 
                 if self._use_camera_view and self.rt_camera is not None:
-                    import numpy
-                    inv = numpy.eye(4, dtype=numpy.float32)
+                    inv = np.eye(4, dtype=np.float32)
                     inv[1, 1] = -1
                     inv[0, 0] = -1
                     self.viewer.camera_matrix = self.rt_camera.opengl_view_cam.numpy() @ inv

@@ -89,8 +89,8 @@ class _HuberLoss(torch.nn.Module):
 
         return loss
 
-#class Optimizer(Enum):
-    
+# class Optimizer(Enum):
+
 
 class AutogradICP:
     """ICP using PyTorch's autograd for estimating 6D gradient
@@ -161,7 +161,7 @@ class AutogradICP:
                     and source_feats is not None)
 
         huber_loss = _HuberLoss(self.huber_loss_alpha)
-        
+
         def _closure():
             nonlocal loss
             nonlocal exp_rt
@@ -198,12 +198,10 @@ class AutogradICP:
 
             loss = geom_loss*self.geom_weight + feat_loss*self.feat_weight
 
-            print(loss.item())
             if torch.isnan(loss):
                 return loss
 
             return loss*self.learning_rate
-
 
         if True:
             box = _ClosureBox(_closure, exp_rt)
@@ -211,7 +209,6 @@ class AutogradICP:
                                               method='BFGS', jac=True, tol=0.000000001,
                                               options=dict(disp=False, maxiter=self.num_iters))
 
-        print("==============")
         best_exp_rt = exp_rt.detach().clone().cpu()
         best_loss = 5555
         if True:
@@ -227,7 +224,7 @@ class AutogradICP:
                 if tmp < best_loss:
                     best_loss = tmp
                     best_exp_rt = exp_rt.detach().clone().cpu()
-                    
+
                 opt.step()
 
         transform = ExpRtToMatrix.apply(best_exp_rt).squeeze(0)
@@ -235,7 +232,8 @@ class AutogradICP:
 
         return RegistrationResult(
             transform,
-            torch.from_numpy(opt_res.hess_inv).float() if opt_res is not None else None,
+            torch.from_numpy(opt_res.hess_inv).float(
+            ) if opt_res is not None else None,
             loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,

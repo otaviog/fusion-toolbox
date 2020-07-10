@@ -60,6 +60,8 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
     """Rasterizer of :obj:`slamtb.fusion.surfel.model.SurfelModel` that
     writes point, normal and the the surfels' index to
     framebuffers.
+
+    The position map has model points on camera space.
     """
 
     def __init__(self, surfel_model):
@@ -112,6 +114,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
 
         with gl_context.current():
             world_to_cam = rt_cam.world_to_cam.float()
+
             self.program['WorldToCam'] = world_to_cam
             self.program['WorldToCamNormal'] = normal_transform_matrix(
                 world_to_cam)

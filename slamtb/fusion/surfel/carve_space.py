@@ -11,11 +11,11 @@ class CarveSpace:
     """
 
     def __init__(self, stable_conf_thresh=10, stable_time_thresh=20,
-                 search_size=2, min_z_difference=5e-2):
+                 search_size=2, z_tollerance=5e-2):
         self.stable_conf_thresh = stable_conf_thresh
         self.stable_time_thresh = stable_time_thresh
         self.search_size = search_size
-        self.min_z_difference = min_z_difference
+        self.z_tollerance = z_tollerance
 
         self._free_map = None
 
@@ -26,21 +26,19 @@ class CarveSpace:
         if alloc_indices.size(0) == 0:
             return 0
 
-        remove_mask = torch.zeros(alloc_indices.size(0), device=ref_device,
-                                  dtype=torch.bool)
+        indexmap_remove_mask = torch.zeros(indexmap.height, indexmap.width, device=ref_device,
+                                           dtype=torch.bool)
 
         with model.gl_context.current():
             with model.map_as_tensors(ref_device) as mapped_model:
                 _SurfelFusionOp.carve_space(mapped_model, alloc_indices,
-                                            indexmap, kcam.matrix.to(ref_device),
+                                            indexmap, kcam.matrix.to(
+                                                ref_device),
                                             rt_cam.world_to_cam.float().to(ref_device),
                                             time, 2, self.stable_conf_thresh,
-                                            self.stable_time_thresh,
-                                            remove_mask)
+                                            self.stable_time_thresh, self.z_tollerance,
+                                            indexmap_remove_mask)
 
-        remove_idxs = alloc_indices[remove_mask]
-        if remove_idxs.size(0) == 0:
-            return 0
-
-        model.free(remove_idxs, update_gl)
-        return remove_idxs.size(0)
+        deleted = indexmap.indexmap[:, :, 0][indexmap_remove_mask].long()
+        model.free(deleted, update_gl)
+        return deleted.size(0)

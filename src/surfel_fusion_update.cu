@@ -50,9 +50,10 @@ struct FindMergeKernel {
     int u, v;
     kcam.Projecti(live_pos, u, v);
 
-    const Vector<float, 3> ray(live_pos[0] / live_pos[2],
+	// Undo the z division done in backprojection
+    const Vector<float, 3> ray(live_pos[0] / live_pos[2],    
                                live_pos[1] / live_pos[2], 1);
-    const float lambda = sqrt(ray[0] * ray[0] + ray[1] * ray[1] + 1);
+    const float lambda = ray.norm();
     const Vector<float, 3> live_normal(live_surfels.normal(live_index));
 
     const int xstart = max(u * scale - search_size, 0);
@@ -73,13 +74,13 @@ struct FindMergeKernel {
         const Vector<float, 3> model_pos = model_indexmap.point(krow, kcol);
         if (abs((model_pos[2] * lambda) - (live_pos[2] * lambda)) >= 0.05)
           continue;
-
-        const float dist = ray.cross(model_pos).norm() / ray.norm();
+        const float ray_dist = model_pos.cross(ray).norm() / ray.norm();
 		
-        const Vector<float, 3> normal = model_indexmap.normal(krow, kcol);
-        if (dist < best_dist && GetVectorsAngle(normal, live_normal) < max_normal_angle,
-			abs(normal[2]) < 0.75f) {
-          best_dist = dist;
+        const Vector<float, 3> model_normal = model_indexmap.normal(krow, kcol);
+        if (ray_dist < best_dist && (GetVectorsAngle(model_normal, live_normal) < max_normal_angle
+									 || abs(model_normal[2]) < 0.75f)
+			) {
+          best_dist = ray_dist;
           best_row = krow;
           best_col = kcol;
         }
@@ -125,6 +126,7 @@ struct UpdateKernel {
 
     const float live_conf = live_surfels.confidences[live_index];
     const float model_conf = model.confidences[model_target];
+	//const float live_conf = model_conf;
     const float conf_total = live_conf + model_conf;
 
     model.confidences[model_target] = conf_total;

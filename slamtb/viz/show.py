@@ -51,8 +51,12 @@ def create_tenviz_node_from_geometry(geometry, context=None,
                     "`context` is required for SurfelCloud type")
             surfels = SurfelModel.from_surfel_cloud(context, geometry)
         node = SurfelRender(surfels)
+    elif isinstance(geometry, SurfelRender):
+        node = geometry
     elif isinstance(geometry, tenviz.geometry.Geometry):
         node = tenviz.nodes.create_mesh_from_geo(geometry)
+    elif isinstance(geometry, (tenviz.nodes.Scene, tenviz.program.DrawProgram)):
+        node = geometry
     else:
         raise RuntimeError("Unknown geometry type:", type(geometry))
 

@@ -60,3 +60,6 @@ def load_sample1_dataset():
 
 def load_sample2_dataset():
     return load_ftb(Path(__file__).parent / "../test-data/rgbd/sample2")
+
+def load_sample3_dataset():
+    return load_ftb("/work/3drec/slam-feature/data/scenenn/SceneNN-ftb/032")

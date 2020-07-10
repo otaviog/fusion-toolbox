@@ -48,8 +48,9 @@ struct CleanKernel {
 }  // namespace
 
 void SurfelFusionOp::Clean(MappedSurfelModel model, torch::Tensor model_indices,
-                           int time, float stable_conf_thresh,
-                           int stable_time_thresh, torch::Tensor remove_mask) {
+                           int time,  int stable_time_thresh,
+						   float stable_conf_thresh,
+						   torch::Tensor remove_mask) {
   const auto ref_device = model_indices.device();
   model.CheckDevice(ref_device);
   FTB_CHECK_DEVICE(ref_device, remove_mask);

@@ -14,7 +14,7 @@ namespace slamtb {
 template <typename scalar_t>
 inline FTB_DEVICE_HOST scalar_t GetVectorsAngle(const Vector<scalar_t, 3> &v0,
                                                 const Vector<scalar_t, 3> &v1) {
-  return acos(v0.dot(v1) / (v0.norm() * v1.norm()));
+  return abs(acos(v0.dot(v1) / (v0.norm() * v1.norm())));
 }
 
 template <typename scalar_t>

@@ -72,14 +72,15 @@ struct SurfelFusionOp {
                          const torch::Tensor kcam,
                          const torch::Tensor &world_to_cam, int time,
                          int neighbor_size, float stable_conf_thresh,
-                         int stable_time_thresh, torch::Tensor remove_mask);
+                         int stable_time_thresh, float min_z_diff,
+                         torch::Tensor remove_mask);
 
   static void Merge(const IndexMap &model_indexmap, torch::Tensor merge_map,
                     MappedSurfelModel model, float max_dist, float max_angle,
                     int neighbor_size, float stable_conf_thresh);
 
   static void Clean(MappedSurfelModel model, torch::Tensor model_indices,
-                    int time, float stable_conf_thresh, int stable_time_thresh,
+                    int time, int stable_time_thresh, float stable_conf_thresh,
                     torch::Tensor remove_mask);
 
   static void CopyFeatures(const torch::Tensor &indexmap,

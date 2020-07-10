@@ -2,6 +2,7 @@
 """
 from pathlib import Path
 
+from fire import Fire
 import torch
 import numpy as np
 import tenviz
@@ -19,7 +20,7 @@ _STABLE_TIME_THRESH = 20
 _CURRENT_TIME = 30
 
 
-def _test():
+def _test(z_toll=5e-2):
     test_data = Path(__file__).parent / "../../../../test-data/rgbd"
 
     dataset = set_start_at_eye(load_ftb(test_data / "sample2"))
@@ -50,7 +51,8 @@ def _test():
 
     prev_model = surfel_model.clone()
 
-    carve = CarveSpace(_STABLE_CONF_THRESH, _STABLE_TIME_THRESH, search_size=2)
+    carve = CarveSpace(_STABLE_CONF_THRESH, _STABLE_TIME_THRESH, search_size=2,
+                       min_z_difference=z_toll)
 
     height, width = frame.depth_image.shape
 
@@ -74,4 +76,4 @@ def _test():
 
 
 if __name__ == '__main__':
-    _test()
+    Fire(_test)

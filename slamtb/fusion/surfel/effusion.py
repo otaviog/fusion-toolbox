@@ -41,7 +41,7 @@ class EFFusion:
 
             return FusionStats(live_surfels.size, 0, 0)
 
-        stats = FusionStats()
+        stats = FusionStats(merged_count="n/a", carved_count="n/a")
 
         indexmap_size = int(
             width*self.indexmap_scale), int(height*self.indexmap_scale)

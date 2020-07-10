@@ -16,7 +16,8 @@ class SurfelFusion:
     def __init__(self, model, normal_max_angle=math.radians(30),
                  stable_conf_thresh=10, stable_time_thresh=20,
                  search_size=2, indexmap_scale=4,
-                 max_merge_distance=0.01, min_z_difference=0.01):
+                 max_merge_distance=0.01,
+                 carve_z_toll=5e-2):
         self.model = model
         self.model_raster = ModelIndexMapRaster(model)
 
@@ -27,11 +28,11 @@ class SurfelFusion:
 
         self._carve = CarveSpace(stable_conf_thresh=stable_conf_thresh,
                                  stable_time_thresh=stable_time_thresh,
-                                 min_z_difference=min_z_difference)
+                                 z_tollerance=carve_z_toll)
         self._merge = Merge(max_merge_distance, normal_max_angle=normal_max_angle,
                             search_size=search_size,
                             stable_conf_thresh=stable_conf_thresh)
-        self._clean = Clean(elastic_fusion=True,
+        self._clean = Clean(elastic_fusion=False,
                             stable_conf_thresh=stable_conf_thresh,
                             stable_time_thresh=stable_time_thresh)
 
@@ -63,7 +64,7 @@ class SurfelFusion:
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
-
+        model_indexmap.synchronize()
         new_surfels = self._update(
             model_indexmap, live_surfels, frame_pcl.kcam,
             rt_cam, self._time, self.model)
@@ -79,11 +80,12 @@ class SurfelFusion:
         model_indexmap = self.model_raster.to_indexmap()
         model_indexmap.synchronize()
 
-        stats.merged_count = self._merge(model_indexmap, self.model, update_gl=True)
+        stats.merged_count = self._merge(
+            model_indexmap, self.model, update_gl=True)
+        stats.carved_count += self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap,
+                                          self._time, self.model)
 
-        #stats.removed_count += self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap,
-        #                                   self._time, self.model)
-
+        self.model.update_gl()
         self._time += 1
         self.model.max_time = self._time
 

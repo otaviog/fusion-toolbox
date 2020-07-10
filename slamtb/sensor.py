@@ -97,7 +97,7 @@ class Sensor:
         info.timestamp = depth_ts
 
         if self.depth_cutoff is not None:
-            depth_img[depth_img > self.depth_cutoff] = 0
+            depth_img[depth_img > (self.depth_cutoff/info.depth_scale)] = 0
 
         frame = Frame(info, depth_img.astype(np.int32), rgb_image=rgb_img)
 
@@ -108,7 +108,7 @@ class DatasetSensor:
     """Simulates a sensor using a dataset instance.
     """
 
-    def __init__(self, dataset, start_idx=0, prefetch_size=16, num_workers=4):
+    def __init__(self, dataset, start_idx=0, prefetch_size=16, num_workers=4, depth_cutoff=None):
         """
         Args:
 
@@ -117,12 +117,13 @@ class DatasetSensor:
 
         self.dataset = dataset
         self.current_idx = start_idx
+        self.depth_cutoff = depth_cutoff
         # self.loader = torch.utils.data.DataLoader(
         #     self.dataset,
         #     batch_size=prefetch_size,
         #     shuffle=False, num_workers=num_workers)
         # self.loader_iter = iter(self.loader)
-        
+
     def next_frame(self):
         """Reads the next frame from the dataset.
 
@@ -133,6 +134,10 @@ class DatasetSensor:
             return None
 
         frame = self.dataset[self.current_idx]
+        if self.depth_cutoff is not None:
+            frame.depth_image[frame.depth_image > (
+                self.depth_cutoff / frame.info.depth_scale)] = 0
+
         self.current_idx += 1
 
         return frame
