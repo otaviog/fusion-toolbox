@@ -20,14 +20,20 @@ class RegistrationResult:
         match_ratio (float): Final ratio of matched source points on
          the target.
 
+        source_size (int, optional): Source geometry point count.
+
+        target_size (int, optional): Target geometry point count.
+
     """
 
     def __init__(self, transform=None, hessian=None,
-                 residual=math.inf, match_ratio=0):
+                 residual=math.inf, match_ratio=0, source_size=None, target_size=None):
         self.transform = transform
         self.hessian = hessian
         self.residual = residual
         self.match_ratio = match_ratio
+        self.source_size = source_size
+        self.target_size = target_size
 
     def __str__(self):
         return (f"RegistrationResult with: "
