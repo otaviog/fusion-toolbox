@@ -81,6 +81,32 @@ class _JacobianStep:
 
         return JtJ, Jtr, residual, match_count
 
+    def get_information_matrix(self, target_points, target_normals, target_mask,
+                               source_points, source_normals, source_mask,
+                               kcam, transform):
+
+        device = source_points.device
+        dtype = source_points.dtype
+
+        GtG = torch.empty(source_points.size(0), 6, 6,
+                          device=device, dtype=dtype)
+
+        corresp_map_func = CorrespondenceMap(self.distance_threshold,
+                                             self.normals_angle_thresh)
+        corresp_map = corresp_map_func(
+            source_points, source_normals, source_mask,
+            transform.to(dtype),
+            target_points, target_normals, target_mask,
+            kcam)
+
+        _ICPJacobian.get_information_matrix(
+            source_points, source_mask,
+            transform.to(dtype),
+            target_points, kcam, corresp_map,
+            GtG)
+
+        return GtG.sum(0).cpu()
+
 
 class ICPOdometry:
     """Iterative closest points algorithm using the point-to-plane error,
@@ -225,9 +251,14 @@ class ICPOdometry:
                 transform = update_matrix @ transform
 
             residual = residual.item() / match_count
+
             best_result = RegistrationResult(
                 transform.cpu(), JtJ, residual, match_count / source_points.size(0))
 
+        best_result.information = self._geom_step.get_information_matrix(
+            target_points, target_normals, target_mask,
+            source_points, source_normals, source_mask,
+            kcam, transform)
         return best_result
 
     def estimate_frame(self, source_frame, target_frame, source_feats=None,

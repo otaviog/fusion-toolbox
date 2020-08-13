@@ -130,7 +130,8 @@ class AutogradICP:
                  distance_threshold=0.1,
                  normals_angle_thresh=math.pi/8.0,
                  feat_residual_thresh=0.5,
-                 huber_loss_alpha=4.5):
+                 huber_loss_alpha=4.5,
+                 gradient_descent_iters=100):
         self.num_iters = num_iters
         self.geom_weight = geom_weight
         self.feat_weight = feat_weight
@@ -139,6 +140,7 @@ class AutogradICP:
         self.normals_angle_thresh = normals_angle_thresh
         self.feat_residual_thresh = feat_residual_thresh
         self.huber_loss_alpha = huber_loss_alpha
+        self.gradient_descent_iters = gradient_descent_iters
 
     def _estimate(self, source_points, source_normals,
                   source_feats, target_matcher, transform=None):
@@ -203,26 +205,26 @@ class AutogradICP:
 
             return loss*self.learning_rate
 
-        if True:
-            box = _ClosureBox(_closure, exp_rt)
-            opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
-                                              method='BFGS', jac=True, tol=0.000000001,
-                                              options=dict(disp=False, maxiter=self.num_iters))
+        box = _ClosureBox(_closure, exp_rt)
+        opt_res = scipy.optimize.minimize(box.func, exp_rt.detach().cpu().numpy(),
+                                          method='BFGS', jac=True, tol=0.000000001,
+                                          options=dict(disp=False, maxiter=self.num_iters))
 
         best_exp_rt = exp_rt.detach().clone().cpu()
-        best_loss = 5555
-        if True:
+        best_residual = 5555
+
+        if self.gradient_descent_iters is not None:
             opt = torch.optim.SGD([exp_rt], 0.1)
             opt_res = None
-            for _ in range(100):
+            for _ in range(self.gradient_descent_iters):
                 opt.zero_grad()
                 _closure()
                 loss.backward()
 
                 tmp = loss.cpu().item()
 
-                if tmp < best_loss:
-                    best_loss = tmp
+                if tmp < best_residual:
+                    best_residual = tmp
                     best_exp_rt = exp_rt.detach().clone().cpu()
 
                 opt.step()
@@ -232,8 +234,8 @@ class AutogradICP:
 
         return RegistrationResult(
             transform,
-            torch.from_numpy(opt_res.hess_inv).float(
-            ) if opt_res is not None else None,
+            (torch.from_numpy(opt_res.hess_inv).inverse().float()
+             if opt_res is not None else None),
             loss, 1.0)
 
     def estimate(self, kcam, source_points, source_normals, source_mask,

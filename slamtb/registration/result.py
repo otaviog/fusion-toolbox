@@ -13,7 +13,7 @@ class RegistrationResult:
 
         transform (:obj:`torch.Tensor`): Result transformation (4 x 4) float64 matrix.
 
-        hessian (:obj:`torch.Tensor`): Result hessian matrix (6 x 6) float64 matrix.
+        information (:obj:`torch.Tensor`): Result information matrix (6 x 6) float64 matrix.
 
         residual (float): Final optimization residual.
 
@@ -26,10 +26,10 @@ class RegistrationResult:
 
     """
 
-    def __init__(self, transform=None, hessian=None,
+    def __init__(self, transform=None, information=None,
                  residual=math.inf, match_ratio=0, source_size=None, target_size=None):
         self.transform = transform
-        self.hessian = hessian
+        self.information = information
         self.residual = residual
         self.match_ratio = match_ratio
         self.source_size = source_size
@@ -38,7 +38,7 @@ class RegistrationResult:
     def __str__(self):
         return (f"RegistrationResult with: "
                 + f"transform = {self.transform} "
-                + f"hessian = {self.hessian} "
+                + f"information = {self.information} "
                 + f"residual = {self.residual} "
                 + f"match_ratio = {self.match_ratio}")
 
@@ -58,7 +58,7 @@ class RegistrationVerifier:
          this are declared as good estimations.
 
         covariance_max_threshold (float): If any covariance element of
-         hessian has value higher than this, then it'll declare a ill
+         information has value higher than this, then it'll declare a ill
          estimation. Seem in ElasticFusion.
 
         match_ratio_threshold (float): Results with lower point
@@ -74,13 +74,12 @@ class RegistrationVerifier:
         self.residual_threshhold = residual_threshhold
 
     def __call__(self, result):
+        if result.residual > self.residual_threshhold:
+            return False
 
-        if result.residual < self.residual_threshhold:
-            return True
-
-        if result.hessian is not None:
-            covariance = result.hessian.lu()[0].inverse()
-            if torch.any(covariance > self.covariance_max_threshold):
+        if result.information is not None:
+            eigvals, _ = torch.eig(result.information.inverse(), eigenvectors=False)
+            if torch.any(eigvals[:, 0] > self.covariance_max_threshold):
                 return False
 
         if result.match_ratio < self.match_ratio_threshold:

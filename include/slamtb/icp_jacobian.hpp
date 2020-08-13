@@ -76,6 +76,14 @@ struct ICPJacobian {
       const torch::Tensor &merge_map, torch::Tensor JtJ_partial,
       torch::Tensor Jr_partial, torch::Tensor squared_residual);
 
+  static void GetInformationMatrix(const torch::Tensor &src_points,
+                                   const torch::Tensor &src_mask,
+                                   const torch::Tensor &rt_cam,
+                                   const torch::Tensor &tgt_points,
+                                   const torch::Tensor &kcam,
+                                   const torch::Tensor &merge_map,
+                                   torch::Tensor GtG_partial);
+
   /**
    * Computes the \f$\mathfrak{se}(3)\f$ jacobian of the feature
    * reprojection error.
