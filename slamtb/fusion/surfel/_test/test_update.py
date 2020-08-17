@@ -10,7 +10,7 @@ import tenviz
 from slamtb.data import set_start_at_eye
 from slamtb.viz.surfelrender import show_surfels
 from slamtb.surfel import SurfelModel, SurfelCloud
-from slamtb.testing import load_sample3_dataset
+from slamtb.testing import load_sample2_dataset
 
 from ..indexmap import ModelIndexMapRaster
 from ..update import Update
@@ -19,7 +19,7 @@ from ..update import Update
 class _Tests:
     @staticmethod
     def _test(elastic_fusion):
-        dataset = set_start_at_eye(load_sample3_dataset())
+        dataset = set_start_at_eye(load_sample2_dataset())
 
         device = torch.device("cpu:0")
         gl_context = tenviz.Context()

@@ -39,10 +39,12 @@ class SurfelFusion:
         self.indexmap_scale = indexmap_scale
         self._time = 0
 
-    def fuse(self, frame_pcl, rt_cam, features=None, confidence_weight=1.0):
+    def fuse(self, frame_pcl, rt_cam, features=None, confidence_weight=1.0,
+             sparse_features=None):
         live_surfels = SurfelCloud.from_frame_pcl(
             frame_pcl, time=self._time,
-            features=features, confidence_weight=confidence_weight)
+            features=features, confidence_weight=confidence_weight,
+            sparse_features=sparse_features)
 
         gl_proj_matrix = frame_pcl.kcam.get_opengl_projection_matrix(
             0.01, 100.0, dtype=torch.float)
@@ -59,29 +61,36 @@ class SurfelFusion:
 
         stats = FusionStats()
 
+        ###
+        # Update
         indexmap_size = int(
             width*self.indexmap_scale), int(height*self.indexmap_scale)
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
-        model_indexmap.synchronize()
         new_surfels = self._update(
             model_indexmap, live_surfels, frame_pcl.kcam,
             rt_cam, self._time, self.model)
         self.model.add_surfels(new_surfels, update_gl=True)
         stats.added_count = new_surfels.size
 
+        ####
+        # Clean
         stats.removed_count = self._clean(
             frame_pcl.kcam, frame_pcl.rt_cam,
             model_indexmap, self._time, self.model, update_gl=True)
 
+        ####
+        # Merge & Carve Raster
         self.model_raster.raster(gl_proj_matrix, rt_cam,
                                  indexmap_size[0], indexmap_size[1])
         model_indexmap = self.model_raster.to_indexmap()
-        model_indexmap.synchronize()
 
+        # Merge
         stats.merged_count = self._merge(
             model_indexmap, self.model, update_gl=True)
+
+        # Carve
         stats.carved_count += self._carve(frame_pcl.kcam, frame_pcl.rt_cam, model_indexmap,
                                           self._time, self.model)
 

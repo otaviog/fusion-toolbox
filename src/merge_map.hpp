@@ -91,6 +91,10 @@ struct MergeMapAccessor {
   FTB_DEVICE_HOST int32_t operator()(int row, int col) const {
     return merge_map[row][col] >> 32;
   }
+
+  FTB_DEVICE_HOST inline bool empty(int row, int col) const {
+    return (merge_map[row][col] >> 32) == 0x0fffffff;
+  }
 };
 
 }  // namespace slamtb

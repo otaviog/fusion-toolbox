@@ -28,11 +28,15 @@ class Merge:
         with model.gl_context.current():
             model_indexmap.synchronize()
             with model.map_as_tensors(ref_device) as mapped_model:
-                _SurfelFusionOp.merge(model_indexmap, self._merge_map, mapped_model, self.max_dist,
-                                      self.normal_max_angle, self.search_size,
-                                      self.stable_conf_thresh)
+                merge_corresp = _SurfelFusionOp.find_mergeable(
+                    model_indexmap, self._merge_map, self.max_dist,
+                    self.normal_max_angle, self.search_size,
+                    self.stable_conf_thresh)
 
-            deleted = self._merge_map[self._merge_map > -1]
-            model.free(deleted, update_gl)
+                merge_corresp = merge_corresp[merge_corresp[:, 0] > -1, :]
+                _SurfelFusionOp.merge(merge_corresp, mapped_model)
 
-            return deleted.size(0)
+            model.sparse_features.merge(merge_corresp.cpu())
+            model.free(merge_corresp[:, 1], update_gl)
+
+            return merge_corresp.size(0)

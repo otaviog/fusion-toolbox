@@ -39,15 +39,26 @@ class Update:
                         kcam.matrix.to(ref_device),
                         rt_cam.cam_to_world.float(),
                         self.search_size, time, scale,
-                        model_merge_map, self._new_surfels_map)
+                        model_merge_map, sel._new_surfels_map)
                 else:
-                    SurfelFusionOp.update(
-                        model_indexmap, live_surfels.to_cpp_(), mapped_model,
-                        kcam.matrix.to(ref_device),
-                        rt_cam.cam_to_world.float(),
-                        self.max_normal_angle, self.search_size, time, scale,
-                        model_merge_map, self._new_surfels_map)
+                    merge_corresp = torch.full((model_indexmap.width * model_indexmap.height, 2),
+                                               -1, device=ref_device, dtype=torch.int64)
 
-        new_surfels = live_surfels[self._new_surfels_map]
+                    SurfelFusionOp.find_updatable(model_indexmap,
+                                                  live_surfels.to_cpp_(),
+                                                  kcam.matrix.to(ref_device),
+                                                  self.max_normal_angle, self.search_size, time,
+                                                  scale, model_merge_map, self._new_surfels_map,
+                                                  merge_corresp)
+
+                    merge_corresp = merge_corresp[merge_corresp[:, 0] > -1, :]
+                    SurfelFusionOp.update(merge_corresp,
+                                          live_surfels.to_cpp_(),
+                                          mapped_model,
+                                          rt_cam.cam_to_world.float(), time)
+                    if live_surfels.sparse_features is not None:
+                        surfel_model.sparse_features.merge(
+                            merge_corresp.cpu(), live_surfels.sparse_features)
+        new_surfels = live_surfels[self._new_surfels_map.nonzero().squeeze()]
         new_surfels.itransform(rt_cam.cam_to_world)
         return new_surfels

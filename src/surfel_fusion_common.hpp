@@ -72,14 +72,12 @@ template <Device dev>
 struct IndexMapAccessor {
   typename Accessor<dev, float, 3>::T point_confidence;
   typename Accessor<dev, float, 3>::T normal_radius;
-  typename Accessor<dev, uint8_t, 3>::T color_;
   typename Accessor<dev, int32_t, 3>::T indexmap;
   typename Accessor<dev, int32_t, 2>::T linear_indexmap;
 
   IndexMapAccessor(const IndexMap &params)
       : point_confidence(Accessor<dev, float, 3>::Get(params.point_confidence)),
         normal_radius(Accessor<dev, float, 3>::Get(params.normal_radius)),
-        color_(Accessor<dev, uint8_t, 3>::Get(params.color)),
         indexmap(Accessor<dev, int32_t, 3>::Get(params.indexmap)),
         linear_indexmap(
             Accessor<dev, int32_t, 2>::Get(params.indexmap.view({-1, 3}))) {}
@@ -123,10 +121,6 @@ struct IndexMapAccessor {
 
   FTB_DEVICE_HOST inline Vector<float, 3> normal(int row, int col) const {
     return to_vec3<float>(normal_radius[row][col]);
-  }
-
-  FTB_DEVICE_HOST inline Vector<float, 3> color(int row, int col) const {
-    return to_vec3<float>(color_[row][col]);
   }
 
   FTB_DEVICE_HOST inline float radius(int row, int col) const {

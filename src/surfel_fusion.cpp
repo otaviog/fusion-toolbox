@@ -43,7 +43,9 @@ void MappedSurfelModel::RegisterPybind(py::module &m) {
 void SurfelFusionOp::RegisterPybind(py::module &m) {
   py::class_<SurfelFusionOp>(m, "SurfelFusionOp")
       .def_static("update", &SurfelFusionOp::Update)
+      .def_static("find_updatable", &SurfelFusionOp::FindUpdatable)
       .def_static("carve_space", &SurfelFusionOp::CarveSpace)
+      .def_static("find_mergeable", &SurfelFusionOp::FindMergeable)
       .def_static("merge", &SurfelFusionOp::Merge)
       .def_static("clean", &SurfelFusionOp::Clean)
       .def_static("copy_features", &SurfelFusionOp::CopyFeatures);

@@ -8,6 +8,7 @@
 #include "icp_jacobian.hpp"
 #include "matching.hpp"
 #include "nearest_neighbors.hpp"
+#include "sparse_feature_set.hpp"
 #include "processing.hpp"
 #include "se3.hpp"
 #include "surfel.hpp"
@@ -38,7 +39,8 @@ PYBIND11_MODULE(_cslamtb, m) {
   FPCLMatcherOp::RegisterPybind(m);
   NearestNeighborsOp::RegisterPybind(m);
   CorrespondenceMap::RegisterPybind(m);
-  
+  SparseFeatureSet::RegisterPybind(m);
+      
   // Surfel
   SurfelOp::RegisterPybind(m);
   SurfelAllocator::RegisterPybind(m);

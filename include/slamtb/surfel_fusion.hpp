@@ -22,9 +22,7 @@ struct IndexMap {
 
   void Synchronize();
 
-  const torch::Device get_device() const {
-    return point_confidence.device();
-  }
+  const torch::Device get_device() const { return point_confidence.device(); }
 
   IndexMap To(const std::string &dev) const {
     IndexMap result;
@@ -38,7 +36,7 @@ struct IndexMap {
   void CheckDevice(const torch::Device &dev) const {
     FTB_CHECK_DEVICE(dev, point_confidence);
     FTB_CHECK_DEVICE(dev, normal_radius);
-    FTB_CHECK_DEVICE(dev, color);
+    // FTB_CHECK_DEVICE(dev, color); TODO: check if it's not empty.
     FTB_CHECK_DEVICE(dev, indexmap);
   }
 };
@@ -58,14 +56,18 @@ struct MappedSurfelModel {
   }
 };
 
-
 struct SurfelFusionOp {
-  static void Update(const IndexMap &model_indexmap,
+  static void FindUpdatable(const IndexMap &model_indexmap,
+                            const SurfelCloud &live_surfels,
+                            const torch::Tensor &kcam,
+                            float max_normal_angle, int search_size, int time,
+                            int scale, torch::Tensor merge_map,
+                            torch::Tensor new_surfels_map,
+                            torch::Tensor merge_corresp);
+
+  static void Update(const torch::Tensor &merge_corresp,
                      const SurfelCloud &live_surfels, MappedSurfelModel model,
-                     const torch::Tensor &kcam, const torch::Tensor &rt_cam,
-                     float max_normal_angle, int search_size, int time,
-                     int scale, torch::Tensor merge_map,
-                     torch::Tensor new_surfels_map);
+                     const torch::Tensor &rt_cam, int time);
 
   static void CarveSpace(MappedSurfelModel model, torch::Tensor model_indices,
                          const IndexMap &model_indexmap,
@@ -75,9 +77,14 @@ struct SurfelFusionOp {
                          int stable_time_thresh, float min_z_diff,
                          torch::Tensor remove_mask);
 
-  static void Merge(const IndexMap &model_indexmap, torch::Tensor merge_map,
-                    MappedSurfelModel model, float max_dist, float max_angle,
-                    int neighbor_size, float stable_conf_thresh);
+  static torch::Tensor FindMergeable(
+      const IndexMap &indexmap,
+      torch::Tensor merge_map,
+      float max_dist, float max_angle,
+      int neighbor_size,
+      float stable_conf_thresh);
+
+  static void Merge(const torch::Tensor &merge_corresp, MappedSurfelModel model);
 
   static void Clean(MappedSurfelModel model, torch::Tensor model_indices,
                     int time, int stable_time_thresh, float stable_conf_thresh,

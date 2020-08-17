@@ -13,7 +13,7 @@ namespace {
 
 template <Device dev>
 struct FindMergesKernel {
-  const IndexMapAccessor<dev> model;
+  const IndexMapAccessor<dev> indexmap;
   typename Accessor<dev, int64_t, 2>::T merge_map;
 
   const float max_dist;
@@ -21,10 +21,10 @@ struct FindMergesKernel {
   const int neighbor_size;
   const float stable_conf_thresh;
 
-  FindMergesKernel(const IndexMap &model, const torch::Tensor &merge_map,
+  FindMergesKernel(const IndexMap &indexmap, const torch::Tensor &merge_map,
                    float max_dist, float max_angle, int neighbor_size,
                    float stable_conf_thresh)
-      : model(IndexMapAccessor<dev>(model)),
+      : indexmap(IndexMapAccessor<dev>(indexmap)),
         merge_map(Accessor<dev, int64_t, 2>::Get(merge_map)),
         max_dist(max_dist),
         max_angle(max_angle),
@@ -33,43 +33,40 @@ struct FindMergesKernel {
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
     merge_map[row][col] = -1;
-    if (model.empty(row, col)) return;
-    if (model.confidence(row, col) < stable_conf_thresh) return;
+    if (indexmap.empty(row, col)) return;
+    if (indexmap.confidence(row, col) < stable_conf_thresh) return;
 
-    const Eigen::Vector3f pos = model.point(row, col);
-    const Eigen::Vector3f normal = model.normal(row, col);
-    const float radius = model.radius(row, col);
+    const Eigen::Vector3f pos = indexmap.point(row, col);
+    const Eigen::Vector3f normal = indexmap.normal(row, col);
+    const float radius = indexmap.radius(row, col);
 
     int nearest_local_surfel_idx = -1;
     float nearest_sq_dist = NumericLimits<dev, float>::infinity();
-    int count = 0;
 
     const int start_row = max(row - neighbor_size, 0);
-    const int end_row = min(row + neighbor_size, model.height() - 1);
+    const int end_row = min(row + neighbor_size, indexmap.height() - 1);
 
     const int start_col = max(col - neighbor_size, 0);
-    const int end_col = min(col + neighbor_size, model.width() - 1);
+    const int end_col = min(col + neighbor_size, indexmap.width() - 1);
 
     for (int krow = start_row; krow <= end_row; ++krow) {
       for (int kcol = start_col; kcol <= end_col; ++kcol) {
         if (krow == row && kcol == col) continue;
-        if (model.empty(krow, kcol)) continue;
-        if (model.confidence(krow, kcol) < stable_conf_thresh) continue;
+        if (indexmap.empty(krow, kcol)) continue;
+        if (indexmap.confidence(krow, kcol) < stable_conf_thresh) continue;
 
-        const Eigen::Vector3f neighbor_pos = model.point(krow, kcol);
+        const Eigen::Vector3f neighbor_pos = indexmap.point(krow, kcol);
 
-        const Eigen::Vector3f neighbor_normal = model.normal(krow, kcol);
-        const float neighbor_radius = model.radius(krow, kcol);
+        const Eigen::Vector3f neighbor_normal = indexmap.normal(krow, kcol);
+        const float neighbor_radius = indexmap.radius(krow, kcol);
         const float angle = abs(GetVectorsAngle(normal, neighbor_normal));
 
         const float sq_dist = (pos - neighbor_pos).squaredNorm();
         const float dist_to = radius + neighbor_radius;
         if (sq_dist <= max_dist * max_dist && sq_dist < dist_to * dist_to &&
             angle <= max_angle) {
-          ++count;
           if (sq_dist < nearest_sq_dist) {
-            // nearest_surfel_idx = model.index(krow, kcol);
-            nearest_local_surfel_idx = model.to_linear_index(krow, kcol);
+            nearest_local_surfel_idx = indexmap.to_linear_index(krow, kcol);
             nearest_sq_dist = sq_dist;
           }
         }
@@ -99,43 +96,60 @@ void PreventDoubleMerges_cpu(torch::TensorAccessor<int64_t, 1> merge_map) {
       } else {
         merge_map[i] = -1;
       }
-
-      // if (merge_map[other_idx] == -1) {
-      // Someone already merged with this one
-      // merge_map[i] = -1;
-      //}
     }
   }
 }
 
 template <Device dev>
-struct MergeKernel {
+struct SelectMergeableKernel {
   const IndexMapAccessor<dev> indexmap;
-  typename Accessor<dev, int64_t, 2>::T merge_map;
-  SurfelModelAccessor<dev> model;
+  const typename Accessor<dev, int64_t, 2>::T merge_map;
+  typename Accessor<dev, int64_t, 2>::T merge_corresp;
 
-  MergeKernel(const IndexMap &indexmap, const torch::Tensor &merge_map,
-              MappedSurfelModel model)
+  SelectMergeableKernel(const IndexMap &indexmap,
+                        const torch::Tensor &merge_map,
+                        torch::Tensor merge_corresp)
       : indexmap(indexmap),
         merge_map(Accessor<dev, int64_t, 2>::Get(merge_map)),
-        model(model) {}
+        merge_corresp(Accessor<dev, int64_t, 2>::Get(merge_corresp)) {}
 
   FTB_DEVICE_HOST void operator()(int row, int col) {
+    const int index = indexmap.to_linear_index(row, col);
+
+    merge_corresp[index][0] = -1;
+    merge_corresp[index][1] = -1;
+
     const int64_t local_source_idx = merge_map[row][col];
     if (local_source_idx < 0) return;
 
-    int64_t source_idx = indexmap.index(local_source_idx);
-    merge_map[row][col] = source_idx;
-
+    const int64_t source_idx = indexmap.index(local_source_idx);
     const int64_t target_idx = indexmap.index(row, col);
+
+    merge_corresp[index][0] = target_idx;
+    merge_corresp[index][1] = source_idx;
+  }
+};
+
+template <Device dev>
+struct MergeKernel {
+  const typename Accessor<dev, int64_t, 2>::T merge_corresps;
+  SurfelModelAccessor<dev> model;
+
+  MergeKernel(const torch::Tensor merge_corresps, MappedSurfelModel model)
+      : merge_corresps(Accessor<dev, int64_t, 2>::Get(merge_corresps)),
+        model(model) {}
+
+  FTB_DEVICE_HOST void operator()(int corresp) {
+    const int64_t target_idx = merge_corresps[corresp][0];
+    const int64_t source_idx = merge_corresps[corresp][1];
 
     const float tgt_conf = model.confidences[target_idx];
     const float src_conf = model.confidences[source_idx];
     const float conf_total = tgt_conf + src_conf;
 
     model.set_point(target_idx, (model.point(target_idx) * tgt_conf +
-                                    model.point(source_idx) * src_conf) /
-                                       conf_total);
+                                 model.point(source_idx) * src_conf) /
+                                    conf_total);
     model.set_normal(target_idx, (model.normal(target_idx) * tgt_conf +
                                   model.normal(source_idx) * src_conf) /
                                      conf_total);
@@ -159,13 +173,12 @@ struct MergeKernel {
 };
 }  // namespace
 
-void SurfelFusionOp::Merge(const IndexMap &indexmap, torch::Tensor merge_map,
-                           MappedSurfelModel model, float max_dist,
-                           float max_angle, int neighbor_size,
-                           float stable_conf_thresh) {
+torch::Tensor SurfelFusionOp::FindMergeable(const IndexMap &indexmap,
+                                            torch::Tensor merge_map,
+                                            float max_dist, float max_angle,
+                                            int neighbor_size,
+                                            float stable_conf_thresh) {
   const auto ref_device = indexmap.get_device();
-  model.CheckDevice(ref_device);
-
   FTB_CHECK_DEVICE(ref_device, merge_map);
 
   if (ref_device.is_cuda()) {
@@ -183,16 +196,31 @@ void SurfelFusionOp::Merge(const IndexMap &indexmap, torch::Tensor merge_map,
   PreventDoubleMerges_cpu(linear_merge_map.accessor<int64_t, 1>());
   merge_map.copy_(linear_merge_map.view(merge_map.sizes()), false);
 
+  torch::Tensor merge_corresp =
+      torch::empty({indexmap.get_height() * indexmap.get_width(), 2},
+                   torch::TensorOptions(torch::kInt64).device(ref_device));
   if (ref_device.is_cuda()) {
-    // auto dev_merge_map =
-    // linear_merge_map.view(merge_map.size()).to(torch::kCUDA);
-    MergeKernel<kCUDA> kernel(indexmap, merge_map, model);
+    SelectMergeableKernel<kCUDA> kernel(indexmap, merge_map, merge_corresp);
     Launch2DKernelCUDA(kernel, indexmap.get_width(), indexmap.get_height());
   } else {
-    // auto dev_merge_map =
-    // linear_merge_map.view(merge_map.size()).to(torch::kCPU);
-    MergeKernel<kCPU> kernel(indexmap, merge_map, model);
+    SelectMergeableKernel<kCPU> kernel(indexmap, merge_map, merge_corresp);
     Launch2DKernelCPU(kernel, indexmap.get_width(), indexmap.get_height());
+  }
+
+  return merge_corresp;
+}
+
+void SurfelFusionOp::Merge(const torch::Tensor &merge_corresps,
+                           MappedSurfelModel model) {
+  const auto ref_device = merge_corresps.device();
+  model.CheckDevice(ref_device);
+
+  if (ref_device.is_cuda()) {
+    MergeKernel<kCUDA> kernel(merge_corresps, model);
+    Launch1DKernelCUDA(kernel, merge_corresps.size(0));
+  } else {
+    MergeKernel<kCPU> kernel(merge_corresps, model);
+    Launch1DKernelCPU(kernel, merge_corresps.size(0));
   }
 }
 }  // namespace slamtb

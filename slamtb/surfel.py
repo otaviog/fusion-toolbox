@@ -7,7 +7,8 @@ import torch
 import tenviz
 
 from slamtb.frame import FramePointCloud
-from slamtb.camera import RigidTransform, normal_transform_matrix
+from slamtb.camera import RigidTransform
+from slamtb.spatial.sparse_feature_set import SparseFeatureSet
 from slamtb._cslamtb import (
     SurfelOp as _SurfelOp,
     MappedSurfelModel, SurfelAllocator as _SurfelAllocator,
@@ -99,7 +100,7 @@ class SurfelCloud:
     """
 
     def __init__(self, points, confidences, normals, radii,
-                 colors, times, features=None):
+                 colors, times, features=None, sparse_features=None):
         self.points = points
         self.confidences = confidences
         self.normals = normals
@@ -107,11 +108,12 @@ class SurfelCloud:
         self.colors = colors
         self.times = times
         self.features = features
+        self.sparse_features = sparse_features
 
     @classmethod
     def from_frame_pcl(cls, frame_pcl, confidences=None, confidence_weight=0.5,
-                       time=0, features=None):
-        """Constructs a point cloud from a FramePointCloud. 
+                       time=0, features=None, sparse_features=None):
+        """Constructs a point cloud from a FramePointCloud.
 
         Tensors are not explicitly copied.
 
@@ -132,6 +134,7 @@ class SurfelCloud:
              features. Must be (F x N) floats.
 
         """
+
         pcl = frame_pcl.unordered_point_cloud(world_space=False)
         if confidences is None:
             confidences = ComputeConfidences()(
@@ -148,12 +151,17 @@ class SurfelCloud:
         if features is not None:
             features = features[:, frame_pcl.mask].view(-1, pcl.size)
 
+        if sparse_features is not None:
+            keypoint_yxs, feats = sparse_features
+            sparse_features = SparseFeatureSet(
+                keypoint_yxs, feats, frame_pcl.mask.cpu())
+
         return cls(pcl.points,
                    confidences,
                    pcl.normals,
                    radii,
                    pcl.colors,
-                   time, features)
+                   time, features, sparse_features)
 
     @classmethod
     def from_frame(cls, frame, confidences=None, confidence_weight=0.5,
@@ -194,7 +202,7 @@ class SurfelCloud:
 
     @classmethod
     def empty(cls, size, device="cpu:0", feature_size=None):
-        """Constructs a surfel cloud with a given size and no value initiliazation. 
+        """Constructs a surfel cloud with a given size and no value initiliazation.
 
         Args:
 
@@ -323,7 +331,8 @@ class SurfelCloud:
                            self.colors.to(device),
                            self.times.to(device),
                            features=self.features.to(device)
-                           if self.features is not None else None)
+                           if self.features is not None else None,
+                           sparse_features=self.sparse_features)
 
     def as_point_cloud(self):
         """Converts, without copying, to a PointCloud.
@@ -396,6 +405,11 @@ class SurfelCloud:
 
             (:obj:`slamtb.surfel.SurfelCloud`): Sliced surfel cloud.
         """
+        features = (self.features[:, args[0]] if self.features is not None
+                    else None)
+        sparse_features = (self.sparse_features.select(args[0].cpu())
+                           if self.sparse_features is not None
+                           else None)
         return SurfelCloud(
             self.points[args],
             self.confidences[args],
@@ -403,8 +417,8 @@ class SurfelCloud:
             self.radii[args],
             self.colors[args],
             self.times[args],
-            features=self.features[:, args[0]]
-            if self.features is not None else None)
+            features=features,
+            sparse_features=sparse_features)
 
 
 class _MappedSurfelModelContext:
@@ -504,7 +518,7 @@ class SurfelAllocator(_SurfelAllocator):
                                          device="cuda:0")
 
     def free(self, indices):
-        super().free(indices.cpu())
+        super().free(indices)
         self.free_mask_byte[indices] = 1
 
     def allocate(self, num_elements):
@@ -559,6 +573,7 @@ class SurfelModel:
 
         self.max_confidence = max_confidence
         self.max_time = max_time
+        self.sparse_features = SparseFeatureSet()
 
     @classmethod
     def from_surfel_cloud(cls, gl_context, surfels):
@@ -597,12 +612,16 @@ class SurfelModel:
                                     mapped.radii[active_indices].clone(),
                                     mapped.colors[active_indices].clone(),
                                     mapped.times[active_indices].clone(),
-                                    features=self.features[:, active_indices]
-                                    if self.features is not None else None)
+                                    features=(self.features[:, active_indices]
+                                              if self.features is not None else None),
+                                    sparse_features=self.sparse_features.select(active_indices.cpu()))
+
         return cloud, active_indices
 
     def free(self, indices, update_gl=False):
+        indices = indices.cpu()
         self.allocator.free(indices)
+        self.sparse_features.remove(indices)
         if update_gl:
             self.update_gl()
 
@@ -612,17 +631,22 @@ class SurfelModel:
 
         new_indices = self.allocator.allocate(new_surfels.size)
         new_surfels = new_surfels.to(self.device)
+        new_indices_dev = new_indices.to(self.device)
         with self.gl_context.current():
             with self.map_as_tensors() as mapped:
-                mapped.points[new_indices] = new_surfels.points
-                mapped.colors[new_indices] = new_surfels.colors
-                mapped.normals[new_indices] = new_surfels.normals
-                mapped.radii[new_indices] = new_surfels.radii
-                mapped.confidences[new_indices] = new_surfels.confidences
-                mapped.times[new_indices] = new_surfels.times
+                mapped.points[new_indices_dev] = new_surfels.points
+                mapped.colors[new_indices_dev] = new_surfels.colors
+                mapped.normals[new_indices_dev] = new_surfels.normals
+                mapped.radii[new_indices_dev] = new_surfels.radii
+                mapped.confidences[new_indices_dev] = new_surfels.confidences
+                mapped.times[new_indices_dev] = new_surfels.times
 
             if update_gl:
                 self.free_mask_gl.from_tensor(self.allocator.free_mask_byte)
+
+        if new_surfels.sparse_features is not None:
+            self.sparse_features.add(new_indices, new_surfels.sparse_features)
+
         if self.features is not None and new_surfels.features is not None:
             self.features[:, new_indices] = new_surfels.features
 
@@ -653,6 +677,7 @@ class SurfelModel:
 
     def clear(self):
         self.allocator.clear_all()
+        self.sparse_features.clear()
 
     @property
     def device(self):

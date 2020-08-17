@@ -15,8 +15,9 @@ _SHADER_DIR = Path(__file__).parent / "shaders"
 
 
 class _BaseIndexMapRaster:
-    def __init__(self, gl_context):
+    def __init__(self, gl_context, use_color=False):
         self.gl_context = gl_context
+        self.use_color = use_color
 
         with gl_context.current():
             self.framebuffer = tenviz.create_framebuffer({
@@ -26,17 +27,19 @@ class _BaseIndexMapRaster:
                 3: tenviz.FramebufferTarget.RGBInt32
             })
 
-    def to_indexmap(self, device=None, non_blocking=False):
+    def to_indexmap(self, device=None):
         with self.gl_context.current():
             indexmap = IndexMap()
             indexmap.point_confidence = self.framebuffer[0].to_tensor(
-                non_blocking=non_blocking)
+                non_blocking=True)
             indexmap.normal_radius = self.framebuffer[1].to_tensor(
-                non_blocking=non_blocking)
-            indexmap.color = self.framebuffer[2].to_tensor(
-                non_blocking=non_blocking)
+                non_blocking=True)
             indexmap.indexmap = self.framebuffer[3].to_tensor(
-                non_blocking=non_blocking)
+                non_blocking=True)
+            if self.use_color:
+                indexmap.color = self.framebuffer[2].to_tensor(
+                    non_blocking=True)
+            indexmap.synchronize()
 
         if device is not None:
             indexmap = indexmap.to(str(device))
@@ -64,7 +67,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
     The position map has model points on camera space.
     """
 
-    def __init__(self, surfel_model):
+    def __init__(self, surfel_model, use_color=False):
         """Args:
 
             surfel_model
@@ -90,7 +93,7 @@ class ModelIndexMapRaster(_BaseIndexMapRaster):
 
             self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-        super().__init__(surfel_model.gl_context)
+        super().__init__(surfel_model.gl_context, use_color=use_color)
 
         self.surfel_model = surfel_model
 
@@ -139,7 +142,7 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
     framebuffers.
     """
 
-    def __init__(self, surfel_model):
+    def __init__(self, surfel_model, use_color=False):
         """Args:
 
             surfel_model
@@ -167,7 +170,7 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
 
             self.program['ProjModelview'] = tenviz.MatPlaceholder.ProjectionModelview
 
-        super().__init__(surfel_model.gl_context)
+        super().__init__(surfel_model.gl_context, use_color=use_color)
 
         self.surfel_model = surfel_model
 
@@ -203,7 +206,6 @@ class SurfelIndexMapRaster(_BaseIndexMapRaster):
             self.program['StableThresh'] = (
                 float(stable_conf_thresh)
                 if stable_conf_thresh is not None else -1.0)
-
 
         gl_context.clear_color = np.array([0, 0, 0, 0])
         gl_context.render(proj_matrix, view_cam,

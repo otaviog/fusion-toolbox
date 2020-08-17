@@ -58,7 +58,7 @@ class SurfelAllocator {
   int max_surfels_;
   std::deque<int32_t> free_indices_;
 };
-
+  
 struct SurfelOp {
   /**
    * Compute confidences by its distance from the center.

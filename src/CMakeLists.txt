@@ -29,6 +29,7 @@ cuda_add_library(slamtb
   nearest_neighbors.cu
   nearest_neighbors.cpp
   fpcl_matcher.cu
+  sparse_feature_set.cpp
   
   matching.cpp
   

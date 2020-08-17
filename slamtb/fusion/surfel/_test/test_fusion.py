@@ -21,6 +21,17 @@ from slamtb.fusion.surfel.fusion import SurfelFusion
 from slamtb.fusion.surfel.effusion import EFFusion
 
 
+def _make_sparse_features(image_shape):
+    features = torch.rand(8, 128)
+    height, width = image_shape[:2]
+
+    keypoints = torch.rand(8, 2).abs()
+    keypoints[:, 1] = (keypoints[:, 1] * height).clamp(0, height)
+    keypoints[:, 0] = (keypoints[:, 0] * width).clamp(0, width)
+
+    return keypoints.to(torch.int32), features
+
+
 def _test():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", help="Input FTB dataset")
@@ -87,8 +98,10 @@ def _test():
             filtered_fpcl = FramePointCloud.from_frame(frame).to(device)
             fpcl.normals = filtered_fpcl.normals
 
-            stats = fusion.fuse(fpcl, fpcl.rt_cam)
+            sparse_features = _make_sparse_features(frame.depth_image.shape)
+            stats = fusion.fuse(fpcl, fpcl.rt_cam, sparse_features=sparse_features)
             print("Frame {} - {}".format(sensor.current_idx, stats))
+            print("Sparse features count: {}".format(len(model.sparse_features)))
 
 
 if __name__ == '__main__':
