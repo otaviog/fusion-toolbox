@@ -34,7 +34,7 @@ struct CleanKernel {
         stable_conf_thresh(stable_conf_thresh),
         remove_mask(Accessor<dev, bool, 1>::Get(remove_mask)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     int64_t model_idx = model_indices[idx];
 
     if (model.confidences[model_idx] < stable_conf_thresh &&
@@ -53,7 +53,7 @@ void SurfelFusionOp::Clean(MappedSurfelModel model, torch::Tensor model_indices,
 						   torch::Tensor remove_mask) {
   const auto ref_device = model_indices.device();
   model.CheckDevice(ref_device);
-  FTB_CHECK_DEVICE(ref_device, remove_mask);
+  STB_CHECK_DEVICE(ref_device, remove_mask);
 
   if (ref_device.is_cuda()) {
     CleanKernel<kCUDA> kernel(model, model_indices, time, stable_time_thresh,

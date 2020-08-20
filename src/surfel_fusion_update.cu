@@ -39,7 +39,7 @@ struct FindMergeKernel {
   }
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int live_index) {
+  STB_DEVICE_HOST void operator()(int live_index) {
     new_surfels_map[live_index] = true;
 
     const Eigen::Vector3f live_pos(live_surfels.point(live_index));
@@ -103,7 +103,7 @@ struct SelectUpdatableIndexKernel {
         model_merge_map(model_merge_map),
         merge_corresp(Accessor<dev, int64_t, 2>::Get(merge_corresp)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     if (indexmap.empty(row, col) || model_merge_map.empty(row, col))
       return;
     const int32_t model_target = indexmap.index(row, col);
@@ -132,7 +132,7 @@ struct UpdateKernel {
         time(time),
         model(model) {}
 
-  FTB_DEVICE_HOST void operator()(int corresp) {
+  STB_DEVICE_HOST void operator()(int corresp) {
     const int32_t model_target = merge_corresp[corresp][0];
     const int32_t live_index = merge_corresp[corresp][1];
 
@@ -190,8 +190,8 @@ void SurfelFusionOp::FindUpdatable(const IndexMap &indexmap,
                                    torch::Tensor merge_corresp) {
   auto reference_dev = indexmap.get_device();
   live_surfels.CheckDevice(reference_dev);
-  FTB_CHECK_DEVICE(reference_dev, merge_map);
-  FTB_CHECK_DEVICE(reference_dev, new_surfels_map);
+  STB_CHECK_DEVICE(reference_dev, merge_map);
+  STB_CHECK_DEVICE(reference_dev, new_surfels_map);
 
   if (reference_dev.is_cuda()) {
     FindMergeKernel<kCUDA> find_kernel(indexmap, live_surfels, kcam,

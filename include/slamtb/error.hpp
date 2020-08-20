@@ -40,6 +40,6 @@ inline void CheckDevice(const torch::Device expected_dev,
 
 }  // namespace slamtb
 
-#define FTB_CHECK(test, msg) slamtb::Check(test, __FILE__, __LINE__, msg)
-#define FTB_CHECK_DEVICE(device, test_tensor) \
+#define STB_CHECK(test, msg) slamtb::Check(test, __FILE__, __LINE__, msg)
+#define STB_CHECK_DEVICE(device, test_tensor) \
   slamtb::CheckDevice(device, test_tensor, __FILE__, __LINE__)

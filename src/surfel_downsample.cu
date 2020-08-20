@@ -106,7 +106,7 @@ struct AccumKernel {
         feature_size(surfels.get_feature_size()),
         accum_surfel_volume(accum_surfel_volume) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     const Eigen::Vector3f point = surfels.position(idx);
 
     SurfelAccum &accum_surfel =

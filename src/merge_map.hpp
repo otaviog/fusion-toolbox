@@ -88,11 +88,11 @@ struct MergeMapAccessor {
   MergeMapAccessor(const torch::Tensor &merge_map)
       : merge_map(Accessor<dev, int64_t, 2>::Get(merge_map)) {}
 
-  FTB_DEVICE_HOST int32_t operator()(int row, int col) const {
+  STB_DEVICE_HOST int32_t operator()(int row, int col) const {
     return merge_map[row][col] >> 32;
   }
 
-  FTB_DEVICE_HOST inline bool empty(int row, int col) const {
+  STB_DEVICE_HOST inline bool empty(int row, int col) const {
     return (merge_map[row][col] >> 32) == 0x0fffffff;
   }
 };

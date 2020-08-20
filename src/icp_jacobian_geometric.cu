@@ -51,7 +51,7 @@ struct GeometricJacobianKernel {
         match_count(match_count) {}
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int source_idx) {
+  STB_DEVICE_HOST void operator()(int source_idx) {
     SE3ICPJacobian<dev, scalar_t> jacobian(JtJ_partial[source_idx],
                                            Jtr_partial[source_idx]);
     squared_residual[source_idx] = 0;
@@ -115,7 +115,7 @@ struct InformationMatrixKernel {
         GtG_partial(Accessor<dev, scalar_t, 3>::Get(GtG_partial)) {}
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int source_idx) {
+  STB_DEVICE_HOST void operator()(int source_idx) {
     for (int i=0; i<6; ++i) {
       for (int j=0; j<6; ++j) {
         GtG_partial[source_idx][i][j] = 0;
@@ -168,17 +168,17 @@ int ICPJacobian::EstimateGeometric(
     torch::Tensor Jr_partial, torch::Tensor squared_residual) {
   const auto reference_dev = src_points.device();
 
-  FTB_CHECK_DEVICE(reference_dev, tgt_points);
-  FTB_CHECK_DEVICE(reference_dev, tgt_normals);
+  STB_CHECK_DEVICE(reference_dev, tgt_points);
+  STB_CHECK_DEVICE(reference_dev, tgt_normals);
 
-  FTB_CHECK_DEVICE(reference_dev, src_mask);
-  FTB_CHECK_DEVICE(reference_dev, kcam);
-  FTB_CHECK_DEVICE(reference_dev, rt_cam);
-  FTB_CHECK_DEVICE(reference_dev, merge_map);
+  STB_CHECK_DEVICE(reference_dev, src_mask);
+  STB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, rt_cam);
+  STB_CHECK_DEVICE(reference_dev, merge_map);
 
-  FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
-  FTB_CHECK_DEVICE(reference_dev, Jr_partial);
-  FTB_CHECK_DEVICE(reference_dev, squared_residual);
+  STB_CHECK_DEVICE(reference_dev, JtJ_partial);
+  STB_CHECK_DEVICE(reference_dev, Jr_partial);
+  STB_CHECK_DEVICE(reference_dev, squared_residual);
 
   int num_matches;
 
@@ -220,13 +220,13 @@ void ICPJacobian::GetInformationMatrix(
     const torch::Tensor &merge_map, torch::Tensor GtG_partial) {
   const auto reference_dev = src_points.device();
 
-  FTB_CHECK_DEVICE(reference_dev, tgt_points);
-  FTB_CHECK_DEVICE(reference_dev, src_mask);
-  FTB_CHECK_DEVICE(reference_dev, kcam);
-  FTB_CHECK_DEVICE(reference_dev, rt_cam);
-  FTB_CHECK_DEVICE(reference_dev, merge_map);
+  STB_CHECK_DEVICE(reference_dev, tgt_points);
+  STB_CHECK_DEVICE(reference_dev, src_mask);
+  STB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, rt_cam);
+  STB_CHECK_DEVICE(reference_dev, merge_map);
 
-  FTB_CHECK_DEVICE(reference_dev, GtG_partial);
+  STB_CHECK_DEVICE(reference_dev, GtG_partial);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(

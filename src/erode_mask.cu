@@ -15,7 +15,7 @@ struct ErodeMaskKernel {
       : in_mask(Accessor<dev, bool, 2>::Get(in_mask)),
         out_mask(Accessor<dev, bool, 2>::Get(out_mask)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     if (!in_mask[row][col]) {
       out_mask[row][col] = false;
       return;
@@ -42,7 +42,7 @@ struct ErodeMaskKernel {
 void Processing::ErodeMask(const torch::Tensor &in_mask,
                            torch::Tensor out_mask) {
   const auto ref_device = in_mask.device();
-  FTB_CHECK_DEVICE(ref_device, out_mask);
+  STB_CHECK_DEVICE(ref_device, out_mask);
 
   if (ref_device.is_cuda()) {
     ErodeMaskKernel<kCUDA> kernel(in_mask, out_mask);

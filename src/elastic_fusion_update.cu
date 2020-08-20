@@ -36,7 +36,7 @@ struct FindMergeKernel {
   }
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int live_index) {
+  STB_DEVICE_HOST void operator()(int live_index) {
     new_surfel_map[live_index] = false;
 
     const Eigen::Vector3f live_pos(live_surfels.point(live_index));
@@ -114,7 +114,7 @@ struct UpdateKernel {
         time(time),
         model(model) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     if (model_indexmap.empty(row, col)) return;
     const int32_t live_index = model_merge_map(row, col);
 
@@ -179,8 +179,8 @@ void ElasticFusionOp::Update(const IndexMap &model_indexmap,
   model_indexmap.CheckDevice(reference_dev);
   model.CheckDevice(reference_dev);
 
-  FTB_CHECK_DEVICE(reference_dev, merge_map);
-  FTB_CHECK_DEVICE(reference_dev, new_surfels_map);
+  STB_CHECK_DEVICE(reference_dev, merge_map);
+  STB_CHECK_DEVICE(reference_dev, new_surfels_map);
 
   if (reference_dev.is_cuda()) {
     FindMergeKernel<kCUDA> find_kernel(model_indexmap, live_surfels, kcam,

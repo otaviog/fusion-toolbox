@@ -44,7 +44,7 @@ struct ForwardKernel {
         out_features(Accessor<dev, scalar_t, 2>::Get(out_features)),
         match_mask(Accessor<dev, bool, 1>::Get(match_mask)) {}
 
-  FTB_DEVICE_HOST void operator()(int source_idx) {
+  STB_DEVICE_HOST void operator()(int source_idx) {
     match_mask[source_idx] = false;
 
     const Vector<scalar_t, 3> src_point =
@@ -94,15 +94,15 @@ void FPCLMatcherOp::Forward(
     torch::Tensor out_points, torch::Tensor out_normals,
     torch::Tensor out_features, torch::Tensor match_mask) {
   const auto reference_dev = target_points.device();
-  FTB_CHECK_DEVICE(reference_dev, target_points);
-  FTB_CHECK_DEVICE(reference_dev, target_normals);
-  FTB_CHECK_DEVICE(reference_dev, target_features);
-  FTB_CHECK_DEVICE(reference_dev, source_points);
-  FTB_CHECK_DEVICE(reference_dev, kcam);
-  FTB_CHECK_DEVICE(reference_dev, out_points);
-  FTB_CHECK_DEVICE(reference_dev, out_normals);
-  FTB_CHECK_DEVICE(reference_dev, out_features);
-  FTB_CHECK_DEVICE(reference_dev, match_mask);
+  STB_CHECK_DEVICE(reference_dev, target_points);
+  STB_CHECK_DEVICE(reference_dev, target_normals);
+  STB_CHECK_DEVICE(reference_dev, target_features);
+  STB_CHECK_DEVICE(reference_dev, source_points);
+  STB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, out_points);
+  STB_CHECK_DEVICE(reference_dev, out_normals);
+  STB_CHECK_DEVICE(reference_dev, out_features);
+  STB_CHECK_DEVICE(reference_dev, match_mask);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
@@ -155,7 +155,7 @@ struct BackwardKernel {
         grad_precision(grad_precision),
         dx_points(Accessor<dev, scalar_t, 2>::Get(dx_points)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     if (!match_mask[idx]) {
       dx_points[idx][0] = 0;
       dx_points[idx][1] = 0;
@@ -201,11 +201,11 @@ void FPCLMatcherOp::Backward(const torch::Tensor &target_features,
                              const torch::Tensor &kcam, double grad_precision,
                              torch::Tensor dx_points) {
   const auto reference_dev = target_features.device();
-  FTB_CHECK_DEVICE(reference_dev, target_features);
-  FTB_CHECK_DEVICE(reference_dev, source_points);
-  FTB_CHECK_DEVICE(reference_dev, match_mask);
-  FTB_CHECK_DEVICE(reference_dev, kcam);
-  FTB_CHECK_DEVICE(reference_dev, dx_points);
+  STB_CHECK_DEVICE(reference_dev, target_features);
+  STB_CHECK_DEVICE(reference_dev, source_points);
+  STB_CHECK_DEVICE(reference_dev, match_mask);
+  STB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, dx_points);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(

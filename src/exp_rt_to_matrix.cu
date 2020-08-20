@@ -19,7 +19,7 @@ struct ForwardKernel {
         y_matrix(Accessor<dev, scalar_t, 3>::Get(y_matrix)) {}
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(long idx) {
+  STB_DEVICE_HOST void operator()(long idx) {
     const ExpRt<dev, scalar_t> exp_rt(x_exp_rt[idx]);
 
     const Eigen::Matrix<scalar_t, 3, 4> matrix(exp_rt.ToMatrix());
@@ -68,7 +68,7 @@ struct BackwardKernel {
 
 #pragma nv_exec_check_disable
 #pragma hd_warning_disable
-  FTB_DEVICE_HOST void operator()(long idx) {
+  STB_DEVICE_HOST void operator()(long idx) {
     const ExpRt<dev, scalar_t> exp_rt(x_exp_rt[idx]);
     const auto dR = d_R_loss[idx];
 

@@ -31,7 +31,7 @@ struct FindMergesKernel {
         neighbor_size(neighbor_size),
         stable_conf_thresh(stable_conf_thresh) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     merge_map[row][col] = -1;
     if (indexmap.empty(row, col)) return;
     if (indexmap.confidence(row, col) < stable_conf_thresh) return;
@@ -113,7 +113,7 @@ struct SelectMergeableKernel {
         merge_map(Accessor<dev, int64_t, 2>::Get(merge_map)),
         merge_corresp(Accessor<dev, int64_t, 2>::Get(merge_corresp)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     const int index = indexmap.to_linear_index(row, col);
 
     merge_corresp[index][0] = -1;
@@ -139,7 +139,7 @@ struct MergeKernel {
       : merge_corresps(Accessor<dev, int64_t, 2>::Get(merge_corresps)),
         model(model) {}
 
-  FTB_DEVICE_HOST void operator()(int corresp) {
+  STB_DEVICE_HOST void operator()(int corresp) {
     const int64_t target_idx = merge_corresps[corresp][0];
     const int64_t source_idx = merge_corresps[corresp][1];
 
@@ -179,7 +179,7 @@ torch::Tensor SurfelFusionOp::FindMergeable(const IndexMap &indexmap,
                                             int neighbor_size,
                                             float stable_conf_thresh) {
   const auto ref_device = indexmap.get_device();
-  FTB_CHECK_DEVICE(ref_device, merge_map);
+  STB_CHECK_DEVICE(ref_device, merge_map);
 
   if (ref_device.is_cuda()) {
     FindMergesKernel<kCUDA> kernel(indexmap, merge_map, max_dist, max_angle,

@@ -36,7 +36,7 @@ struct CorrespondenceMapKernel {
         merge_map(merge_map) {}
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
 	if (source_mask.size(0) == source_points.size(0)
 		&& !source_mask[idx]) return;
 
@@ -70,15 +70,15 @@ void CorrespondenceMap::ComputeCorrespondenceMap(
     double normal_angle_thesh) {
   const auto reference_dev = source_points.device();
 
-  FTB_CHECK_DEVICE(reference_dev, source_normals);
-  FTB_CHECK_DEVICE(reference_dev, source_mask);
-  FTB_CHECK_DEVICE(reference_dev, rt_cam);
+  STB_CHECK_DEVICE(reference_dev, source_normals);
+  STB_CHECK_DEVICE(reference_dev, source_mask);
+  STB_CHECK_DEVICE(reference_dev, rt_cam);
 
-  FTB_CHECK_DEVICE(reference_dev, target_points);
-  FTB_CHECK_DEVICE(reference_dev, target_normals);
-  FTB_CHECK_DEVICE(reference_dev, target_mask);
+  STB_CHECK_DEVICE(reference_dev, target_points);
+  STB_CHECK_DEVICE(reference_dev, target_normals);
+  STB_CHECK_DEVICE(reference_dev, target_mask);
 
-  FTB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, kcam);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(

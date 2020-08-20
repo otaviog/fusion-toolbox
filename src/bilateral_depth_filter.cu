@@ -32,7 +32,7 @@ struct BilateralDepthFilterKernel {
         depth_scale(depth_scale) {
   }
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     result[row][col] = 0;
     if (mask[row][col] == 0) return;
 
@@ -86,8 +86,8 @@ torch::Tensor Processing::BilateralDepthFilter(
   const float inv_sigma_color_sqr = 1.0 / (sigma_color * sigma_color);
   const float inv_sigma_space_sqr = 1.0 / (sigma_space * sigma_space);
 
-  FTB_CHECK_DEVICE(input.device(), mask);
-  FTB_CHECK_DEVICE(input.device(), result);
+  STB_CHECK_DEVICE(input.device(), mask);
+  STB_CHECK_DEVICE(input.device(), result);
 
   if (input.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(

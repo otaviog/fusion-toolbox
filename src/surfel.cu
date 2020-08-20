@@ -24,7 +24,7 @@ struct ComputeConfidencesKernel {
         max_center_distance(max_center_distance),
         confidences(Accessor<dev, scalar_t, 2>::Get(confidences)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     const Vector<scalar_t, 2> camera_center(kcam.get_center());
     scalar_t confidence =
         (Vector<scalar_t, 2>(col, row) - camera_center).norm();
@@ -41,7 +41,7 @@ void SurfelOp::ComputeConfidences(const torch::Tensor &kcam, float weight,
                                   float max_center_distance,
                                   torch::Tensor confidences) {
   const auto ref_device = confidences.device();
-  FTB_CHECK_DEVICE(ref_device, kcam);
+  STB_CHECK_DEVICE(ref_device, kcam);
 
   const auto ref_type = confidences.scalar_type();
   if (ref_device.is_cuda()) {
@@ -77,7 +77,7 @@ struct ComputeRadiiKernel {
         (abs(kcam.matrix[0][0]) + abs(kcam.matrix[1][1])) * 0.5;
   }
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     const scalar_t _1_sqrt_2 = 0.7071067811865475;
     const scalar_t radius = _1_sqrt_2 * (depths[idx] / focal_len);
 
@@ -91,7 +91,7 @@ void SurfelOp::ComputeRadii(const torch::Tensor &kcam,
                             const torch::Tensor &normals_z,
                             torch::Tensor radii) {
   const auto ref_device = normals_z.device();
-  FTB_CHECK_DEVICE(ref_device, radii);
+  STB_CHECK_DEVICE(ref_device, radii);
 
   const auto ref_type = normals_z.scalar_type();
   if (ref_device.is_cuda()) {

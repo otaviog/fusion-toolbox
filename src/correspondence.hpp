@@ -22,7 +22,7 @@ class PointGrid {
         width(mask.size(1)),
         height(mask.size(0)) {}
 
-  FTB_DEVICE_HOST bool empty(int row, int col) const { return !mask[row][col]; }
+  STB_DEVICE_HOST bool empty(int row, int col) const { return !mask[row][col]; }
 };
 
 template <Device dev, typename scalar_t>
@@ -34,7 +34,7 @@ struct SimpleCorrespondence {
                        const torch::Tensor &normals, const torch::Tensor &mask,
                        const torch::Tensor &kcam)
       : tgt(points, normals, mask), kcam(kcam) {}
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal) const {
     Eigen::Vector2i src_uv = kcam.Project(src_point);
@@ -66,7 +66,7 @@ struct RobustCorrespondence {
         distance_thresh(distance_thresh * distance_thresh),
         angle_thresh(angle_thresh) {}
 
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              const Vector<scalar_t, 3> &src_normal,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal, scalar_t &u,
@@ -88,7 +88,7 @@ struct RobustCorrespondence {
     return true;
   }
 
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              const Vector<scalar_t, 3> &src_normal,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal) const {
@@ -96,7 +96,7 @@ struct RobustCorrespondence {
     return Match(src_point, src_normal, tgt_point, tgt_normal, u, v);
   }
 
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              const Vector<scalar_t, 3> &src_normal,
                              scalar_t &u,
                              scalar_t &v) const {
@@ -105,7 +105,7 @@ struct RobustCorrespondence {
     return Match(src_point, src_normal, tgt_point, tgt_normal, u, v);
   }
   
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal, scalar_t &u,
                              scalar_t &v) const {
@@ -124,14 +124,14 @@ struct RobustCorrespondence {
     return true;
   }
 
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point, scalar_t &u,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point, scalar_t &u,
                              scalar_t &v) const {
     Vector<scalar_t, 3> tgt_point, tgt_normal;
 
     return Match(src_point, tgt_point, tgt_normal, u, v);
   }
 
-  FTB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
+  STB_DEVICE_HOST bool Match(const Vector<scalar_t, 3> &src_point,
                              Vector<scalar_t, 3> &tgt_point,
                              Vector<scalar_t, 3> &tgt_normal) const {
     scalar_t u, v;

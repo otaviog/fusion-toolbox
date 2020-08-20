@@ -40,11 +40,11 @@ void SparseFeatureSet::RegisterPybind(py::module &m) {
       .def("__len__", &SparseFeatureSet::__len__);
 }
 
-SparseFeatureSet::SparseFeatureSet(const torch::Tensor &keypoint_xy,
+SparseFeatureSet::SparseFeatureSet(const torch::Tensor &keypoint_yx,
                                    const torch::Tensor &features,
                                    const torch::Tensor &mask) {
-  const torch::TensorAccessor<int32_t, 2> xy_acc =
-      keypoint_xy.accessor<int32_t, 2>();
+  const torch::TensorAccessor<int32_t, 2> yx_acc =
+      keypoint_yx.accessor<int32_t, 2>();
   const torch::TensorAccessor<float, 2> feat_acc =
       features.accessor<float, 2>();
   const torch::TensorAccessor<bool, 2> mask_acc = mask.accessor<bool, 2>();
@@ -64,9 +64,9 @@ SparseFeatureSet::SparseFeatureSet(const torch::Tensor &keypoint_xy,
     }
   }
 
-  for (size_t i = 0; i < xy_acc.size(0); ++i) {
-    const int32_t x = xy_acc[i][0];
-    const int32_t y = xy_acc[i][1];
+  for (size_t i = 0; i < yx_acc.size(0); ++i) {
+    const int32_t y = yx_acc[i][0];
+    const int32_t x = yx_acc[i][1];
 
     assert(y < point_id_grid.size(0));
     assert(x < point_id_grid.size(1));

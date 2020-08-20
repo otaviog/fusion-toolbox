@@ -24,7 +24,7 @@ struct CentralDifferencesKernel {
         mask(Accessor<dev, bool, 2>::Get(mask)),
         out_normal(Accessor<dev, scalar_t, 3>::Get(out_normal)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     const int iwidth = xyz.size(1);
     const int iheight = xyz.size(0);
 
@@ -112,7 +112,7 @@ struct Average8Kernel {
         mask(Accessor<dev, bool, 2>::Get(mask)),
         out_normal(Accessor<dev, scalar_t, 3>::Get(out_normal)) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     out_normal[row][col][0] = out_normal[row][col][1] =
         out_normal[row][col][2] = 0.0f;
 
@@ -191,8 +191,8 @@ void Processing::EstimateNormals(const torch::Tensor xyz_image,
                                  const torch::Tensor mask_image,
                                  torch::Tensor out_normals,
                                  EstimateNormalsMethod method) {
-  FTB_CHECK_DEVICE(xyz_image.device(), mask_image);
-  FTB_CHECK_DEVICE(xyz_image.device(), out_normals);
+  STB_CHECK_DEVICE(xyz_image.device(), mask_image);
+  STB_CHECK_DEVICE(xyz_image.device(), out_normals);
 
   if (xyz_image.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(xyz_image.scalar_type(), "EstimateNormals", [&] {

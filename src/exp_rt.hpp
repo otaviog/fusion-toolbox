@@ -24,7 +24,7 @@ struct ExpRt {
   }
 #pragma nv_exec_check_disable
 #pragma hd_warning_disable  
-  FTB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 1>::Ts acc) {
+  STB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 1>::Ts acc) {
     translation = Vector3(acc[0], acc[1], acc[2]);
 
     Vector3 v(acc[3], acc[4], acc[5]);
@@ -33,7 +33,7 @@ struct ExpRt {
 
 #pragma nv_exec_check_disable
 #pragma hd_warning_disable  
-  FTB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 2>::Ts matrix) {
+  STB_DEVICE_HOST ExpRt(const typename Accessor<dev, scalar_t, 2>::Ts matrix) {
     translation = Vector3(matrix[0][3], matrix[1][3], matrix[2][3]);
     Matrix33 R(to_matrix<scalar_t, 3, 3>(matrix));
     exp_rotation = Eigen::AngleAxis<scalar_t>(R);
@@ -41,13 +41,13 @@ struct ExpRt {
 
 #pragma nv_exec_check_disable
 #pragma hd_warning_disable  
-  inline FTB_DEVICE_HOST Vector3 Transform(const Vector3 &point) const {
+  inline STB_DEVICE_HOST Vector3 Transform(const Vector3 &point) const {
     return exp_rotation * point + translation;
   }
 
 #pragma nv_exec_check_disable
 #pragma hd_warning_disable  
-  inline FTB_DEVICE_HOST Matrix34 ToMatrix() const {
+  inline STB_DEVICE_HOST Matrix34 ToMatrix() const {
     Matrix34 matrix(Matrix34::Zero());
     Matrix33 rot_matrix = exp_rotation.toRotationMatrix();
 
@@ -84,7 +84,7 @@ struct ExpRt {
    * @param[out] J The jacobian of the transformation matrix
    * w.r.t. the translation and exponential rotation.
    */
-  inline FTB_DEVICE_HOST void Dx_ToMatrix(
+  inline STB_DEVICE_HOST void Dx_ToMatrix(
       const Matrix33 &R, Eigen::Matrix<scalar_t, 12, 6> &J) const {
     J = Eigen::Matrix<scalar_t, 12, 6>::Zero();
 

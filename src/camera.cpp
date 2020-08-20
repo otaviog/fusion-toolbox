@@ -14,8 +14,8 @@ void ProjectOp::RegisterPybind(pybind11::module &m) {
 
 void RigidTransformOp::Rodrigues(const torch::Tensor &rot_matrix,
                                  torch::Tensor rodrigues) {
-  FTB_CHECK(!rot_matrix.is_cuda(), "Rodrigues is cpu only");
-  FTB_CHECK(!rodrigues.is_cuda(), "Rodrigues is cpu only");
+  STB_CHECK(!rot_matrix.is_cuda(), "Rodrigues is cpu only");
+  STB_CHECK(!rodrigues.is_cuda(), "Rodrigues is cpu only");
 
   AT_DISPATCH_ALL_TYPES(rot_matrix.scalar_type(), "Rodrigues", [&] {
     const torch::TensorAccessor<scalar_t, 2> rot_acc =

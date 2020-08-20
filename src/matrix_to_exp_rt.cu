@@ -20,7 +20,7 @@ struct ForwardKernel {
 
 #pragma nv_exec_check_disable
 #pragma hd_warning_disable  
-  FTB_DEVICE_HOST void operator()(long idx) {
+  STB_DEVICE_HOST void operator()(long idx) {
     const ExpRt<dev, scalar_t> local_exp_rt(matrix[idx]);
     exp_rt[idx][0] = local_exp_rt.translation[0];
     exp_rt[idx][1] = local_exp_rt.translation[1];

@@ -13,11 +13,11 @@
 #define CudaCheck() slamtb::_CudaCheck(__FILE__, __LINE__)
 
 #ifdef __CUDACC__
-#define FTB_DEVICE __device__
-#define FTB_DEVICE_HOST __device__ __host__
+#define STB_DEVICE __device__
+#define STB_DEVICE_HOST __device__ __host__
 #else
-#define FTB_DEVICE
-#define FTB_DEVICE_HOST
+#define STB_DEVICE
+#define STB_DEVICE_HOST
 #endif
 namespace slamtb {
 

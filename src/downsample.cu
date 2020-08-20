@@ -22,7 +22,7 @@ struct DownsampleXYZNearestKernel {
         inv_scale(scalar_t(1) / scale),
         dst(Accessor<dev, scalar_t, 3>::Get(dst)) {}
 
-  FTB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
+  STB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
     const int center_src_row = dst_row * inv_scale,
               center_src_col = dst_col * inv_scale;
 
@@ -77,8 +77,8 @@ void Processing::DownsampleXYZ(const torch::Tensor &xyz_image,
                                torch::Tensor dst, bool normalize,
                                DownsampleXYZMethod method) {
   const auto reference_dev = xyz_image.device();
-  FTB_CHECK_DEVICE(reference_dev, mask);
-  FTB_CHECK_DEVICE(reference_dev, dst);
+  STB_CHECK_DEVICE(reference_dev, mask);
+  STB_CHECK_DEVICE(reference_dev, dst);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
@@ -109,7 +109,7 @@ struct DownsampleMaskKernel {
         inv_scale(1.0f / scale),
         dst(Accessor<dev, bool, 2>::Get(dst)) {}
 
-  FTB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
+  STB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
     const int src_row = int(dst_row * inv_scale),
               src_col = int(dst_col * inv_scale);
     dst[dst_row][dst_col] = mask[src_row][src_col];
@@ -119,7 +119,7 @@ struct DownsampleMaskKernel {
 void Processing::DownsampleMask(const torch::Tensor &mask, float scale,
                                 torch::Tensor dst) {
   const auto reference_dev = mask.device();
-  FTB_CHECK_DEVICE(reference_dev, dst);
+  STB_CHECK_DEVICE(reference_dev, dst);
 
   if (reference_dev.is_cuda()) {
     DownsampleMaskKernel<kCUDA> kernel(mask, scale, dst);
@@ -142,7 +142,7 @@ struct DownsampleFeatureKernel {
         inv_scale(scalar_t(1) / scale),
         dst(Accessor<dev, scalar_t, 3>::Get(dst)) {}
 
-  FTB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
+  STB_DEVICE_HOST void operator()(int dst_row, int dst_col) {
     const int center_src_row = dst_row * inv_scale,
               center_src_col = dst_col * inv_scale;
 
@@ -171,7 +171,7 @@ struct DownsampleFeatureKernel {
 void Processing::DownsampleFeatures(const torch::Tensor &feature_image,
                                     float scale, torch::Tensor dst) {
   const auto reference_dev = feature_image.device();
-  FTB_CHECK_DEVICE(reference_dev, dst);
+  STB_CHECK_DEVICE(reference_dev, dst);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(

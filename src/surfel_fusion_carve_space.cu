@@ -48,7 +48,7 @@ struct CarveKernel {
         indexmap_remove_mask(
             Accessor<dev, bool, 2>::Get(indexmap_remove_mask)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     const int64_t current_idx = model_indices[idx];
 
     if (model.confidences[current_idx] < stable_conf_thresh ||
@@ -120,8 +120,8 @@ void SurfelFusionOp::CarveSpace(MappedSurfelModel model,
   model.CheckDevice(ref_device);
   model_indexmap.CheckDevice(ref_device);
 
-  FTB_CHECK_DEVICE(ref_device, kcam);
-  FTB_CHECK_DEVICE(ref_device, indexmap_remove_mask);
+  STB_CHECK_DEVICE(ref_device, kcam);
+  STB_CHECK_DEVICE(ref_device, indexmap_remove_mask);
 
   if (ref_device.is_cuda()) {
     CarveKernel<kCUDA> kernel(model, model_indices, model_indexmap, kcam,

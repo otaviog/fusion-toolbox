@@ -60,12 +60,12 @@ class SparseFeatureSet {
    * dimensions determined by its mask. The point index will account
    * skipping non-masked elements.
    *
-   * @param keypoint_xy X and Y key point coordinates. Tensor [Nx2]
+   * @param keypoint_yx Y and X key point coordinates. Tensor [Nx2]
    * int32.
    * @param features Features. Tensor [NxC] float32.
    * @param mask Mask image. Tensor [HxW] bool.
    */
-  SparseFeatureSet(const torch::Tensor &keypoint_xy, const torch::Tensor &features,
+  SparseFeatureSet(const torch::Tensor &keypoint_yx, const torch::Tensor &features,
                    const torch::Tensor &mask);
 
   /**

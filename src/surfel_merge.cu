@@ -21,7 +21,7 @@ struct MergeKernel {
         N(self.get_size()),
         merged(merged) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     Eigen::Vector3f pos = other.point(idx);
     Eigen::Vector3f normal = other.normal(idx);
     Eigen::Vector3f color = other.color(idx);
@@ -56,7 +56,7 @@ void SurfelOp::Merge(const SurfelCloud &self, const SurfelCloud &other,
                      const torch::Tensor &index, SurfelCloud merged) {
   auto reference_dev = self.points.device();
   other.CheckDevice(reference_dev);
-  FTB_CHECK_DEVICE(reference_dev, index);
+  STB_CHECK_DEVICE(reference_dev, index);
   merged.CheckDevice(reference_dev);
 
   if (reference_dev.is_cuda()) {

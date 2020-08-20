@@ -12,14 +12,14 @@ struct SE3ICPJacobian {
   typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial;
   typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial;
 
-  FTB_DEVICE_HOST SE3ICPJacobian(
+  STB_DEVICE_HOST SE3ICPJacobian(
       typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial,
       typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial)
       : JtJ_partial(JtJ_partial), Jtr_partial(Jtr_partial) {
     Zero();
   }
 
-  FTB_DEVICE_HOST void Zero() {
+  STB_DEVICE_HOST void Zero() {
 #pragma unroll
     for (int k = 0; k < 6; ++k) {
       Jtr_partial[k] = scalar_t(0);
@@ -34,7 +34,7 @@ struct SE3ICPJacobian {
     }
   }
 
-  FTB_DEVICE_HOST void Compute(const Vector<scalar_t, 3> &Tsrc_point,
+  STB_DEVICE_HOST void Compute(const Vector<scalar_t, 3> &Tsrc_point,
                                const Vector<scalar_t, 3> &normal,
                                scalar_t residual) {
     scalar_t jacobian[6];
@@ -66,14 +66,14 @@ struct SO3ICPJacobian {
   typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial;
   typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial;
 
-  FTB_DEVICE_HOST SO3ICPJacobian(
+  STB_DEVICE_HOST SO3ICPJacobian(
       typename Accessor<dev, scalar_t, 2>::Ts JtJ_partial,
       typename Accessor<dev, scalar_t, 1>::Ts Jtr_partial)
       : JtJ_partial(JtJ_partial), Jtr_partial(Jtr_partial) {
     Zero();
   }
 
-  FTB_DEVICE_HOST void Zero() {
+  STB_DEVICE_HOST void Zero() {
 #pragma unroll
     for (int k = 0; k < 6; ++k) {
       Jtr_partial[k] = scalar_t(0);
@@ -89,7 +89,7 @@ struct SO3ICPJacobian {
   }
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void Compute(const Vector<scalar_t, 3> &Tsrc_point,
+  STB_DEVICE_HOST void Compute(const Vector<scalar_t, 3> &Tsrc_point,
                                const Vector<scalar_t, 3> &normal,
                                scalar_t residual) {
     scalar_t jacobian[3];

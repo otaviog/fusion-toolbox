@@ -23,7 +23,7 @@ struct CopyFeaturesKernel {
         out_features(Accessor<dev, float, 3>::Get(out_features)),
         flip(flip) {}
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     if (!indexmap[row][col][1]) return;
     const int32_t surfel_index = indexmap[row][col][0];
 
@@ -43,8 +43,8 @@ void SurfelFusionOp::CopyFeatures(const torch::Tensor &indexmap,
                                   const torch::Tensor &model_features,
                                   torch::Tensor out_features, bool flip) {
   const auto ref_device = indexmap.device();
-  FTB_CHECK_DEVICE(ref_device, model_features);
-  FTB_CHECK_DEVICE(ref_device, out_features);
+  STB_CHECK_DEVICE(ref_device, model_features);
+  STB_CHECK_DEVICE(ref_device, out_features);
 
   if (ref_device.is_cuda()) {
     CopyFeaturesKernel<kCUDA> kernel(indexmap, model_features, out_features,

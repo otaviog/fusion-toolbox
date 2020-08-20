@@ -19,7 +19,7 @@ struct ProjectKernel {
         kcamera(intrinsics),
         out_projection(Accessor<dev, scalar_t, 2>::Get(out_projection)) {}
 
-  FTB_DEVICE_HOST void operator()(int i) {
+  STB_DEVICE_HOST void operator()(int i) {
     const Vector<scalar_t, 3> point = to_vec3<scalar_t>(points[i]);
     scalar_t x, y;
     kcamera.Project(point, x, y);
@@ -40,7 +40,7 @@ torch::Tensor ProjectOp::Forward(const torch::Tensor &points,
                    torch::TensorOptions(points.type()).device(points.device()));
 
   const auto reference_dev = points.device();
-  FTB_CHECK_DEVICE(reference_dev, intrinsics);
+  STB_CHECK_DEVICE(reference_dev, intrinsics);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.forward", ([&] {
@@ -75,7 +75,7 @@ struct ProjectBackwardKernel {
         kcamera(intrinsics),
         dx_points(Accessor<dev, scalar_t, 2>::Get(dx_points)) {}
 
-  FTB_DEVICE_HOST void operator()(int i) {
+  STB_DEVICE_HOST void operator()(int i) {
     Eigen::Matrix<scalar_t, 3, 1> point = to_vec3<scalar_t>(points[i]);
 
     scalar_t j00, j02, j11, j12;
@@ -97,7 +97,7 @@ torch::Tensor ProjectOp::Backward(const torch::Tensor &dy_grad,
                    torch::TensorOptions(points.type()).device(points.device()));
 
   const auto reference_dev = points.device();
-  FTB_CHECK_DEVICE(reference_dev, intrinsics);
+  STB_CHECK_DEVICE(reference_dev, intrinsics);
 
   if (reference_dev.is_cuda()) {
     AT_DISPATCH_ALL_TYPES(points.scalar_type(), "Project.backward", ([&] {
@@ -143,7 +143,7 @@ struct TransformPointsKernel {
       : rigid_transform(matrix),
         points(Accessor<dev, scalar_t, 2>::Get(points)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     const auto point = points[idx];
     const auto t_point = rigid_transform.Transform(
         Eigen::Matrix<scalar_t, 3, 1>(point[0], point[1], point[2]));
@@ -159,7 +159,7 @@ void RigidTransformOp::TransformPointsInplace(const torch::Tensor &matrix,
                                               torch::Tensor points) {
   const auto ref_device = matrix.device();
 
-  FTB_CHECK_DEVICE(ref_device, points);
+  STB_CHECK_DEVICE(ref_device, points);
 
   AT_DISPATCH_FLOATING_TYPES(matrix.scalar_type(), "TransformPointsInplace", [&] {
     if (ref_device.is_cuda()) {
@@ -184,7 +184,7 @@ struct TransformNormalsKernel {
       : rigid_transform(rigid_transform),
         normals(Accessor<dev, scalar_t, 2>::Get(normals)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     const auto normal = normals[idx];
 
     const auto t_normal = rigid_transform.TransformNormal(

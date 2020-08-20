@@ -25,7 +25,7 @@ struct ForwardKernel {
         features(Accessor<dev, scalar_t, 2>::Get(features)),
         out_features(Accessor<dev, scalar_t, 2>::Get(out_features)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     scalar_t total_similarity = 0;
 
     int num_neighbors = 0;
@@ -61,9 +61,9 @@ void NearestNeighborsOp::Forward(const torch::Tensor &nn_distances,
   const auto ref_device = nn_distances.device();
   const auto ref_type = nn_distances.scalar_type();
 
-  FTB_CHECK_DEVICE(ref_device, nn_index);
-  FTB_CHECK_DEVICE(ref_device, features);
-  FTB_CHECK_DEVICE(ref_device, out_features);
+  STB_CHECK_DEVICE(ref_device, nn_index);
+  STB_CHECK_DEVICE(ref_device, features);
+  STB_CHECK_DEVICE(ref_device, out_features);
 
   if (ref_device.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(
@@ -112,7 +112,7 @@ struct EpsilonDistancesKernel {
     xyz_epsilon[5][2] = -h;
   }
 
-  FTB_DEVICE_HOST void operator()(int row, int col) {
+  STB_DEVICE_HOST void operator()(int row, int col) {
     const Vector<scalar_t, 3> xyz =
         Vector<scalar_t, 3>(xyz_epsilon[col][0], xyz_epsilon[col][1],
                             xyz_epsilon[col][2]) +
@@ -153,9 +153,9 @@ void NearestNeighborsOp::ComputeEpsilonDistances(
     const torch::Tensor &nn_index, const torch::Tensor &epsilon_distances) {
   const auto ref_device = target_xyz.device();
   const auto ref_type = target_xyz.scalar_type();
-  FTB_CHECK_DEVICE(ref_device, source_xyz);
-  FTB_CHECK_DEVICE(ref_device, nn_index);
-  FTB_CHECK_DEVICE(ref_device, epsilon_distances);
+  STB_CHECK_DEVICE(ref_device, source_xyz);
+  STB_CHECK_DEVICE(ref_device, nn_index);
+  STB_CHECK_DEVICE(ref_device, epsilon_distances);
 
   if (ref_device.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(ref_type, "EpsilonDistancesKernel", ([&] {
@@ -186,7 +186,7 @@ struct NNGrad {
   const scalar_t div;
   const int64_t max_index;
 
-  FTB_DEVICE_HOST NNGrad(
+  STB_DEVICE_HOST NNGrad(
       const typename Accessor<dev, scalar_t, 2>::Ts epsilon_distances,
       const typename Accessor<dev, int64_t, 1>::Ts nn_index,
       const typename Accessor<dev, scalar_t, 2>::T features, scalar_t delta_h)
@@ -196,7 +196,7 @@ struct NNGrad {
         div(scalar_t(1) / (2 * delta_h)),
         max_index(features.size(1)) {}
 
-  FTB_DEVICE_HOST inline void GetGrad(int channel, scalar_t &dx, scalar_t &dy,
+  STB_DEVICE_HOST inline void GetGrad(int channel, scalar_t &dx, scalar_t &dy,
                                       scalar_t &dz) const {
     dx = (Get(channel, 0) - Get(channel, 1)) * div;
     dy = (Get(channel, 2) - Get(channel, 3)) * div;
@@ -204,7 +204,7 @@ struct NNGrad {
   }
 
  private:
-  FTB_DEVICE_HOST inline scalar_t Get(int channel, int which_epsilon) const {
+  STB_DEVICE_HOST inline scalar_t Get(int channel, int which_epsilon) const {
     const auto distance_weights = epsilon_distances[which_epsilon];
     scalar_t feature_avg = 0;
 
@@ -241,7 +241,7 @@ struct BackwardKernel {
         delta_h(delta_h),
         dl_xyz(Accessor<dev, scalar_t, 2>::Get(dl_xyz)) {}
 
-  FTB_DEVICE_HOST void operator()(int idx) {
+  STB_DEVICE_HOST void operator()(int idx) {
     const NNGrad<dev, scalar_t> backward(epsilon_distances[idx], nn_index[idx],
                                          features, delta_h);
     scalar_t dl_x = 0, dl_y = 0, dl_z = 0;
@@ -269,11 +269,11 @@ void NearestNeighborsOp::Backward(const torch::Tensor &epsilon_distances,
   const auto ref_device = epsilon_distances.device();
   const auto ref_type = epsilon_distances.scalar_type();
 
-  FTB_CHECK_DEVICE(ref_device, epsilon_distances);
-  FTB_CHECK_DEVICE(ref_device, nn_index);
-  FTB_CHECK_DEVICE(ref_device, features);
-  FTB_CHECK_DEVICE(ref_device, dl_features);
-  FTB_CHECK_DEVICE(ref_device, dl_xyz);
+  STB_CHECK_DEVICE(ref_device, epsilon_distances);
+  STB_CHECK_DEVICE(ref_device, nn_index);
+  STB_CHECK_DEVICE(ref_device, features);
+  STB_CHECK_DEVICE(ref_device, dl_features);
+  STB_CHECK_DEVICE(ref_device, dl_xyz);
 
   if (ref_device.is_cuda()) {
     AT_DISPATCH_FLOATING_TYPES(ref_type, "NearestNeighborsOp::Backward", ([&] {

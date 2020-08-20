@@ -55,7 +55,7 @@ struct FeatureJacobianKernel {
         match_count(match_count) {}
 
 #pragma nv_exec_check_disable
-  FTB_DEVICE_HOST void operator()(int source_idx) {
+  STB_DEVICE_HOST void operator()(int source_idx) {
     JacobianType jacobian(JtJ_partial[source_idx], Jtr_partial[source_idx]);
 
     squared_residuals[source_idx] = 0.0;
@@ -119,16 +119,16 @@ int ICPJacobian::EstimateFeature(
     torch::Tensor squared_residuals) {
   const auto reference_dev = src_points.device();
 
-  FTB_CHECK_DEVICE(reference_dev, src_feats);
-  FTB_CHECK_DEVICE(reference_dev, src_mask);
-  FTB_CHECK_DEVICE(reference_dev, rt_cam);
-  FTB_CHECK_DEVICE(reference_dev, tgt_feats);
-  FTB_CHECK_DEVICE(reference_dev, kcam);
-  FTB_CHECK_DEVICE(reference_dev, merge_map);
+  STB_CHECK_DEVICE(reference_dev, src_feats);
+  STB_CHECK_DEVICE(reference_dev, src_mask);
+  STB_CHECK_DEVICE(reference_dev, rt_cam);
+  STB_CHECK_DEVICE(reference_dev, tgt_feats);
+  STB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, merge_map);
 
-  FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
-  FTB_CHECK_DEVICE(reference_dev, Jr_partial);
-  FTB_CHECK_DEVICE(reference_dev, squared_residuals);
+  STB_CHECK_DEVICE(reference_dev, JtJ_partial);
+  STB_CHECK_DEVICE(reference_dev, Jr_partial);
+  STB_CHECK_DEVICE(reference_dev, squared_residuals);
 
   int num_matches;
   if (reference_dev.is_cuda()) {
@@ -177,16 +177,16 @@ int ICPJacobian::EstimateFeatureSO3(
     torch::Tensor squared_residuals) {
   const auto reference_dev = src_points.device();
 
-  FTB_CHECK_DEVICE(reference_dev, src_feats);
-  FTB_CHECK_DEVICE(reference_dev, src_mask);
-  FTB_CHECK_DEVICE(reference_dev, rt_cam);
-  FTB_CHECK_DEVICE(reference_dev, tgt_feats);
-  FTB_CHECK_DEVICE(reference_dev, kcam);
-  FTB_CHECK_DEVICE(reference_dev, merge_map);
+  STB_CHECK_DEVICE(reference_dev, src_feats);
+  STB_CHECK_DEVICE(reference_dev, src_mask);
+  STB_CHECK_DEVICE(reference_dev, rt_cam);
+  STB_CHECK_DEVICE(reference_dev, tgt_feats);
+  STB_CHECK_DEVICE(reference_dev, kcam);
+  STB_CHECK_DEVICE(reference_dev, merge_map);
 
-  FTB_CHECK_DEVICE(reference_dev, JtJ_partial);
-  FTB_CHECK_DEVICE(reference_dev, Jr_partial);
-  FTB_CHECK_DEVICE(reference_dev, squared_residuals);
+  STB_CHECK_DEVICE(reference_dev, JtJ_partial);
+  STB_CHECK_DEVICE(reference_dev, Jr_partial);
+  STB_CHECK_DEVICE(reference_dev, squared_residuals);
 
   int num_matches;
   if (reference_dev.is_cuda()) {

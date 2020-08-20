@@ -34,7 +34,7 @@ struct KCamera {
   /**
    * Forward project a 3D point into a 2D one, and round to integer. V2
    */
-  FTB_DEVICE_HOST inline void Projecti(const Vector<scalar_t, 3> point, int &x,
+  STB_DEVICE_HOST inline void Projecti(const Vector<scalar_t, 3> point, int &x,
                                        int &y) const {
     scalar_t img_x, img_y;
 
@@ -50,7 +50,7 @@ struct KCamera {
   /**
    * Forward
    */
-  FTB_DEVICE_HOST inline void Project(const Vector<scalar_t, 3> point,
+  STB_DEVICE_HOST inline void Project(const Vector<scalar_t, 3> point,
                                       scalar_t &x, scalar_t &y) const {
     const scalar_t img_x = matrix[0][0] * point[0] / point[2] + matrix[0][2];
     const scalar_t img_y = matrix[1][1] * point[1] / point[2] + matrix[1][2];
@@ -62,7 +62,7 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST inline void Dx_Project(const Vector<scalar_t, 3> point,
+  STB_DEVICE_HOST inline void Dx_Project(const Vector<scalar_t, 3> point,
                                          scalar_t &j00, scalar_t &j02,
                                          scalar_t &j11, scalar_t &j12) const {
     const scalar_t fx = matrix[0][0];
@@ -80,7 +80,7 @@ struct KCamera {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST Vector<scalar_t, 2> get_center() const {
+  STB_DEVICE_HOST Vector<scalar_t, 2> get_center() const {
     return Vector<scalar_t, 2>(matrix[0][2], matrix[1][2]);
   }
 };
@@ -131,7 +131,7 @@ struct RigidTransform {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> Transform(
+  STB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> Transform(
       const Eigen::Matrix<scalar_t, 3, 1> &point) const {
     const auto mtx = rt_matrix;
     const scalar_t px = mtx(0, 0) * point[0] + mtx(0, 1) * point[1] +
@@ -147,7 +147,7 @@ struct RigidTransform {
 #ifdef __CUDACC__
 #pragma nv_exec_check_disable
 #endif
-  FTB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> TransformNormal(
+  STB_DEVICE_HOST inline Eigen::Matrix<scalar_t, 3, 1> TransformNormal(
       const Eigen::Matrix<scalar_t, 3, 1> &normal) const {
     const scalar_t nx = normal_matrix(0, 0) * normal[0] +
                         normal_matrix(0, 1) * normal[1] +

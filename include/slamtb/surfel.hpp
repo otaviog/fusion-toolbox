@@ -19,12 +19,12 @@ struct SurfelCloud {
   void Allocate(int64_t size, int64_t feature_size, torch::Device device);
 
   void CheckDevice(const torch::Device &dev) const {
-    FTB_CHECK_DEVICE(dev, points);
-    FTB_CHECK_DEVICE(dev, confidences);
-    FTB_CHECK_DEVICE(dev, normals);
-    FTB_CHECK_DEVICE(dev, radii);
-    FTB_CHECK_DEVICE(dev, colors);
-    FTB_CHECK_DEVICE(dev, times);
+    STB_CHECK_DEVICE(dev, points);
+    STB_CHECK_DEVICE(dev, confidences);
+    STB_CHECK_DEVICE(dev, normals);
+    STB_CHECK_DEVICE(dev, radii);
+    STB_CHECK_DEVICE(dev, colors);
+    STB_CHECK_DEVICE(dev, times);
   }
 
   int64_t get_size() const { return points.size(0); }
